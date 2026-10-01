@@ -75,7 +75,7 @@ final class DesktopHello {
     }
 
     private static byte[] sign(String how,byte[] challenge) throws Exception {
-        String said=run(how,Base64.getEncoder().encodeToString(challenge));
+        String said=run(how,Base64.getEncoder().encodeToString(challenge),ProcessHandle.current().pid());
         if(said.startsWith("SIGNED "))return Base64.getDecoder().decode(said.substring(7).trim());
         String status=said.startsWith("STATUS ")?said.substring(7).trim():said.trim();
         throw new IOException(status.equals("UserCanceled")?"Windows Hello was cancelled.":status.equals("NotFound")?"Windows Hello has no key for Mininotes on this PC.":"Windows Hello did not answer ("+status+").");
@@ -88,11 +88,13 @@ final class DesktopHello {
         // Windows opens Hello's own window for whoever asked - here a hidden helper - so it could open behind
         // Mininotes, where nobody saw it and setting Hello up never finished. Started by the window in use,
         // the helper may let another window come to the front: it lets Hello's, and asks it forward, only a
-        // Windows Security window opened since it started.
-        "Add-Type -TypeDefinition 'using System;using System.Diagnostics;using System.Runtime.InteropServices;public static class Forward{[DllImport(\"user32.dll\")]static extern bool AllowSetForegroundWindow(int p);[DllImport(\"user32.dll\")]static extern bool SetForegroundWindow(IntPtr h);[DllImport(\"user32.dll\")]static extern IntPtr GetForegroundWindow();public static void Allow(){AllowSetForegroundWindow(-1);}public static void Bring(DateTime since){foreach(Process p in Process.GetProcessesByName(\"CredentialUIBroker\")){try{if(p.StartTime<since)continue;IntPtr h=p.MainWindowHandle;if(h!=IntPtr.Zero&&GetForegroundWindow()!=h)SetForegroundWindow(h);}catch{}}}}'",
-        "[Forward]::Allow();$since=[DateTime]::Now.AddSeconds(-1)",
+        // Windows Security window opened since it started - and only while Mininotes (the process named
+        // third) is the window in front. Asked from behind another program, Windows refuses and flashes the
+        // taskbar instead, again and again for as long as the question waits.
+        "Add-Type -TypeDefinition 'using System;using System.Diagnostics;using System.Runtime.InteropServices;public static class Forward{[DllImport(\"user32.dll\")]static extern bool AllowSetForegroundWindow(int p);[DllImport(\"user32.dll\")]static extern bool SetForegroundWindow(IntPtr h);[DllImport(\"user32.dll\")]static extern IntPtr GetForegroundWindow();[DllImport(\"user32.dll\")]static extern uint GetWindowThreadProcessId(IntPtr h,out uint p);public static void Allow(){AllowSetForegroundWindow(-1);}public static void Bring(DateTime since,int owner){IntPtr f=GetForegroundWindow();uint fp=0;if(owner<=0||f==IntPtr.Zero)return;GetWindowThreadProcessId(f,out fp);if(fp!=(uint)owner)return;foreach(Process p in Process.GetProcessesByName(\"CredentialUIBroker\")){try{if(p.StartTime<since)continue;IntPtr h=p.MainWindowHandle;if(h!=IntPtr.Zero&&f!=h)SetForegroundWindow(h);}catch{}}}}'",
+        "$owner=[int]$args[2];if($owner -gt 0){[Forward]::Allow()};$since=[DateTime]::Now.AddSeconds(-1)",
         "$asTask=[System.WindowsRuntimeSystemExtensions].GetMethods()|?{$_.Name -eq 'AsTask' -and $_.GetParameters().Count -eq 1 -and $_.GetParameters()[0].ParameterType.Name -eq 'IAsyncOperation`1'}|Select-Object -First 1",
-        "function Await($op,[Type]$t){$task=$asTask.MakeGenericMethod($t).Invoke($null,@($op));while(-not $task.Wait(300)){[Forward]::Bring($since)};$task.Result}",
+        "function Await($op,[Type]$t){$task=$asTask.MakeGenericMethod($t).Invoke($null,@($op));while(-not $task.Wait(300)){[Forward]::Bring($since,$owner)};$task.Result}",
         "$null=[Windows.Security.Credentials.KeyCredentialManager,Windows.Security.Credentials,ContentType=WindowsRuntime]",
         "$null=[Windows.Security.Cryptography.CryptographicBuffer,Windows.Security.Cryptography,ContentType=WindowsRuntime]",
         "$how=$args[0];$challenge=$args[1]",
@@ -113,14 +115,25 @@ final class DesktopHello {
         // ("cannot convert System.__ComObject"), which is what left Hello half set up. Reflection casts it.
         "'SIGNED '+[Convert]::ToBase64String($toArray.Invoke($null,@($s.Result)))");
 
-    static String run(String how,String challenge) throws Exception {
+    static String run(String how,String challenge) throws Exception{return run(how,challenge,0);}
+
+    /** @param owner the process whose window, while in front, may hand the front to Hello's; 0 when nothing is asked of the person */
+    static String run(String how,String challenge,long owner) throws Exception {
         // Windows PowerShell (5.1, in every Windows 10 and 11), not PowerShell 7: only it can call Windows' own APIs.
         String shell=Path.of(System.getenv().getOrDefault("SystemRoot","C:\\Windows"),"System32","WindowsPowerShell","v1.0","powershell.exe").toString();
-        String encoded=Base64.getEncoder().encodeToString(("& {"+SCRIPT+"} '"+how+"' '"+challenge+"'").getBytes(StandardCharsets.UTF_16LE));
+        String encoded=Base64.getEncoder().encodeToString(("& {"+SCRIPT+"} '"+how+"' '"+challenge+"' "+owner).getBytes(StandardCharsets.UTF_16LE));
         Process p=new ProcessBuilder(shell,"-NoProfile","-NonInteractive","-WindowStyle","Hidden","-EncodedCommand",encoded).redirectErrorStream(true).start();
         p.getOutputStream().close();
-        String out=new String(p.getInputStream().readAllBytes(),StandardCharsets.UTF_8);
-        if(!p.waitFor(3,TimeUnit.MINUTES)){p.destroyForcibly();throw new IOException("Windows Hello took too long.");}
+        // Read aside, so the wait below can end: reading first waited for as long as the helper lived, and a
+        // Hello question lost behind another window kept the unlock button waiting with it, past any limit.
+        // Given up (the thread interrupted: the button pressed again, the window closed), the helper goes too.
+        byte[][] read={null};
+        Thread reader=new Thread(()->{try{read[0]=p.getInputStream().readAllBytes();}catch(IOException gone){read[0]=new byte[0];}},"mininotes-hello-read");
+        reader.setDaemon(true);reader.start();
+        try{if(!p.waitFor(3,TimeUnit.MINUTES)){stop(p);throw new IOException("Windows Hello took too long.");}}
+        catch(InterruptedException givenUp){stop(p);throw givenUp;}
+        reader.join(5000);
+        String out=read[0]==null?"":new String(read[0],StandardCharsets.UTF_8);
         for(String line:out.split("\\R"))if(line.startsWith("SIGNED ")||line.startsWith("STATUS ")||line.startsWith("SUPPORTED "))return line;
         // What Windows said instead, in its own words: "could not be reached" alone hid a fault here. An error
         // from a hidden PowerShell comes wrapped in XML ("#< CLIXML"); the error lines are taken out of it.
@@ -131,4 +144,7 @@ final class DesktopHello {
         else for(String line:out.split("\\R"))if(!line.isBlank()&&!line.startsWith("#< CLIXML")){first=line.trim();break;}
         throw new IOException("Windows Hello could not be reached"+(first.isEmpty()?".":": "+(first.length()>160?first.substring(0,160)+"…":first)));
     }
+
+    /** The helper and anything it started, ended: its Hello question goes with it. */
+    private static void stop(Process p){p.descendants().forEach(ProcessHandle::destroyForcibly);p.destroyForcibly();}
 }

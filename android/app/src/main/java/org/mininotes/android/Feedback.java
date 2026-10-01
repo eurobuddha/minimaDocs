@@ -37,7 +37,7 @@ final class Feedback {
      */
     enum Area {
         WRITING("Writing a note"),
-        SHELVES("Collections and books"),
+        SHELVES("Notes and collections"),
         SHARING("Sharing and syncing"),
         FILES("Attachments"),
         BACKUP("Backup and restore"),

@@ -203,4 +203,58 @@ public class PairingTest {
             catch(IllegalArgumentException refused){/* as it should be */}
         }
     }
+
+    // ---- an offer that makes somebody an admin ----------------------------------------------------------------
+
+    /** What a build from before 0.1.040 made of a line: whether it writes, and the scope it quotes back. */
+    private static String[] readAsBefore(String line) {
+        String[] parts=line.substring(Pairing.MARK.length()).split("\\|",-1);
+        return new String[]{String.valueOf("w".equals(parts[5].trim())),parts.length==8?parts[6].trim():""};
+    }
+
+    @Test public void anAdminOfferComesBackAsAdminAndTheScopeAsItWas() {
+        String line=Pairing.write("Ana",ADDRESS,AGREE,SIGN,"the book Crypto",Sharing.Level.ADMIN,"BOOK","book-1");
+        Pairing.Said said=Pairing.read(line);
+        assertEquals(Sharing.Level.ADMIN,said.level);
+        assertTrue(said.writes);
+        assertEquals("BOOK",said.scope);
+        assertEquals("book-1",said.target);
+    }
+
+    @Test public void aBuildFromBeforeReadsAnAdminOfferAsCanWriteNeverMore() {
+        String line=Pairing.write("Ana",ADDRESS,AGREE,SIGN,"the book Crypto",Sharing.Level.ADMIN,"BOOK","book-1");
+        String[] before=readAsBefore(line);
+        assertEquals("true",before[0]);
+        // What it quotes back in its hello - the scope with the level after it - reads here as the scope, and its hello
+        // claims only what its byte says: Can write.
+        assertEquals("BOOK:3",before[1]);
+        assertEquals("BOOK",Pairing.scopeIn(before[1]));
+        assertEquals(Sharing.Level.WRITE,Hello.level(1));
+    }
+
+    @Test public void canWriteAndCanReadOffersAreTheLinesTheyAlwaysWere() {
+        String writes=Pairing.write("Ana",ADDRESS,AGREE,SIGN,"the book Crypto",Sharing.Level.WRITE,"BOOK","book-1");
+        assertEquals(Pairing.write("Ana",ADDRESS,AGREE,SIGN,"the book Crypto",true,"BOOK","book-1"),writes);
+        assertEquals(Sharing.Level.WRITE,Pairing.read(writes).level);
+        String reads=Pairing.write("Ana",ADDRESS,AGREE,SIGN,"the book Crypto",Sharing.Level.READ,"BOOK","book-1");
+        assertEquals(Pairing.write("Ana",ADDRESS,AGREE,SIGN,"the book Crypto",false,"BOOK","book-1"),reads);
+        assertEquals(Sharing.Level.READ,Pairing.read(reads).level);
+        assertEquals("false",readAsBefore(reads)[0]);
+    }
+
+    @Test public void aLevelAfterAReadMarkIsReadAndADamagedOneIsCanWrite() {
+        // "r" is read whatever follows the scope: a mark is never raised by what comes after it.
+        String line=Pairing.MARK+"Ana|"+ADDRESS+"|"+Base64.getEncoder().encodeToString(AGREE)+"|"+Base64.getEncoder().encodeToString(SIGN)
+            +"|the book Crypto|r|BOOK:3|book-1";
+        assertEquals(Sharing.Level.READ,Pairing.read(line).level);
+        assertEquals("BOOK",Pairing.read(line).scope);
+        assertEquals(Sharing.Level.WRITE,Pairing.levelIn("BOOK:x"));
+        assertEquals(Sharing.Level.WRITE,Pairing.levelIn("BOOK:1"));
+        assertEquals(Sharing.Level.WRITE,Pairing.levelIn("BOOK"));
+        assertEquals("a later build's number is the most this one knows",Sharing.Level.ADMIN,Pairing.levelIn("BOOK:9"));
+    }
+
+    @Test public void nobodyIsOfferedBeingTakenOff() {
+        assertEquals(Sharing.Level.READ,Pairing.read(Pairing.write("Ana",ADDRESS,AGREE,SIGN,"the book Crypto",Sharing.Level.GONE,"BOOK","book-1")).level);
+    }
 }

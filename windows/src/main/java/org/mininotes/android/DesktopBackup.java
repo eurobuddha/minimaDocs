@@ -66,7 +66,9 @@ final class DesktopBackup {
     }
 
     static int add(NoteStore store,Path source) throws Exception{return add(store,source,null);}
-    static int add(NoteStore store,Path source,Unlock unlock) throws Exception {
+    static int add(NoteStore store,Path source,Unlock unlock) throws Exception{return add(store,source,unlock,false);}
+    /** Replacing is a restore, as on the phone: the pad becomes what the backup was, ids and files included. */
+    static int add(NoteStore store,Path source,Unlock unlock,boolean replacing) throws Exception {
         if(Files.size(source)>Attachment.PLENTY+TEXT_LIMIT+(1<<20))throw new IOException("That backup is too large");
         Map<String,Path> files=new LinkedHashMap<>();String text=null;
         Path staging=Files.createTempDirectory(store.landing().toPath(),"backup-");
@@ -96,7 +98,8 @@ final class DesktopBackup {
                         if(id==null)throw new IOException("Unexpected backup entry");
                         Path pending=staging.resolve(id);files.put(id,pending);
                         try(OutputStream out=Files.newOutputStream(pending)){total+=copyBounded(archive,out,Attachment.LIMIT);}
-                        if(total+store.weight()>Attachment.PLENTY)throw new IOException("Not enough attachment space");
+                        // A restore takes the place of what is here, so only its own files have to fit.
+                        if(total+(replacing?0:store.weight())>Attachment.PLENTY)throw new IOException("Not enough attachment space");
                     }
                 }
                 // Read to the very end: a locked backup's last piece carries the check that it is whole.
@@ -109,7 +112,7 @@ final class DesktopBackup {
         new org.json.JSONObject(text).getJSONArray("notes");
         try {
             for(var entry:files.entrySet())Files.move(entry.getValue(),store.landingFor(entry.getKey()).toPath(),StandardCopyOption.REPLACE_EXISTING);
-            return store.importBackup(text,false);
+            return store.importBackup(text,replacing);
         } finally {for(String id:files.keySet())Files.deleteIfExists(store.landingFor(id).toPath());}
         } finally {for(Path path:files.values())Files.deleteIfExists(path);Files.deleteIfExists(staging);}
     }

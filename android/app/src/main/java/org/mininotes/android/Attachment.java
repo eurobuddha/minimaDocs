@@ -60,6 +60,30 @@ final class Attachment {
     /** Whether one file is more than a pad will take. */
     static boolean tooBig(long bytes){return bytes>LIMIT;}
 
+    /** What a paste on a note does, by what is on the clipboard (see {@link #pasted}). */
+    enum Pasted { FILES, WORDS, PICTURE, NOTHING }
+
+    /**
+     * What a paste on a note does, as a messaging app takes one (the owner's ask, 2026-10-01: "a Ctrl+V after a screenshot
+     * from an app like Greenshot should attach the file directly, as WhatsApp does"): files copied in Explorer are kept
+     * with the note; words are pasted as words, even where a picture of them comes too - a table copied from a spreadsheet
+     * brings both, and a note is writing; and a picture with no words - a screenshot, a picture copied in a browser - is
+     * kept with the note as a file.
+     *
+     * @param words whether there are words on it that are more than spaces
+     */
+    static Pasted pasted(boolean files,boolean words,boolean picture) {
+        if(files)return Pasted.FILES;
+        if(words)return Pasted.WORDS;
+        return picture?Pasted.PICTURE:Pasted.NOTHING;
+    }
+
+    private static final java.time.format.DateTimeFormatter NAMED=java.time.format.DateTimeFormatter.ofPattern("d MMM, HH:mm",java.util.Locale.ENGLISH);
+
+    /** "Picture 1 Oct, 12:05.png": a pasted picture named for when it came, as a recording is - nothing else says what it is. */
+    static String picture(java.time.ZonedDateTime when){return "Picture "+NAMED.format(when)+".png";}
+    static String picture(long when){return picture(java.time.ZonedDateTime.ofInstant(java.time.Instant.ofEpochMilli(when),java.time.ZoneId.systemDefault()));}
+
     /**
      * Where a file sits inside a backup. The name is the row's own id, which the app made, so a backup
      * written by this app can never name a path; one written by anything else is refused on the way in.

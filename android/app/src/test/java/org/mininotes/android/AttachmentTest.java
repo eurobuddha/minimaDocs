@@ -64,4 +64,21 @@ public class AttachmentTest {
         assertNull(Attachment.idOf("files/"+"a".repeat(80)));
         assertNull(Attachment.idOf(null));
     }
+
+    @Test public void aPastedPictureIsKeptAndWordsStayWords() {
+        // A screenshot from Greenshot or the Snipping Tool, a picture copied in a browser: kept with the note.
+        assertEquals(Attachment.Pasted.PICTURE,Attachment.pasted(false,false,true));
+        // A table copied from a spreadsheet brings its words and a picture of them: the words.
+        assertEquals(Attachment.Pasted.WORDS,Attachment.pasted(false,true,true));
+        assertEquals(Attachment.Pasted.WORDS,Attachment.pasted(false,true,false));
+        // Files copied in Explorer, whatever else comes with them: the files.
+        assertEquals(Attachment.Pasted.FILES,Attachment.pasted(true,true,true));
+        assertEquals(Attachment.Pasted.NOTHING,Attachment.pasted(false,false,false));
+    }
+
+    @Test public void aPastedPictureIsNamedForWhenItCame() {
+        java.time.ZonedDateTime when=java.time.ZonedDateTime.of(2026,10,1,12,5,31,0,java.time.ZoneId.of("Europe/Athens"));
+        assertEquals("Picture 1 Oct, 12:05.png",Attachment.picture(when));
+        assertEquals("a name it keeps as it is",Attachment.picture(when),Attachment.named(Attachment.picture(when)));
+    }
 }

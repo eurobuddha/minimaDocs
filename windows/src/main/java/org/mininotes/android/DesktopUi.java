@@ -39,6 +39,14 @@ final class DesktopUi {
     /** The look, once, before anything is drawn. */
     static synchronized void install() {
         if(installed)return;installed=true;
+        // The hand over anything that can be pressed: every button, switch, menu line and drop-down, set as the
+        // pointer first reaches it, so no button made anywhere in the app can be left with the arrow.
+        if(!GraphicsEnvironment.isHeadless())Toolkit.getDefaultToolkit().addAWTEventListener(event->{
+            if(event.getID()!=java.awt.event.MouseEvent.MOUSE_ENTERED)return;
+            Object over=event.getSource();
+            if((over instanceof AbstractButton||over instanceof JComboBox)&&!((Component)over).isCursorSet())
+                ((Component)over).setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+        },AWTEvent.MOUSE_EVENT_MASK);
         FlatLaf.setGlobalExtraDefaults(Map.of(
             "@accentColor","#306348","@background","#FAF9F4","@foreground","#2B302B",
             "@selectionBackground","#DCE8DF","@selectionForeground","#2B302B",
@@ -60,6 +68,9 @@ final class DesktopUi {
         UIManager.put("List.selectionArc",8);UIManager.put("List.selectionInsets",new Insets(0,4,0,4));
         UIManager.put("PopupMenu.borderCornerRadius",10);UIManager.put("MenuItem.selectionArc",6);
         UIManager.put("MenuItem.selectionInsets",new Insets(0,4,0,4));UIManager.put("MenuItem.margin",new Insets(6,12,6,12));
+        // Every kind of line keeps the same margin: a submenu (Colour ▸) kept FlatLaf's narrower one, and its
+        // name stood left of every other name in the menu.
+        for(String kind:new String[]{"Menu","CheckBoxMenuItem","RadioButtonMenuItem"})UIManager.put(kind+".margin",new Insets(6,12,6,12));
         // No menu here has icons, so no room is kept for one: the words start at the edge, not a thumb's width in.
         UIManager.put("MenuItem.minimumIconSize",new Dimension(0,0));UIManager.put("MenuItem.textIconGap",0);
         UIManager.put("CheckBoxMenuItem.minimumIconSize",new Dimension(0,0));
@@ -105,8 +116,9 @@ final class DesktopUi {
         @Override protected void paintComponent(Graphics g) {
             super.paintComponent(g);
             ColourEmoji colour=ColourEmoji.get();if(colour==null)return;
-            Color behind=ground(this);Color was=getBackground();setBackground(behind);
-            try{colour.paint(this,g);}finally{setBackground(was);}
+            // The colour behind is handed to the painter, not set here: setting it asked for a repaint on every
+            // paint, and the whole window redrew itself without end - too busy to hear the close button.
+            colour.paint(this,g,ground(this));
         }
         @Override public Dimension getPreferredSize() {
             if(wrap<=0)return super.getPreferredSize();
@@ -209,16 +221,22 @@ final class DesktopUi {
     }
     /** A round with a person's first letter: people are shown as people, never as addresses. */
     static JComponent avatar(String name) {
-        String letter=name==null||name.isBlank()?"?":name.trim().substring(0,1).toUpperCase(java.util.Locale.ROOT);
         return new JComponent(){
             {setPreferredSize(new Dimension(32,32));setMinimumSize(getPreferredSize());}
             @Override protected void paintComponent(Graphics g0) {
                 Graphics2D g=(Graphics2D)g0.create();g.setRenderingHint(RenderingHints.KEY_ANTIALIASING,RenderingHints.VALUE_ANTIALIAS_ON);
-                g.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING,RenderingHints.VALUE_TEXT_ANTIALIAS_LCD_HRGB);
-                g.setColor(new Color(221,232,224));g.fillOval(0,0,32,32);g.setColor(ACCENT);g.setFont(BODY.deriveFont(Font.BOLD,14f));
-                FontMetrics m=g.getFontMetrics();g.drawString(letter,(32-m.stringWidth(letter))/2,(32-m.getHeight())/2+m.getAscent());g.dispose();
+                paintAvatar(g,name,0,0,32);g.dispose();
             }
         };
+    }
+    /** The round itself, at any size: the same one on a line of people and, smaller, under a note's title. */
+    static void paintAvatar(Graphics2D g,String name,int x,int y,int side){paintAvatar(g,name,x,y,side,new Color(221,232,224),ACCENT);}
+    /** The same, in other colours: a person's writing colour, where the round says whose coloured words are whose. */
+    static void paintAvatar(Graphics2D g,String name,int x,int y,int side,Color fill,Color letterColour) {
+        String letter=name==null||name.isBlank()?"?":new String(Character.toChars(name.trim().codePointAt(0))).toUpperCase(java.util.Locale.ROOT);
+        g.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING,RenderingHints.VALUE_TEXT_ANTIALIAS_LCD_HRGB);
+        g.setColor(fill);g.fillOval(x,y,side,side);g.setColor(letterColour);g.setFont(BODY.deriveFont(Font.BOLD,side*0.44f));
+        FontMetrics m=g.getFontMetrics();g.drawString(letter,x+(side-m.stringWidth(letter))/2f,y+(side-m.getHeight())/2f+m.getAscent());
     }
     /** A person: their round, their name, and a quiet line under it. */
     static JPanel person(String name,String under) {
@@ -359,7 +377,33 @@ final class DesktopUi {
         add(body,words);gap(body,12);add(body,pick);
         JButton go=primary(yes,()->{said[0]=pick.getSelectedIndex();box[0].dispose();});
         box[0]=sheet(owner,title,body,footer(go),true);
-        box[0].getRootPane().setDefaultButton(go);show(box[0],420,340);return said[0];
+        box[0].getRootPane().setDefaultButton(go);show(box[0],420,460);return said[0];
+    }
+    /**
+     * A role, chosen from the ones that may be given, each over what it lets them do: a drop-down of bare names said
+     * nothing about what any of them meant. Null if none was taken.
+     */
+    static Sharing.Level chooseRole(Window owner,String title,String message,java.util.List<Sharing.Level> levels,Sharing.Level initial,String yes) {
+        Sharing.Level[] said={null};JDialog[] box={null};
+        JPanel body=column();add(body,note(message,360,INK,BODY));gap(body,12);
+        ButtonGroup group=new ButtonGroup();java.util.List<JRadioButton> buttons=new java.util.ArrayList<>();
+        for(Sharing.Level level:levels) {
+            JRadioButton one=new JRadioButton(level.words(),level==initial||initial==null&&buttons.isEmpty());one.setOpaque(false);
+            one.setFont(BODY.deriveFont(Font.BOLD));one.setForeground(INK);one.setName(level.name());
+            one.getAccessibleContext().setAccessibleName(level.words()+". "+level.does());
+            group.add(one);buttons.add(one);add(body,one);
+            Text does=note(level.does(),330,QUIET,BODY.deriveFont(13f));does.setBorder(BorderFactory.createEmptyBorder(0,26,0,0));
+            // A click on the words picks the role, as a click on its name does.
+            does.addMouseListener(new MouseAdapter(){public void mouseClicked(MouseEvent e){one.setSelected(true);}});
+            add(body,does);gap(body,8);
+        }
+        JButton go=primary(yes,()->{for(int i=0;i<buttons.size();i++)if(buttons.get(i).isSelected())said[0]=levels.get(i);box[0].dispose();});
+        box[0]=sheet(owner,title,body,footer(go),true);
+        box[0].getRootPane().setDefaultButton(go);show(box[0],440,560);return said[0];
+    }
+    /** A role as a line of a menu: its name, and under it what it lets them do. */
+    static String roleLine(String role,String does) {
+        return "<html><div style='width:250px'><b>"+role+"</b><br><font color='#"+String.format("%06x",QUIET.getRGB()&0xffffff)+"'>"+does+"</font></div></html>";
     }
     /** One item from a list. Null if none was taken. */
     static <T> T pick(Window owner,String title,String message,List<T> items,Function<T,String> label,String yes) {

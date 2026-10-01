@@ -19,7 +19,12 @@ import java.util.Objects;
  * <p>Holds no Android types, so what a rule reaches — and what it must never reach — is unit tested.
  */
 final class Sharing {
-    enum Scope { LIBRARY, COLLECTION, BOOK, PAGE }
+    /**
+     * The level a rule was set at. COLLECTION, BOOK and PAGE are the three levels a 0.1 device knows, and rows that
+     * came from one keep them; THING is a collection at any depth, for rules made since collections nest (see
+     * docs/HOME.md, decision 12). Added last: a scope travels and is kept by its name.
+     */
+    enum Scope { LIBRARY, COLLECTION, BOOK, PAGE, THING }
     /** The target of a library rule: there is only one library, so it needs no id. */
     static final String EVERYTHING="*";
 
@@ -62,6 +67,62 @@ final class Sharing {
                 default: return "does not get this";
             }
         }
+
+        /** What the role lets somebody do, in one line under its name wherever a role is chosen or shown. */
+        String does() {
+            switch(this) {
+                case ADMIN: return "Can read, write and share it: add people who can write or read, change their role or remove them. Not the owner or other admins.";
+                case WRITE: return "Can read it and change it.";
+                case READ: return "Can see it and get changes.";
+                default: return "Does not get it.";
+            }
+        }
+    }
+
+    /**
+     * The one who made the thing. Not a level anybody is given - there is one owner, and it is whoever the thing
+     * came from, or this device where it came from nobody - so it is said beside the levels rather than among them.
+     */
+    static final String OWNER="Owner";
+    static final String OWNER_DOES="Made it. Can do everything, including changing anyone's role, admins included, and removing anyone.";
+
+    /**
+     * What somebody may give others, most first: the owner Admin, Can write or Can read; an admin Can write or Can
+     * read; anybody else nothing.
+     *
+     * @param mine what this device may do with the thing, where it is not the owner; null where nothing says
+     */
+    static java.util.List<Level> grantable(boolean owner,Level mine) {
+        if(owner)return java.util.List.of(Level.ADMIN,Level.WRITE,Level.READ);
+        if(mine==Level.ADMIN)return java.util.List.of(Level.WRITE,Level.READ);
+        return java.util.List.of();
+    }
+
+    /**
+     * Whether somebody may change a member's role or take them off: the owner anybody but themselves; an admin
+     * anybody who is neither the owner nor an admin; anybody else nobody.
+     *
+     * @param theirs what the member may do now
+     * @param theyOwn the member is whoever the thing is from
+     */
+    static boolean mayChange(boolean owner,Level mine,Level theirs,boolean theyOwn) {
+        if(theyOwn)return false;
+        if(owner)return true;
+        return mine==Level.ADMIN&&theirs!=Level.ADMIN;
+    }
+
+    /**
+     * Whether a decision about a member, arriving in a list, may stand here. From the owner, any. From anybody
+     * else - an admin, or a device passing on a list it was sent - never one about the owner, never one making
+     * somebody an admin, and never one about somebody who is an admin here: what the owner decides about admins
+     * reaches here in the owner's own lists. A list from a build that let an admin do more is held to the same.
+     *
+     * @param before what the member may do here now, or null where nothing is written down about them
+     */
+    static boolean mayCarry(boolean fromOwner,boolean aboutOwner,Level before,Level after) {
+        if(fromOwner)return true;
+        if(aboutOwner)return false;
+        return after!=Level.ADMIN&&before!=Level.ADMIN;
     }
 
     static final class Rule {
@@ -106,9 +167,17 @@ final class Sharing {
      * another device of yours. An address reached at several levels appears once.
      */
     static Map<String,Boolean> audience(Collection<Rule> rules,String collection,String book,String page) {
+        return audience(rules,path(collection,book,page));
+    }
+
+    /**
+     * The same, for a thing anywhere in the tree: {@code path} is every collection above it from Home down and then
+     * the thing itself (see {@link Things#path}).
+     */
+    static Map<String,Boolean> audience(Collection<Rule> rules,java.util.List<String> path) {
         Map<String,Boolean> reached=new LinkedHashMap<>();
         for(Rule rule:rules) {
-            if(!covers(rule,collection,book,page))continue;
+            if(!covers(rule,path))continue;
             Boolean mine=reached.get(rule.address);
             reached.put(rule.address,rule.mine||(mine!=null&&mine));
         }
@@ -126,9 +195,14 @@ final class Sharing {
      */
     static Rule standing(Collection<Rule> rules,String collection,String book,String page,
                          Collection<String> addresses,String key) {
+        return standing(rules,path(collection,book,page),addresses,key);
+    }
+
+    /** The same, along a path: see {@link #audience(Collection,java.util.List)}. */
+    static Rule standing(Collection<Rule> rules,java.util.List<String> path,Collection<String> addresses,String key) {
         Rule most=null;
         for(Rule rule:rules) {
-            if(!covers(rule,collection,book,page))continue;
+            if(!covers(rule,path))continue;
             boolean them=(addresses!=null&&addresses.contains(rule.address))
                 ||(key!=null&&!key.isEmpty()&&key.equals(rule.key));
             if(!them)continue;
@@ -139,13 +213,25 @@ final class Sharing {
 
     /** True when a rule set at its level applies to this page. A rule for another target must never apply. */
     static boolean covers(Rule rule,String collection,String book,String page) {
-        switch(rule.scope) {
-            case LIBRARY: return true;
-            case COLLECTION: return rule.target.equals(collection);
-            case BOOK: return rule.target.equals(book);
-            case PAGE: return rule.target.equals(page);
-            default: return false;
-        }
+        return covers(rule,path(collection,book,page));
+    }
+
+    /**
+     * True when a rule applies to the thing at the end of {@code path}: the library rule always, any other when its
+     * target is the thing or a collection above it. Which level the rule names does not matter - every thing has an
+     * id of its own, whatever level it was made at - so a rule set on a book, which is a collection now, reaches
+     * everything inside it however deep, as a rule on a collection always did.
+     */
+    static boolean covers(Rule rule,java.util.List<String> path) {
+        if(rule.scope==Scope.LIBRARY)return true;
+        return path!=null&&!rule.target.isEmpty()&&path.contains(rule.target);
+    }
+
+    /** The three old levels as a path: those of them that are named, top down. */
+    static java.util.List<String> path(String collection,String book,String page) {
+        java.util.List<String> all=new java.util.ArrayList<>(3);
+        for(String one:new String[]{collection,book,page})if(one!=null&&!one.isEmpty())all.add(one);
+        return all;
     }
 
     /** What moving something would do to its audience: who starts receiving it, and who stops. */
@@ -165,8 +251,16 @@ final class Sharing {
      */
     static Change moving(Collection<Rule> rules,String fromCollection,String fromBook,
                          String toCollection,String toBook,String page) {
-        Map<String,Boolean> before=audience(rules,fromCollection,fromBook,page);
-        Map<String,Boolean> after=audience(rules,toCollection,toBook,page);
+        return moving(rules,path(fromCollection,fromBook,page),path(toCollection,toBook,page));
+    }
+
+    /**
+     * The same for anything moving anywhere: {@code from} and {@code to} are its path where it is and where it would
+     * be, each ending with the thing itself - so rules set on it, or on anything inside it, follow it.
+     */
+    static Change moving(Collection<Rule> rules,java.util.List<String> from,java.util.List<String> to) {
+        Map<String,Boolean> before=audience(rules,from);
+        Map<String,Boolean> after=audience(rules,to);
         Map<String,Boolean> gained=new LinkedHashMap<>(),lost=new LinkedHashMap<>();
         for(Map.Entry<String,Boolean> reached:after.entrySet())
             if(!before.containsKey(reached.getKey()))gained.put(reached.getKey(),reached.getValue());
@@ -228,8 +322,7 @@ final class Sharing {
     /** What is being shared, in as few words as a title can carry — the thing, and what kind of thing. */
     static String shortly(Scope scope,String name) {
         switch(scope) {
-            case COLLECTION: return name+" collection";
-            case BOOK: return name+" book";
+            case COLLECTION: case BOOK: case THING: return name+" collection";
             case PAGE: return "this note";
             default: return "everything";
         }
@@ -242,8 +335,7 @@ final class Sharing {
      */
     static String travelling(Scope scope,String name) {
         switch(scope) {
-            case COLLECTION: return "the collection "+name;
-            case BOOK: return "the book "+name;
+            case COLLECTION: case BOOK: case THING: return "the collection "+name;
             case PAGE: return "the note "+name;
             default: return "everything on their pad";
         }
@@ -262,9 +354,8 @@ final class Sharing {
     /** What the reader is told they are sharing, at each level. */
     static String describe(Scope scope,String name) {
         switch(scope) {
-            case LIBRARY: return "every collection, book and note";
-            case COLLECTION: return "the collection "+name+", and every book in it";
-            case BOOK: return "the book "+name+", and every note in it";
+            case LIBRARY: return "every collection and note";
+            case COLLECTION: case BOOK: case THING: return "the collection "+name+", and everything in it";
             default: return "this note";
         }
     }

@@ -38,7 +38,9 @@ public final class Listening extends Service {
     private static final String STOP="org.mininotes.android.STOP_LISTENING";
     /** Carried by a notification that is about one note, so tapping it opens that note. */
     static final String NOTE="note";
-    private static final int ONGOING=1, LANDED=2, ACCEPTED=3;
+    /** Said on the way into the pad from the notification that files came: the list of them is opened. */
+    static final String RECEIVED="received";
+    private static final int ONGOING=1, LANDED=2, ACCEPTED=3, FILES=4;
 
     /** Whoever is on screen, told as things land. Null while nobody is, and then the phone says it instead. */
     private static volatile Consumer<Post.Landed> watcher;
@@ -113,6 +115,7 @@ public final class Listening extends Service {
         try {
             store.mySigningKey=android.util.Base64.encodeToString(
                 keys.signing().getPublic().getEncoded(),android.util.Base64.NO_WRAP);
+            store.myAgreement=Point.shorten(keys.agreement().getPublic());
             store.myName=Node.nameHere(app);
             store.myAddress=app.getSharedPreferences("settings",Context.MODE_PRIVATE).getString("address","");
         } catch(Exception notNow){return;}
@@ -121,23 +124,34 @@ public final class Listening extends Service {
         // happening for as long as the process lives, screen or no screen.
         Node.everyBeat(()->Post.again(app,store,keys));
         heardForReal=true;
+        // What happens to files sent on their own away from an arrival - fetched, answered - goes where an arrival does.
+        Post.news=landed->told(app,landed);
         hearing=Node.listen(app,message->{
             // While the notebook is being swapped for its locked or unlocked copy, nothing is written into it.
             if(PhoneLock.busy){PhoneLock.keepArriving(app,message);return;}
-            Post.Landed landed=Post.arrived(app,store,keys,message);
-            if(landed==null)return;
-            Consumer<Post.Landed> there=watcher;
-            if(there!=null){there.accept(landed);return;}
-            // Somebody saying they have something is for the marks, not for the person.
-            if(landed.answered)return;
-            if(landed.accepted!=null) {
-                synchronized(unanswered){unanswered.add(landed.accepted);}
-                if(landed.accepted.target.isEmpty())say(app,ACCEPTED,landed.accepted.name+" paired with you",
-                    "Open the pad to finish pairing.","");
-                else say(app,ACCEPTED,landed.accepted.name+" accepted what you offered",
-                    "Open the pad to send it to them.","");
-            } else if(landed.said!=null)say(app,LANDED,landed.said,"",landed.note);
+            told(app,Post.arrived(app,store,keys,message));
         });
+    }
+
+    /** Something landed: to the screen, if one is watching, and otherwise said in one line on the phone. */
+    private static void told(Context app,Post.Landed landed) {
+        if(landed==null)return;
+        Consumer<Post.Landed> there=watcher;
+        if(there!=null){there.accept(landed);return;}
+        // Somebody saying they have something is for the marks, not for the person.
+        if(landed.answered)return;
+        // Files sent on their own: that they came, or that somebody wants to send some. Never what they are called.
+        if(landed.files) {
+            if(landed.said!=null)say(app,FILES,landed.said,landed.asking!=null?"Open the pad to accept or refuse.":"",null,true);
+            return;
+        }
+        if(landed.accepted!=null) {
+            synchronized(unanswered){unanswered.add(landed.accepted);}
+            if(landed.accepted.target.isEmpty())say(app,ACCEPTED,landed.accepted.name+" paired with you",
+                "Open the pad to finish pairing.","");
+            else say(app,ACCEPTED,landed.accepted.name+" accepted what you offered",
+                "Open the pad to send it to them.","");
+        } else if(landed.said!=null)say(app,LANDED,landed.said,"",landed.note);
     }
 
     /** Listening again, with the notebook as it now is: after the lock went on or came off. */
@@ -198,12 +212,15 @@ public final class Listening extends Service {
      * One line, saying who and what kind of thing — never what the note says. A notification is read by
      * whoever is holding the phone, locked or not, and by anything else allowed to read notifications.
      */
-    private static void say(Context app,int id,String title,String text,String note) {
+    private static void say(Context app,int id,String title,String text,String note){say(app,id,title,text,note,false);}
+
+    /** @param received whether tapping it opens Received files rather than a note */
+    private static void say(Context app,int id,String title,String text,String note,boolean received) {
         channels(app);
         Notification.Builder said=new Notification.Builder(app,ARRIVED)
             .setSmallIcon(R.drawable.ic_listening)
             .setContentTitle(title)
-            .setContentIntent(opening(app,note))
+            .setContentIntent(received?openingReceived(app):opening(app,note))
             .setAutoCancel(true);
         if(!text.isEmpty())said.setContentText(text);
         NotificationManager all=app.getSystemService(NotificationManager.class);
@@ -218,6 +235,12 @@ public final class Listening extends Service {
         // One per note, or the second notification's note would quietly replace the first one's.
         return PendingIntent.getActivity(app,note==null?0:note.hashCode(),open,
             PendingIntent.FLAG_IMMUTABLE|PendingIntent.FLAG_UPDATE_CURRENT);
+    }
+
+    private static PendingIntent openingReceived(Context app) {
+        Intent open=new Intent(app,MainActivity.class).putExtra(RECEIVED,true)
+            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK|Intent.FLAG_ACTIVITY_CLEAR_TOP|Intent.FLAG_ACTIVITY_SINGLE_TOP);
+        return PendingIntent.getActivity(app,RECEIVED.hashCode(),open,PendingIntent.FLAG_IMMUTABLE|PendingIntent.FLAG_UPDATE_CURRENT);
     }
 
     /**

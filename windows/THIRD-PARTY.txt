@@ -21,6 +21,17 @@ https://github.com/java-native-access/jna
 FlatLaf 3.6 — FormDev Software GmbH, Apache License 2.0. The look of every window.
 https://github.com/JFormDesigner/FlatLaf
 
+Lucide 1.49.0 — Lucide Icons and Contributors, ISC License (some icons derived from
+Feather, MIT). The icons a note or a collection can wear, kept as path data inside
+the app. Both licence texts, verbatim, are in the root NOTICE.
+https://lucide.dev
+
+TwelveMonkeys ImageIO 3.15.2 (imageio-webp, imageio-core, imageio-metadata,
+common-lang, common-io, common-image) — Harald Kuhr and contributors, BSD 3-Clause.
+It reads WebP, the kind of picture a phone keeps for a note's or a collection's look.
+Its licence text is in licenses/TWELVEMONKEYS-BSD.txt.
+https://github.com/haraldk/TwelveMonkeys
+
 Webcam Capture 0.3.12 — Bartosz Firyn and contributors, MIT.
 BridJ 0.7.0 — Olivier Chafik and contributors, BSD 3-Clause.
 SLF4J API / no-operation binding 1.7.36 — QOS.ch, MIT.

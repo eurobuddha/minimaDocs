@@ -40,55 +40,203 @@ final class DesktopLock {
      * The key, asked for before anything of the notebook is opened; null if they closed the window.
      * A half-finished lock (the notebook never got encrypted) is taken off here, and the notebook opens as it was.
      */
-    static byte[] askAtStart(Path folder) throws Exception {
+    static byte[] askAtStart(Path folder) throws Exception{return askAtStart(folder,true);}
+
+    /** How Windows Hello is asked for the key: blocking, and given up when the thread is interrupted. Tests put a stand-in here. */
+    interface HelloAsk{byte[] open(Path folder) throws Exception;}
+    static HelloAsk helloAsk=DesktopHello::open;
+
+    /**
+     * Whether Mininotes may come to the front. A window that asks for the front when Windows has not given it
+     * is not brought forward: Windows flashes its taskbar button instead. Mininotes opened by an update, or
+     * handed over to while the person was elsewhere, or locked again with nobody there, flashed for nobody.
+     * So what nobody asked for comes up quietly. Tests put a stand-in here.
+     */
+    interface Front {
+        /** Whether Windows lets this process take the front now: started by a click, or what was last used. Flashes nothing. */
+        boolean mayTake();
+        /** Whether the window in front is one of this process's. */
+        boolean holds();
+    }
+    /** The two calls of Windows' own, not in JNA's list. */
+    private interface Foreground extends com.sun.jna.Library{Foreground USER32=com.sun.jna.Native.load("user32",Foreground.class);boolean AllowSetForegroundWindow(int process);}
+    private static boolean windows(){return System.getProperty("os.name","").startsWith("Windows");}
+    static Front front=new Front(){
+        // Windows grants the front to others only from a process that has it: asked for itself, it answers whether it has it.
+        public boolean mayTake(){if(!windows())return true;try{return Foreground.USER32.AllowSetForegroundWindow((int)ProcessHandle.current().pid());}catch(Throwable unknown){return false;}}
+        public boolean holds(){
+            if(!windows())return true;
+            try{var in=com.sun.jna.platform.win32.User32.INSTANCE.GetForegroundWindow();if(in==null)return false;
+                var process=new com.sun.jna.ptr.IntByReference();com.sun.jna.platform.win32.User32.INSTANCE.GetWindowThreadProcessId(in,process);return process.getValue()==ProcessHandle.current().pid();}
+            catch(Throwable unknown){return false;}
+        }
+    };
+    /** A second start, begun by the person, hands the front on to the Mininotes it asks forward, so that one comes without flashing. */
+    static void letForward(){if(windows())try{Foreground.USER32.AllowSetForegroundWindow(-1);}catch(Throwable unknown){/* it comes up quietly instead */}}
+
+    /** Shown without asking Windows for the front, until the person brings it forward themselves. */
+    static void quietly(Window w) {
+        w.setAutoRequestFocus(false);
+        w.addWindowListener(new java.awt.event.WindowAdapter(){public void windowActivated(java.awt.event.WindowEvent e){w.setAutoRequestFocus(true);w.removeWindowListener(this);}});
+    }
+    /** Brought forward if Windows lets Mininotes have the front now, quietly if not. */
+    static void quietUnlessLet(Window w){if(!front.mayTake())quietly(w);}
+
+    /** A fault that ends Mininotes, said - over what the person is doing only if Windows lets it, never flashing. */
+    static void tell(String title,String message) {
+        JDialog said=new JOptionPane(message,JOptionPane.ERROR_MESSAGE).createDialog(null,title);
+        quietUnlessLet(said);said.setVisible(true);said.dispose();
+    }
+
+    /**
+     * @param helloNow whether Windows Hello is asked without a click: only when somebody has just asked to open
+     *     it, and only if Mininotes then really has the front - otherwise the box waits, quietly, for a press
+     */
+    static byte[] askAtStart(Path folder,boolean helloNow) throws Exception{return askAtStart(folder,helloNow,null);}
+
+    /**
+     * What opens the notebook once the key is known, behind the box that asked for it: {@code shown} once the window
+     * is up whole, {@code said} for how it is getting on, {@code failed} with why it could not open - then nothing of
+     * it is left open, and the box can be asked again.
+     */
+    interface Opener{void open(byte[] key,Runnable shown,java.util.function.Consumer<String> said,java.util.function.Consumer<String> failed);}
+    static final String OPENING="Opening your notebook…";
+
+    /**
+     * @param opener what opens the notebook with the key: the box stays up, saying so, until the window can come up
+     *     whole, and goes as it does. Null: the box goes as soon as it has the key.
+     */
+    static byte[] askAtStart(Path folder,boolean helloNow,Opener opener) throws Exception {
         if(!Files.isRegularFile(folder.resolve(KEPT))&&Files.isRegularFile(folder.resolve(PENDING))&&plain(folder)) {
-            Files.delete(folder.resolve(PENDING));return new byte[0];
+            Files.delete(folder.resolve(PENDING));return opener==null||opening(opener)?new byte[0]:null;
         }
         byte[] kept=Files.readAllBytes(lockFile(folder));
         byte[][] key={null};JDialog[] box={null};
+        boolean helloSet=DesktopHello.has(folder);
         JPasswordField password=new JPasswordField(24);password.setName("unlockPassword");
-        DesktopUi.Text wrong=DesktopUi.quiet(" ");wrong.setForeground(DesktopUi.WARN);
+        // Wrapped at the box's width: cut off at the right edge, the line that said what to do next lost its end.
+        DesktopUi.Text wrong=DesktopUi.note(" ",420-2*DesktopUi.L,DesktopUi.WARN,DesktopUi.BODY.deriveFont(13f));wrong.setName("unlockSaid");
+        // The box grows to what was put in it after it was shown - a longer message, the password - rather than hiding it.
+        Runnable fit=()->{if(box[0]==null)return;box[0].validate();int tall=box[0].getPreferredSize().height;if(tall>box[0].getHeight())box[0].setSize(box[0].getWidth(),tall);};
+        // Painted first: a wrapped line is measured at the height it was last painted at, so a longer message measured one line.
+        java.util.function.BiConsumer<Color,String> say=(colour,words)->{wrong.setForeground(colour);wrong.setText(words);wrong.paintImmediately(wrong.getVisibleRect());SwingUtilities.invokeLater(fit);};
         JPanel body=DesktopUi.column();
         JLabel brand=new JLabel(new ImageIcon(DesktopIcon.image(48)));DesktopUi.add(body,brand);DesktopUi.gap(body,DesktopUi.M);
-        boolean helloSet=DesktopHello.has(folder);
-        DesktopUi.add(body,DesktopUi.body(helloSet?"Use Windows Hello, or type your backup password.":"Type your password to open your notes."));DesktopUi.gap(body,DesktopUi.S);
-        if(helloSet)password.putClientProperty(com.formdev.flatlaf.FlatClientProperties.PLACEHOLDER_TEXT,"Backup password");
-        DesktopUi.add(body,password);DesktopUi.gap(body,6);DesktopUi.add(body,wrong);
+        DesktopUi.add(body,DesktopUi.body(helloSet?"Open your notes with Windows Hello.":"Type your password to open your notes."));DesktopUi.gap(body,DesktopUi.M);
+        // Every way in, greyed together while the notebook opens behind the box: nothing can be asked twice.
+        List<JComponent> ways=new ArrayList<>();JProgressBar strip=strip();
+        java.util.function.Consumer<byte[]> opened=k->{
+            if(opener==null){key[0]=k;box[0].dispose();return;}
+            opening(box[0],k,opener,strip,say,ways,()->key[0]=k);
+        };
         Runnable tryIt=()->{
             // Opening is quiet: only a wrong password is said in the warning colour.
-            wrong.setForeground(DesktopUi.QUIET);wrong.setText("Opening…");wrong.paintImmediately(wrong.getVisibleRect());
-            try{key[0]=Vault.open(kept,password.getPassword());box[0].dispose();}
-            catch(Vault.Refused no){wrong.setForeground(DesktopUi.WARN);wrong.setText("That password did not open it.");password.selectAll();password.requestFocusInWindow();}
+            say.accept(DesktopUi.QUIET,"Opening…");wrong.paintImmediately(wrong.getVisibleRect());
+            try{opened.accept(Vault.open(kept,password.getPassword()));}
+            catch(Vault.Refused no){say.accept(DesktopUi.WARN,"That password did not open it.");password.selectAll();password.requestFocusInWindow();}
         };
-        JButton open=DesktopUi.primary("Unlock",tryIt);password.addActionListener(e->tryIt.run());
+        JButton open=DesktopUi.primary("Unlock",tryIt);open.setName("unlockOpen");password.addActionListener(e->{if(open.isEnabled())tryIt.run();});
         JButton forgot=DesktopUi.button("Use recovery words…",()->{
             byte[] recovered=recover(box[0],folder,kept);
-            if(recovered!=null){key[0]=recovered;box[0].dispose();}
+            if(recovered!=null)opened.accept(recovered);
         });
-        JPanel foot=new JPanel(new BorderLayout());foot.setOpaque(false);foot.add(DesktopUi.actions(forgot),BorderLayout.WEST);foot.add(DesktopUi.footer(open),BorderLayout.EAST);
-        if(DesktopHello.has(folder)) {
-            // Windows Hello, asked straight away; the password stays there for when Hello is not answered.
-            JButton hello=new JButton("Use Windows Hello");hello.setFocusPainted(false);hello.setName("unlockHello");
-            Runnable askHello=()->{
-                hello.setEnabled(false);wrong.setForeground(DesktopUi.QUIET);wrong.setText("Waiting for Windows Hello…");
-                new SwingWorker<byte[],Void>(){
-                    protected byte[] doInBackground() throws Exception{return DesktopHello.open(folder);}
+        ways.add(password);ways.add(open);ways.add(forgot);
+        SwingWorker<?,?>[] asking={null};JComponent foot=null;JButton first=open;
+        Runnable[] askHello={null};
+        if(!helloSet) {
+            DesktopUi.add(body,password);DesktopUi.gap(body,6);DesktopUi.add(body,strip);DesktopUi.add(body,wrong);
+            JPanel bar=new JPanel(new BorderLayout());bar.setOpaque(false);bar.add(DesktopUi.actions(forgot),BorderLayout.WEST);bar.add(DesktopUi.footer(open),BorderLayout.EAST);foot=bar;
+        } else {
+            // Windows Hello is how it opens, so it is the one filled button; the backup password and the words
+            // are ways round it, under it. The button was greyed while a question waited, and one put up after
+            // locking again - nobody there, its window lost behind another - waited for good, so the button never
+            // answered again. Now it is never greyed: pressed, it gives up any question still waiting and asks afresh.
+            JPanel byPassword=DesktopUi.row(password,open);byPassword.setVisible(false);
+            password.putClientProperty(com.formdev.flatlaf.FlatClientProperties.PLACEHOLDER_TEXT,"Backup password");
+            JButton hello=DesktopUi.primary("Unlock with Windows Hello",()->askHello[0].run());hello.setName("unlockHello");
+            askHello[0]=()->{
+                if(asking[0]!=null)asking[0].cancel(true);
+                say.accept(DesktopUi.QUIET,"Waiting for Windows Hello…");
+                SwingWorker<byte[],Void> one=new SwingWorker<>(){
+                    protected byte[] doInBackground() throws Exception{return helloAsk.open(folder);}
                     protected void done(){
-                        hello.setEnabled(true);
-                        try{key[0]=get();box[0].dispose();}
-                        catch(Exception e){Throwable why=e.getCause()!=null?e.getCause():e;wrong.setForeground(DesktopUi.QUIET);wrong.setText(why.getMessage()+" You can type your password.");password.requestFocusInWindow();}
+                        if(asking[0]!=this)return;
+                        asking[0]=null;
+                        try{opened.accept(get());}
+                        catch(Exception e){Throwable why=e.getCause()!=null?e.getCause():e;
+                            say.accept(DesktopUi.QUIET,(why.getMessage()!=null?why.getMessage():"Windows Hello did not open it.")+" Press Unlock with Windows Hello to try again, or use your backup password.");
+                            (byPassword.isVisible()?password:hello).requestFocusInWindow();}
                     }
-                }.execute();
+                };
+                asking[0]=one;one.execute();
             };
-            hello.addActionListener(e->askHello.run());
-            DesktopUi.gap(body,DesktopUi.S);DesktopUi.add(body,DesktopUi.actions(hello));
-            SwingUtilities.invokeLater(askHello);
+            JButton[] backup={null};
+            backup[0]=DesktopUi.button("Use backup password",()->{
+                // Chosen, the password takes the filled button and Enter; Hello stays, plain, a press away.
+                backup[0].setVisible(false);byPassword.setVisible(true);
+                hello.putClientProperty(com.formdev.flatlaf.FlatClientProperties.STYLE,null);
+                box[0].getRootPane().setDefaultButton(open);password.requestFocusInWindow();SwingUtilities.invokeLater(fit);
+            });backup[0].setName("unlockBackup");
+            DesktopUi.add(body,DesktopUi.actions(hello));DesktopUi.gap(body,DesktopUi.S);DesktopUi.add(body,byPassword);
+            DesktopUi.gap(body,6);DesktopUi.add(body,strip);DesktopUi.add(body,wrong);ways.add(hello);ways.add(backup[0]);DesktopUi.gap(body,DesktopUi.S);DesktopUi.add(body,DesktopUi.actions(backup[0],forgot));
+            first=hello;
         }
         box[0]=DesktopUi.sheet(null,"Mininotes is locked",body,foot,true);
+        // Opened by an update, a hand-over or locking again, with the person elsewhere: the box comes up without
+        // asking for the front, and Hello waits for a press - asked from behind, both flashed the taskbar.
+        // Asked for by the person, Hello is asked once the box really is in front.
+        if(!helloNow||!front.mayTake())quietly(box[0]);
+        else if(askHello[0]!=null)box[0].addWindowListener(new java.awt.event.WindowAdapter(){public void windowOpened(java.awt.event.WindowEvent e){
+            SwingUtilities.invokeLater(()->{if(box[0].isDisplayable()&&asking[0]==null&&key[0]==null&&front.holds())askHello[0].run();});}});
+        // Opened another way, or closed: a Hello question still waiting is given up, not left on the screen.
+        box[0].addWindowListener(new java.awt.event.WindowAdapter(){public void windowClosed(java.awt.event.WindowEvent e){SwingWorker<?,?> left=asking[0];asking[0]=null;if(left!=null)left.cancel(true);}});
         box[0].setIconImages(List.of(DesktopIcon.image(16),DesktopIcon.image(32)));
-        box[0].getRootPane().setDefaultButton(open);box[0].getRootPane().putClientProperty("focus",password);
+        box[0].getRootPane().setDefaultButton(first);box[0].getRootPane().putClientProperty("focus",helloSet?first:password);
         DesktopUi.show(box[0],420,460);
         return key[0];
+    }
+
+    /** The thin line that moves while something goes on, for as long as it does: nothing goes on in silence. */
+    static JProgressBar strip() {
+        JProgressBar strip=new JProgressBar();strip.setName("openingStrip");strip.setIndeterminate(true);strip.setBorderPainted(false);
+        strip.setForeground(DesktopUi.ACCENT);strip.setBackground(DesktopUi.LINE);strip.setVisible(false);
+        strip.setPreferredSize(new Dimension(10,4));strip.setMaximumSize(new Dimension(Integer.MAX_VALUE,4));
+        return strip;
+    }
+
+    /**
+     * The key opened it: the notebook is opened behind the box, which stays up, saying so, until the window can come
+     * up whole - the tree, the tabs and the note drawn - and goes as it comes. Shown at once, the window was an empty
+     * tree and an empty page for as long as the notebook took to read. Opening that could not finish is said here,
+     * in the warning colour, and every way in answers again.
+     */
+    private static void opening(JDialog box,byte[] key,Opener opener,JProgressBar strip,java.util.function.BiConsumer<Color,String> say,List<JComponent> ways,Runnable shown) {
+        for(JComponent way:ways)way.setEnabled(false);
+        strip.setVisible(true);say.accept(DesktopUi.QUIET,OPENING);
+        // Next, so the box says it before the window is made.
+        SwingUtilities.invokeLater(()->{if(box.isDisplayable())opener.open(key,()->{shown.run();box.dispose();},
+            words->{if(box.isDisplayable())say.accept(DesktopUi.QUIET,words);},
+            why->{if(!box.isDisplayable())return;strip.setVisible(false);for(JComponent way:ways)way.setEnabled(true);say.accept(DesktopUi.WARN,why);});});
+    }
+
+    /**
+     * A notebook with no lock: the same box, with nothing to ask, saying it is opening until the window comes up
+     * whole. False if it was closed first, or opening failed and it was closed on the reason.
+     */
+    static boolean opening(Opener opener) {
+        JDialog[] box={null};boolean[] shown={false};
+        DesktopUi.Text said=DesktopUi.note(OPENING,360,DesktopUi.QUIET,DesktopUi.BODY.deriveFont(13f));said.setName("unlockSaid");
+        java.util.function.BiConsumer<Color,String> say=(colour,words)->{said.setForeground(colour);said.setText(words);said.paintImmediately(said.getVisibleRect());
+            SwingUtilities.invokeLater(()->{box[0].validate();int tall=box[0].getPreferredSize().height;if(tall>box[0].getHeight())box[0].setSize(box[0].getWidth(),tall);});};
+        JProgressBar strip=strip();strip.setVisible(true);
+        JPanel body=DesktopUi.column();
+        DesktopUi.add(body,new JLabel(new ImageIcon(DesktopIcon.image(48))));DesktopUi.gap(body,DesktopUi.M);
+        DesktopUi.add(body,strip);DesktopUi.gap(body,6);DesktopUi.add(body,said);
+        box[0]=DesktopUi.sheet(null,"Mininotes",body,null,true);
+        box[0].addWindowListener(new java.awt.event.WindowAdapter(){public void windowOpened(java.awt.event.WindowEvent e){opening(box[0],null,opener,strip,say,List.of(),()->shown[0]=true);}});
+        quietUnlessLet(box[0]);box[0].setIconImages(List.of(DesktopIcon.image(16),DesktopIcon.image(32)));
+        DesktopUi.show(box[0],420,320);
+        return shown[0];
     }
 
     /** Whether the notebook opens without a key: a lock that never finished being put on. */
@@ -273,9 +421,11 @@ final class DesktopLock {
     // ---- where it is all kept together --------------------------------------------------------------------
 
     /** Whether it is on, what that means, and every thing that can be done about it, in one window. */
-    static void settings(Desktop app) {
+    static void settings(Desktop app){DesktopSettings.open(app);}
+
+    /** The lock, its ways in and its warning, as one panel: Settings holds it. {@code box} is the window it sits in. */
+    static JComponent panel(Desktop app,JDialog[] box) {
         Path folder=app.context.getFilesDir().toPath();
-        JDialog[] box={null};
         JLabel state=new JLabel();state.setFont(DesktopUi.BODY.deriveFont(Font.BOLD,15f));state.setIconTextGap(10);
         DesktopUi.Text means=DesktopUi.note(" ",420,DesktopUi.QUIET,DesktopUi.BODY.deriveFont(13f));
         JCheckBox on=DesktopUi.toggle("Lock Mininotes",locked(folder));
@@ -330,7 +480,7 @@ final class DesktopLock {
         DesktopUi.gap(whileOn,DesktopUi.S);DesktopUi.add(whileOn,ways);whileOn.add(helloRow);DesktopUi.add(whileOn,helloSaid);whileOn.add(passwordRow);whileOn.add(wordsRow);
         DesktopUi.gap(whileOn,DesktopUi.S);whileOn.add(afterRow);DesktopUi.add(card,whileOn);whileOnRef[0]=whileOn;shown.run();
         DesktopUi.add(body,DesktopUi.card(null,card));DesktopUi.gap(body,DesktopUi.M);DesktopUi.add(body,warning());
-        box[0]=DesktopUi.sheet(app.frame,"Security",body,null,true);DesktopUi.show(box[0],500,640);
+        return body;
     }
 
     /** A button kept its own size at the end of a row. */

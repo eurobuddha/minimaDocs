@@ -86,9 +86,10 @@ jobs:
           fi
           cp "$SRC" "out/$NAME"
           ( cd out && sha256sum "$NAME" > "$NAME.sha256" )
-          # And the same file under a name that never changes, so the website can link
-          # releases/latest/download/Mininotes.apk and a download is one click. The
-          # versioned name stays: it is what the app's own update fetches.
+          # And the same file under a name that never changes, so
+          # releases/latest/download/Mininotes.apk is always the newest build (the owner's ask,
+          # 2026-10-01). The versioned name stays: it is what the app's own update fetches, and
+          # what the website looks for.
           if [ -n "${{ steps.sign.outputs.apk }}" ]; then
             cp "$SRC" out/Mininotes.apk
             ( cd out && sha256sum Mininotes.apk > Mininotes.apk.sha256 )
@@ -111,6 +112,9 @@ jobs:
             `.sha256` beside it, extract it and open `Mininotes\Mininotes.exe`.
             A PC already running Mininotes offers the update itself.
 
+  # Every file names its version (Mininotes-0.1.001.apk, Mininotes-Windows-0.1.001.zip), and each has a copy
+  # under a name that never changes (Mininotes.apk, Mininotes-Windows.zip) for a permanent latest link. The
+  # website's mininotes.org/android and /windows find the newest versioned one through GitHub's API and start it.
   # The Windows build of the same commit, added to the same release once the phone's is published. Every
   # PC reads dist/latest-windows.txt and then fetches releases/latest/download/Mininotes-Windows-<that>.zip,
   # so each release has to carry it, and the file and the build have to agree on its version.
@@ -148,7 +152,7 @@ jobs:
           $name = "Mininotes-Windows-${{ steps.name.outputs.version }}.zip"
           Copy-Item "dist/latest/$name" out/
           Copy-Item "dist/latest/$name.sha256" out/
-          # The same zip under a name that never changes, for the website's one-click link.
+          # The same zip under a name that never changes: releases/latest/download/Mininotes-Windows.zip.
           Copy-Item "dist/latest/$name" out/Mininotes-Windows.zip
           $hash = (Get-FileHash out/Mininotes-Windows.zip -Algorithm SHA256).Hash.ToLowerInvariant()
           "$hash  Mininotes-Windows.zip" | Set-Content -Encoding ascii out/Mininotes-Windows.zip.sha256

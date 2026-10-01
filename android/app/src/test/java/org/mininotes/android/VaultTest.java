@@ -57,6 +57,54 @@ public class VaultTest {
         assertThrows(Vault.Refused.class,()->Vault.words(made.kept,wrong));
     }
 
+    /** Made with no password: the words open it, no password does, and the words can still be shown again. */
+    @Test public void aLockWithoutAPasswordOpensWithTheWords() throws Exception {
+        Vault.Made made=Vault.makeWithoutPassword(QUICK);
+        assertFalse(Vault.hasPassword(made.kept));
+        assertArrayEquals(made.key,Vault.recover(made.kept,String.join(" ",made.words)));
+        assertEquals(made.words,Vault.words(made.kept,made.key));
+        Vault.Refused refused=assertThrows(Vault.Refused.class,()->Vault.open(made.kept,"anything at all".toCharArray()));
+        assertEquals("That did not open it.",refused.getMessage());
+    }
+
+    /** A password added later, and taken out again: the key and the words never change, so neither does the notebook. */
+    @Test public void aPasswordCanBeAddedAndRemovedWithoutTouchingTheKeyOrTheWords() throws Exception {
+        Vault.Made made=Vault.makeWithoutPassword(QUICK);
+        byte[] added=Vault.newPassword(made.kept,made.key,"added later".toCharArray());
+        assertTrue(Vault.hasPassword(added));
+        assertArrayEquals(made.key,Vault.open(added,"added later".toCharArray()));
+        assertArrayEquals(made.key,Vault.recover(added,String.join(" ",made.words)));
+        byte[] removed=Vault.withoutPassword(added);
+        assertFalse(Vault.hasPassword(removed));
+        assertThrows(Vault.Refused.class,()->Vault.open(removed,"added later".toCharArray()));
+        assertArrayEquals(made.key,Vault.recover(removed,String.join(" ",made.words)));
+        assertEquals(made.words,Vault.words(removed,made.key));
+        assertThrows(IllegalArgumentException.class,()->Vault.newPassword(removed,made.key,new char[0]));
+        assertThrows(Vault.Refused.class,()->Vault.withoutPassword("not a lock".getBytes()));
+    }
+
+    /**
+     * A lock file written by the version before the password became a choice, kept here byte for byte: it
+     * still has its password, and its password and its words still open the same key.
+     */
+    @Test public void aNotebookLockedTheOldWayStillOpens() throws Exception {
+        byte[] kept=hex("4d4e563100002710004cb26dff42415e95254e76fa19e4b9585a7687a116fe17a49b643db98ab1ab4e2806cf9d74801232870649a9c83240683500372d788a9a954a1cdaba076e283dd299e420af4c7c2df161801ebf004cc373371ad8a2c169ec114c3de06e556568a862285ee8f7915d8d9717f5dfe12e90af52f18bd2cf694e1b52a10d274a97b72075c920f5b2d097ca73618b5f506cc30f0480b8f7e998999856db00638abd5900918a011f6b09dd916cbaaf3124bdb01eafcd2c63ea50c2573558c5bdeb0ceb3c8a05680ae60d24b5414baf1dda49496273f983daf05df43d6727a3f9cb1df2078042f71ee5544491c7db7eaf05c566b90a961376ab2608882a85c6bb983f2a");
+        byte[] key=hex("12e04b6b7fa9bc4279c96146337428c57829977ad83c53dbc7b64bc2a49be541");
+        String words="loyal chase mystery fix winner wasp unfold object erode park winner dad";
+        assertTrue(Vault.hasPassword(kept));
+        assertArrayEquals(key,Vault.open(kept,"old way password".toCharArray()));
+        assertArrayEquals(key,Vault.recover(kept,words));
+        assertEquals(Arrays.asList(words.split(" ")),Vault.words(kept,key));
+        // And taking its password out later leaves the words opening the same key.
+        assertArrayEquals(key,Vault.recover(Vault.withoutPassword(kept),words));
+    }
+
+    private static byte[] hex(String s) {
+        byte[] out=new byte[s.length()/2];
+        for(int i=0;i<out.length;i++)out[i]=(byte)Integer.parseInt(s.substring(2*i,2*i+2),16);
+        return out;
+    }
+
     /** The written-out PBKDF2 gives what Java's own does, byte for byte: a lock made on the phone opens on the PC. */
     @Test public void theDerivationIsStandardPbkdf2() throws Exception {
         byte[] salt="0123456789abcdef".getBytes();

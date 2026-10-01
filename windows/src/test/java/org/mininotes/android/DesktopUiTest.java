@@ -8,6 +8,26 @@ import javax.swing.*;
 
 public class DesktopUiTest {
     @Rule public TemporaryFolder temp=new TemporaryFolder();
+
+    /**
+     * Painting a text with an emoji changes nothing about it. It used to set its background for the emoji
+     * and back again, and each setting asked for another paint: the window redrew itself without end,
+     * using the processor and too busy to hear its close button.
+     */
+    @Test public void paintingEmojiDoesNotAskForAnotherPaint() throws Exception {
+        if(java.awt.GraphicsEnvironment.isHeadless())return;
+        int[] changes={0};
+        SwingUtilities.invokeAndWait(()->{
+            DesktopUi.install();
+            DesktopUi.Text text=DesktopUi.note("Bread 🥖 and tea ☕",300,DesktopUi.INK,DesktopUi.BODY);
+            JPanel card=DesktopUi.card(null,text);card.setSize(360,80);card.doLayout();text.setSize(text.getPreferredSize());
+            text.addPropertyChangeListener(e->{if(!"ancestor".equals(e.getPropertyName()))changes[0]++;});
+            java.awt.image.BufferedImage image=new java.awt.image.BufferedImage(360,80,java.awt.image.BufferedImage.TYPE_INT_RGB);
+            for(int i=0;i<3;i++){java.awt.Graphics2D g=image.createGraphics();card.paint(g);g.dispose();}
+        });
+        assertEquals("nothing about the text changes while it is painted",0,changes[0]);
+    }
+
     @Test public void typeAutosaveReopenAndRender() throws Exception {
         Path folder=temp.newFolder("ui-pad").toPath();Desktop[] app=new Desktop[1];
         SwingUtilities.invokeAndWait(()->{try{app[0]=new Desktop(folder,true);app[0].show();}catch(Exception e){throw new RuntimeException(e);}});
@@ -18,9 +38,12 @@ public class DesktopUiTest {
             pad.disk.flush(10000);SwingUtilities.invokeAndWait(()->{});
             SwingUtilities.invokeAndWait(()->{pad.title.setText("Saturday");pad.page.setText("Pick up fresh bread\nTea for the ferry\n\nLeave room for a little wandering.");});
             await(()->pad.store.latest().body.contains("wandering"));
-            // One quiet line once the save settles; the exact times are asked for, not shown.
-            await(()->pad.syncDetails.getText().startsWith("Only on this PC · saved "));
-            assertTrue(pad.syncDetails.getToolTipText().contains("Saved on this PC: "));
+            // One line under the title once the save settles - the phone's mark, then a round for each person it
+            // reaches - said by being seen: no words, and no box under the pointer. A note nobody has: the empty ring.
+            await(()->pad.noteMark!=null);
+            assertEquals(SyncMark.HERE,pad.noteMark);assertTrue(pad.syncMark.isVisible());assertNull(pad.syncMark.getToolTipText());
+            assertEquals(0,pad.rounds.getComponentCount());assertTrue(pad.peopleShown.isEmpty());
+            assertEquals(SyncMark.HERE.said("this PC"),pad.syncMark.getAccessibleContext().getAccessibleName());
             SwingUtilities.invokeAndWait(()->{
                 try {
                     var image=new java.awt.image.BufferedImage(pad.frame.getWidth(),pad.frame.getHeight(),java.awt.image.BufferedImage.TYPE_INT_RGB);

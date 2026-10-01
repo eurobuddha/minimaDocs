@@ -20,7 +20,7 @@ public class DesktopUpdateTest {
         // The file every installed PC reads, and this build, say the same when the tree is released.
         Path latest=Path.of("..","dist","latest-windows.txt");
         if(Files.exists(latest))assertEquals(Desktop.VERSION,Update.read(Files.readString(latest)));
-        assertTrue(Update.newer("0.0.100",Desktop.VERSION));assertFalse(Update.newer(Desktop.VERSION,Desktop.VERSION));
+        assertTrue(Update.newer("9.9.999",Desktop.VERSION));assertFalse(Update.newer(Desktop.VERSION,Desktop.VERSION));
     }
 
     @Test public void aZipOpensInsideItsFolderAndOneThatClimbsOutIsRefused() throws Exception {

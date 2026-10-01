@@ -12,7 +12,7 @@ import java.util.List;
  * types, so the version rules are unit tested without a device.
  */
 final class SchemaMigrations {
-    static final int VERSION=23;
+    static final int VERSION=33;
 
     /** Every pad starts with one collection holding one book, so writing never begins with a decision. */
     static final String FIRST_COLLECTION="collection-first", FIRST_BOOK="book-first";
@@ -294,6 +294,277 @@ final class SchemaMigrations {
         +"PRIMARY KEY(sender,recipient,page,sort))",
     };
 
+    /**
+     * Files go with a shared note (see {@link Enclosure}). A file says which device it came from - empty for
+     * one added here, which is every file there is so far - so that device's list can take out only what it
+     * put in. What has gone up is remembered with where it is and the key that opens it, so it goes up once;
+     * what somebody listed and is not here yet waits to be fetched, or was taken out here and is not fetched
+     * back; who has said they have which file is written down, since only they can say so; and the newest
+     * list taken from each device, so an older one arriving late changes nothing.
+     */
+    private static final String[] FILES_TRAVEL={
+        "ALTER TABLE files ADD COLUMN origin TEXT NOT NULL DEFAULT ''",
+        "CREATE TABLE IF NOT EXISTS published(id TEXT PRIMARY KEY,manifest TEXT NOT NULL,at INTEGER NOT NULL,"
+        +"tried INTEGER NOT NULL DEFAULT 0,tries INTEGER NOT NULL DEFAULT 0)",
+        "CREATE TABLE IF NOT EXISTS incoming(id TEXT PRIMARY KEY,note TEXT NOT NULL,origin TEXT NOT NULL,"
+        +"name TEXT NOT NULL,kind TEXT NOT NULL,bytes INTEGER NOT NULL,manifest TEXT NOT NULL,"
+        +"tried INTEGER NOT NULL DEFAULT 0,tries INTEGER NOT NULL DEFAULT 0,declined INTEGER NOT NULL DEFAULT 0)",
+        "CREATE INDEX IF NOT EXISTS incoming_note ON incoming(note,origin)",
+        "CREATE TABLE IF NOT EXISTS reached(id TEXT NOT NULL,address TEXT NOT NULL,has INTEGER NOT NULL DEFAULT 0,"
+        +"at INTEGER NOT NULL,tells INTEGER NOT NULL DEFAULT 0,PRIMARY KEY(id,address))",
+        "CREATE TABLE IF NOT EXISTS listed(note TEXT NOT NULL,origin TEXT NOT NULL,at INTEGER NOT NULL,"
+        +"PRIMARY KEY(note,origin))",
+    };
+
+    /**
+     * What the PC holds for its owner's phones until they collect it: see {@link Home}. Sealed for the phone it
+     * is for, so kept as it came, the bytes as text like everything else here. Named by the hash of the bytes,
+     * which is what the phone says it has; who left it, who it is for, which note and revision, and how long
+     * what is sealed inside is, are what the outside of it says, and are what lets a note sealed again replace
+     * the copy it would otherwise pile on.
+     */
+    private static final String[] HELD={
+        "CREATE TABLE IF NOT EXISTS held(id TEXT PRIMARY KEY,sender TEXT NOT NULL,recipient TEXT NOT NULL,"
+        +"page TEXT NOT NULL,revision INTEGER NOT NULL,sealed INTEGER NOT NULL,bytes TEXT NOT NULL,size INTEGER NOT NULL,"
+        +"kept INTEGER NOT NULL)",
+        "CREATE INDEX IF NOT EXISTS held_recipient ON held(recipient,kept)",
+    };
+
+    /**
+     * Files sent straight to a device, belonging to no note (see {@link Drop}): one row per sending, either way -
+     * who it is to or from, by the address the device is filed under, its name as it was then, where it stands,
+     * which offer of it is the latest, and when it was last tried - and one per file in it. The id a sending
+     * travels under is its own column, so one device's id can never land on another's sending. A file's bytes are
+     * kept in the pad's own folder like an attachment's, sealed the same way, under an id made here; `theirs` is
+     * the sender's name for it, `here` says the bytes are in, `relay` that its pieces are to go up to a relay.
+     */
+    private static final String[] TRANSFERS={
+        "CREATE TABLE IF NOT EXISTS transfers(id TEXT PRIMARY KEY,wire TEXT NOT NULL,way TEXT NOT NULL,address TEXT NOT NULL,"
+        +"name TEXT NOT NULL,state INTEGER NOT NULL,at INTEGER NOT NULL,revision INTEGER NOT NULL DEFAULT 1,"
+        +"tried INTEGER NOT NULL DEFAULT 0,tries INTEGER NOT NULL DEFAULT 0,seen INTEGER NOT NULL DEFAULT 0)",
+        "CREATE UNIQUE INDEX IF NOT EXISTS transfers_wire ON transfers(wire,address,way)",
+        "CREATE TABLE IF NOT EXISTS transferred(id TEXT PRIMARY KEY,batch TEXT NOT NULL,theirs TEXT NOT NULL DEFAULT '',"
+        +"name TEXT NOT NULL,kind TEXT NOT NULL,bytes INTEGER NOT NULL,manifest TEXT NOT NULL DEFAULT '',"
+        +"here INTEGER NOT NULL DEFAULT 0,relay INTEGER NOT NULL DEFAULT 0,tried INTEGER NOT NULL DEFAULT 0,"
+        +"tries INTEGER NOT NULL DEFAULT 0)",
+        "CREATE INDEX IF NOT EXISTS transferred_batch ON transferred(batch)",
+    };
+
+    /**
+     * One person on every device they own (see {@link Persons}). A device of yours is filed with whose it is
+     * (`person`), which device of yours told this one about it (`via`, empty for one paired here), whether it is
+     * yours no longer (`gone`), and when its name was decided (`named`), so the later decision stands whichever
+     * card arrives first. `persons` is one row per person known, with what they were known by before; it is for
+     * the steps after this one, where somebody else's devices are known as one person too.
+     */
+    private static final String[] PERSONS={
+        "ALTER TABLE addresses ADD COLUMN person TEXT NOT NULL DEFAULT ''",
+        "ALTER TABLE addresses ADD COLUMN via TEXT NOT NULL DEFAULT ''",
+        "ALTER TABLE addresses ADD COLUMN gone INTEGER NOT NULL DEFAULT 0",
+        "ALTER TABLE addresses ADD COLUMN named INTEGER NOT NULL DEFAULT 0",
+        "CREATE TABLE IF NOT EXISTS persons(id TEXT PRIMARY KEY,name TEXT NOT NULL DEFAULT '',changed INTEGER NOT NULL DEFAULT 0,"
+        +"aliases TEXT NOT NULL DEFAULT '',mine INTEGER NOT NULL DEFAULT 0)",
+        "CREATE INDEX IF NOT EXISTS addresses_person ON addresses(person)",
+    };
+
+    /**
+     * The size one note is read at (see {@link Reading}): which rung of the ladder, kept on this device as its
+     * colour is and never sent anywhere. -1 is none of its own, which is what every note already here starts
+     * as, so each is read at the size it always was.
+     */
+    private static final String[] RUNGS={
+        "ALTER TABLE notes ADD COLUMN rung INTEGER NOT NULL DEFAULT -1",
+    };
+
+    /**
+     * Who wrote what in each note (see {@link Writers}), and the colour each writer is drawn in: kept on this device
+     * and never sent anywhere, beside the notes rather than in their rows, so nothing that reads or sends a note sees
+     * it. A note with no row here is nobody's, which is what every note already here starts as: drawn as it always was.
+     * The trace names the text the runs are about, so runs that no longer fit their note are never drawn over it.
+     */
+    private static final String[] WRITERS={
+        "CREATE TABLE IF NOT EXISTS writers(note TEXT PRIMARY KEY,runs TEXT NOT NULL DEFAULT '',trace TEXT NOT NULL DEFAULT '')",
+        "CREATE TABLE IF NOT EXISTS inks(writer TEXT PRIMARY KEY,colour INTEGER NOT NULL DEFAULT 0)",
+    };
+
+    /**
+     * Notes and collections, nested as deep as anybody likes (see {@link Things} and docs/HOME.md).
+     *
+     * <p>Three fixed levels become two kinds of thing. Every collection and every book becomes a row here, under
+     * its own id: a collection under {@link Things#HOME}, a book under the collection it was in - with its name,
+     * colour, place, favourite, bin and archive flags, where it came from and how long it waits. Nothing moves and
+     * nothing is deleted: `collections` and `books` stay as they were, and are not read again. A note keeps its
+     * place in the tree in its own row, where everything that reads a note already looks (decision 8): its `book`
+     * is now whichever collection it is in. What a note gains is what the new Home shows of it - an icon, a
+     * picture, a place in the dock - none of which it has yet. The first favourites on the shelves go into the
+     * dock, in the order the Favourites place listed them: collections, then books, then notes, each by place.
+     * And a file kept with a book is kept with a collection, which that book now is.
+     */
+    private static final String THINGS_TABLE="CREATE TABLE IF NOT EXISTS things(id TEXT PRIMARY KEY,parent TEXT NOT NULL,"
+        +"kind TEXT NOT NULL DEFAULT 'collection',name TEXT NOT NULL DEFAULT '',icon TEXT NOT NULL DEFAULT '',"
+        +"image TEXT NOT NULL DEFAULT '',tint INTEGER NOT NULL DEFAULT 0,ordinal INTEGER NOT NULL DEFAULT 0,"
+        +"favourite INTEGER NOT NULL DEFAULT 0,dock INTEGER NOT NULL DEFAULT 0,archived INTEGER NOT NULL DEFAULT 0,"
+        +"binned INTEGER NOT NULL DEFAULT 0,theirs INTEGER NOT NULL DEFAULT 0,origin TEXT NOT NULL DEFAULT '',"
+        +"pause INTEGER NOT NULL DEFAULT 0,revision INTEGER NOT NULL DEFAULT 0,made INTEGER NOT NULL DEFAULT 0,"
+        +"updated INTEGER NOT NULL DEFAULT 0,gone INTEGER NOT NULL DEFAULT 0)";
+    /** A live favourite, as the dock is filled from: on the shelves, neither binned nor archived. */
+    private static final String LIVE_THING="favourite=1 AND binned=0 AND archived=0";
+    private static final String[] THINGS={
+        THINGS_TABLE,
+        "CREATE INDEX IF NOT EXISTS things_parent ON things(parent,binned,archived,ordinal)",
+        // Or ignore: a collection and a book under one id would lose one of them here, and the counts taken
+        // around this step (see NoteStore.onUpgrade) refuse the whole step if that happens.
+        "INSERT OR IGNORE INTO things(id,parent,kind,name,tint,ordinal,favourite,archived,binned,theirs,origin,pause,made,updated)"
+            +" SELECT id,'"+Things.HOME+"','collection',name,colour,place,pinned,archived,deleted,theirs,origin,pause,updated,updated FROM collections",
+        "INSERT OR IGNORE INTO things(id,parent,kind,name,tint,ordinal,favourite,archived,binned,theirs,origin,pause,made,updated)"
+            +" SELECT id,collection,'collection',name,colour,place,pinned,archived,deleted,theirs,origin,pause,updated,updated FROM books",
+        "ALTER TABLE notes ADD COLUMN icon TEXT NOT NULL DEFAULT ''",
+        "ALTER TABLE notes ADD COLUMN image TEXT NOT NULL DEFAULT ''",
+        "ALTER TABLE notes ADD COLUMN dock INTEGER NOT NULL DEFAULT 0",
+        "UPDATE files SET held='collection' WHERE held='book'",
+        // The dock's first fill: each live favourite counted after every one that comes before it - a collection
+        // on Home before one inside another, then by place, then by id so that no two ever tie.
+        "UPDATE things SET dock=(SELECT COUNT(*) FROM things o WHERE o."+LIVE_THING.replace(" AND "," AND o.")
+            +" AND ((o.parent<>'"+Things.HOME+"')<(things.parent<>'"+Things.HOME+"')"
+            +" OR ((o.parent<>'"+Things.HOME+"')=(things.parent<>'"+Things.HOME+"')"
+            +" AND (o.ordinal<things.ordinal OR (o.ordinal=things.ordinal AND o.id<=things.id))))) WHERE "+LIVE_THING,
+        "UPDATE notes SET dock=(SELECT COUNT(*) FROM things WHERE "+LIVE_THING+")+(SELECT COUNT(*) FROM notes o"
+            +" WHERE o.pinned=1 AND o.deleted=0 AND o.archived=0 AND (o.place<notes.place OR (o.place=notes.place AND o.id<=notes.id)))"
+            +" WHERE pinned=1 AND deleted=0 AND archived=0",
+        "UPDATE things SET dock=0 WHERE dock>"+Things.DOCK_PHONE,
+        "UPDATE notes SET dock=0 WHERE dock>"+Things.DOCK_PHONE,
+    };
+
+    /** The version the notebook is at just before collections and books become things. */
+    static final int BEFORE_THINGS=29;
+    /** What the move to things must leave as it found it, by name, in the order the counts below are taken. */
+    static final String[] COUNTED={"collections and books","notes","files","shares","favourites","binned","archived"};
+    /** Counted at {@link #BEFORE_THINGS}. */
+    static final String[] COUNT_BEFORE={
+        "SELECT (SELECT COUNT(*) FROM collections)+(SELECT COUNT(*) FROM books)",
+        "SELECT COUNT(*) FROM notes",
+        "SELECT COUNT(*) FROM files",
+        "SELECT COUNT(*) FROM shares",
+        "SELECT (SELECT COUNT(*) FROM collections WHERE pinned=1)+(SELECT COUNT(*) FROM books WHERE pinned=1)+(SELECT COUNT(*) FROM notes WHERE pinned=1)",
+        "SELECT (SELECT COUNT(*) FROM collections WHERE deleted=1)+(SELECT COUNT(*) FROM books WHERE deleted=1)+(SELECT COUNT(*) FROM notes WHERE deleted=1)",
+        "SELECT (SELECT COUNT(*) FROM collections WHERE archived=1)+(SELECT COUNT(*) FROM books WHERE archived=1)+(SELECT COUNT(*) FROM notes WHERE archived=1)",
+    };
+    /** The same things counted just after the step to things, and nothing later. */
+    static final String[] COUNT_AFTER={
+        "SELECT COUNT(*) FROM things",
+        "SELECT COUNT(*) FROM notes",
+        "SELECT COUNT(*) FROM files",
+        "SELECT COUNT(*) FROM shares",
+        "SELECT (SELECT COUNT(*) FROM things WHERE favourite=1)+(SELECT COUNT(*) FROM notes WHERE pinned=1)",
+        "SELECT (SELECT COUNT(*) FROM things WHERE binned=1)+(SELECT COUNT(*) FROM notes WHERE deleted=1)",
+        "SELECT (SELECT COUNT(*) FROM things WHERE archived=1)+(SELECT COUNT(*) FROM notes WHERE archived=1)",
+    };
+
+    /**
+     * Received files are kept on Home (docs/HOME.md, step 2 and decision 6). The drop box kept them in a place of its
+     * own, in no note; with the drop box gone, every received file that is here becomes a file kept on Home under the
+     * same id - its bytes are already in the shed under that id, so nothing is copied - saying which device it came
+     * from, when it came, and whether it is new: new where nobody has looked at its sending yet, as the drop box's
+     * count said. Its row among the sendings is not deleted but marked as moved: the sending stays behind it to answer
+     * the device that sent it if it offers again, and from here nothing lists it or keeps its bytes for it.
+     */
+    private static final String RECEIVED_HERE="FROM transferred f JOIN transfers t ON t.id=f.batch WHERE t.way='in' AND f.here=1";
+    private static final String[] HOME_FILES={
+        "ALTER TABLE files ADD COLUMN fresh INTEGER NOT NULL DEFAULT 0",
+        "ALTER TABLE transferred ADD COLUMN moved INTEGER NOT NULL DEFAULT 0",
+        "INSERT OR IGNORE INTO files(id,note,name,kind,bytes,added,place,held,origin,fresh)"
+            +" SELECT f.id,'"+Things.HOME+"',f.name,f.kind,f.bytes,t.at,-t.at,'collection',t.address,CASE WHEN t.seen=0 THEN 1 ELSE 0 END "
+            +RECEIVED_HERE+" AND f.moved=0",
+        // Only where its file on Home is there: a row ignored above is left unmoved, and the counts below refuse the step.
+        "UPDATE transferred SET moved=1 WHERE here=1 AND moved=0 AND batch IN (SELECT id FROM transfers WHERE way='in')"
+            +" AND id IN (SELECT id FROM files WHERE note='"+Things.HOME+"' AND held='collection')",
+    };
+
+    /** The version the notebook is at just before received files move to Home. */
+    static final int BEFORE_HOME_FILES=30;
+    /** What that move must leave as it found it: every received file here, now on Home; one file row more for each; as many new. */
+    static final String[] COUNTED_HOME={"received files","files","new"};
+    static final String[] COUNT_BEFORE_HOME={
+        "SELECT COUNT(*) "+RECEIVED_HERE,
+        "SELECT (SELECT COUNT(*) FROM files)+(SELECT COUNT(*) "+RECEIVED_HERE+")",
+        "SELECT COUNT(*) "+RECEIVED_HERE+" AND t.seen=0",
+    };
+    static final String[] COUNT_AFTER_HOME={
+        "SELECT COUNT(*) "+RECEIVED_HERE+" AND f.moved=1 AND f.id IN (SELECT id FROM files WHERE note='"+Things.HOME+"' AND held='collection')",
+        "SELECT COUNT(*) FROM files",
+        "SELECT COUNT(*) FROM files WHERE note='"+Things.HOME+"' AND fresh=1",
+    };
+
+    /**
+     * A step that moves something, and so counts what it must leave as it found it, before and after, inside the
+     * upgrade's own transaction (see NoteStore.onUpgrade and docs/HOME.md, decision 11): any difference refuses the
+     * whole upgrade, which leaves the notebook where it was for the build before to open.
+     */
+    static final class Checked {
+        /** The version the step starts from, and what is said when it is refused and when it is done. */
+        final int from; final String refused,done; final String[] counted,before,after;
+        Checked(int from,String refused,String done,String[] counted,String[] before,String[] after) {
+            this.from=from;this.refused=refused;this.done=done;this.counted=counted;this.before=before;this.after=after;
+        }
+    }
+    static final List<Checked> CHECKED=List.of(
+        new Checked(BEFORE_THINGS,"The notebook could not be moved to notes and collections: ","moved to notes and collections",
+            COUNTED,COUNT_BEFORE,COUNT_AFTER),
+        new Checked(BEFORE_HOME_FILES,"The received files could not be moved to Home: ","received files moved to Home",
+            COUNTED_HOME,COUNT_BEFORE_HOME,COUNT_AFTER_HOME));
+
+    /** Which build opens a notebook left at this version, for the words a refused upgrade ends with. */
+    static String stillOpens(int version) {
+        return version<=BEFORE_THINGS?"Mininotes 0.1.041":version<=BEFORE_HOME_FILES?"Mininotes 0.2.001":"the Mininotes before this one";
+    }
+
+    /** What differs between the counts before and after, said by name and number; null where nothing does. */
+    static String differs(long[] before,long[] after){return differs(COUNTED,before,after);}
+
+    static String differs(String[] names,long[] before,long[] after) {
+        if(before==null||after==null||before.length!=names.length||after.length!=names.length)
+            return "the counts could not be taken";
+        StringBuilder said=new StringBuilder();
+        for(int at=0;at<names.length;at++)
+            if(before[at]!=after[at])said.append(said.length()==0?"":", ").append(names[at]).append(' ')
+                .append(before[at]).append(" became ").append(after[at]);
+        return said.length()==0?null:said.toString();
+    }
+
+    /** The counts as one line for a log: numbers only, never a name or a word of a note. */
+    static String counted(long[] counts){return counted(COUNTED,counts);}
+
+    static String counted(String[] names,long[] counts) {
+        StringBuilder said=new StringBuilder();
+        for(int at=0;at<names.length&&counts!=null&&at<counts.length;at++)
+            said.append(at==0?"":", ").append(names[at]).append(' ').append(counts[at]);
+        return said.toString();
+    }
+
+    /**
+     * Where each icon stands on its grid, on this device (see {@link Layout}; docs/HOME.md, decision 39). The owner asked to
+     * move things freely on Home, not have them sorted one after the other: a note, a collection and a file each keep
+     * the cell they were put in, as one number, row by {@link Layout#WIDEST} and column. Every row already here starts
+     * with none, which is drawn exactly as the grid was drawn before - one after the other, in the owner's order - until
+     * something on that grid is first moved.
+     */
+    private static final String[] CELLS={
+        "ALTER TABLE things ADD COLUMN cell INTEGER NOT NULL DEFAULT -1",
+        "ALTER TABLE notes ADD COLUMN cell INTEGER NOT NULL DEFAULT -1",
+        "ALTER TABLE files ADD COLUMN cell INTEGER NOT NULL DEFAULT -1",
+    };
+
+    /**
+     * Which page of Home each icon stands on, on this device (see {@link Layout#pages}; docs/HOME.md, decisions 45-50):
+     * Home is pages in every direction now, and a cell is a cell on a page. Every row already here has none, which
+     * {@link Layout#pages} reads as the one long grid it was - the centre page while it fits, the pages below for the rest.
+     */
+    private static final String[] PAGES={
+        "ALTER TABLE things ADD COLUMN page INTEGER NOT NULL DEFAULT 0",
+        "ALTER TABLE notes ADD COLUMN page INTEGER NOT NULL DEFAULT 0",
+        "ALTER TABLE files ADD COLUMN page INTEGER NOT NULL DEFAULT 0",
+    };
+
     /** STEPS[i] upgrades a database at version i+1 to version i+2. */
     private static final String[][] STEPS={
         {VIEW_INDEX},
@@ -340,6 +611,26 @@ final class SchemaMigrations {
         GIVEN,
         // 22 -> 23: what this device carries for two others that are not on at the same time.
         CARRIED,
+        // 23 -> 24: the files kept with a shared note go with it.
+        FILES_TRAVEL,
+        // 24 -> 25: what the PC holds for its owner's phones until they collect it.
+        HELD,
+        // 25 -> 26: files sent straight to a device, and received, belonging to no note.
+        TRANSFERS,
+        // 26 -> 27: one person on every device they own, and two names for each device.
+        PERSONS,
+        // 27 -> 28: a note can be read at a size of its own.
+        RUNGS,
+        // 28 -> 29: who wrote what, and the colour each writer is drawn in.
+        WRITERS,
+        // 29 -> 30: collections and books become things, nested as deep as anybody likes.
+        THINGS,
+        // 30 -> 31: received files are kept on Home, new until opened.
+        HOME_FILES,
+        // 31 -> 32: an icon stays in the cell it was put in, with empty cells left empty.
+        CELLS,
+        // 32 -> 33: Home is pages in every direction, and an icon stands on one.
+        PAGES,
     };
 
     /** The one collection and the one book a pad cannot be without, for a restore that carries neither. */
@@ -370,6 +661,17 @@ final class SchemaMigrations {
         Collections.addAll(statements,LEAVING);
         Collections.addAll(statements,GIVEN);
         Collections.addAll(statements,CARRIED);
+        Collections.addAll(statements,FILES_TRAVEL);
+        Collections.addAll(statements,HELD);
+        Collections.addAll(statements,TRANSFERS);
+        Collections.addAll(statements,PERSONS);
+        Collections.addAll(statements,RUNGS);
+        Collections.addAll(statements,WRITERS);
+        // After the first collection and book are made, so they become things as every upgraded one does.
+        Collections.addAll(statements,THINGS);
+        Collections.addAll(statements,HOME_FILES);
+        Collections.addAll(statements,CELLS);
+        Collections.addAll(statements,PAGES);
         return statements;
     }
 

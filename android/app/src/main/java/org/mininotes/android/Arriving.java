@@ -45,6 +45,29 @@ final class Arriving {
      * @param theirRev how many times the sender had written it
      */
     static Decision weigh(String here,long hereRev,String base,long baseRev,String theirs,long theirRev) {
+        return weigh(here,hereRev,base,baseRev,theirs,theirRev,false,false);
+    }
+
+    /**
+     * The same, knowing a little of where the two texts came from.
+     *
+     * <p>What two devices last agreed on is kept per pair, and between three of the owner's own devices a text
+     * mostly reaches one of them from another that took it first: the PC sends the phone what it took from the
+     * Pro, and the phone's agreement with the Pro stays where it was. When the Pro's next writing arrives it is
+     * weighed against that old agreement, the phone's copy of the Pro's own earlier text looks like writing of
+     * the phone's, and the two are put together - lines the Pro had since deleted or rewritten came back beside
+     * the new ones, a revision nobody wrote went out from a phone nobody touched, and it looked like the note
+     * going back. Seen on 2026-09-29 on the GrapheneOS phone with the note open and nobody typing.
+     *
+     * <p>So, where the counts alone would put the two together, what is known of the texts is asked first:
+     *
+     * @param theyHadMine this device's text is one the sender's note held before (it said so, see
+     *                    {@link Parcel.Sent#history}): what arrived was written on top of it, and is taken
+     * @param iHadTheirs  what arrived is a text this device's note held before, or already weighed: it is behind
+     *                    what is here, and there is nothing to take
+     */
+    static Decision weigh(String here,long hereRev,String base,long baseRev,String theirs,long theirRev,
+                          boolean theyHadMine,boolean iHadTheirs) {
         if(here==null)return new Decision(What.NEW,theirs==null?"":theirs,Math.max(0,theirRev),false);
         String mine=here, came=theirs==null?"":theirs;
         if(mine.equals(came))return new Decision(What.NEWER,mine,Math.max(hereRev,theirRev),false);
@@ -52,6 +75,12 @@ final class Arriving {
         if(hereRev<=baseRev&&theirRev>=hereRev)return new Decision(What.NEWER,came,Math.max(theirRev,hereRev),false);
         // The sender had not written since then, so this phone is the one that moved: nothing to take.
         if(theirRev<=baseRev)return new Decision(What.OLDER,null,hereRev,false);
+        // Asked only here, where the counts would otherwise merge: the counts are right where they can be.
+        // What they say of their own note comes first. Words this device once held can come round again - a line
+        // added and then taken out again over there - and that is a writing on top of what is here, which only they
+        // can know; what this device kept tells it only that it has seen those words before.
+        if(theyHadMine)return new Decision(What.NEWER,came,Math.max(theirRev,hereRev),false);
+        if(iHadTheirs)return new Decision(What.OLDER,null,hereRev,false);
         Merge.Result merged=Merge.merge(base,mine,came);
         // Putting the two together gave back exactly what this phone already says. That is not a new
         // revision: nothing was written. It used to be counted as one all the same, and a revision is
@@ -104,6 +133,24 @@ final class Arriving {
         return said<0?Math.max(0,believed):Math.max(0,Math.min(believed,said));
     }
 
+    /**
+     * What names a text when devices say which texts they have held: the first sixteen bytes of its SHA-256, in hex.
+     * Only the words of the note, not its title, which is not put together line by line.
+     */
+    static String trace(String text) {
+        try {
+            byte[] digest=java.security.MessageDigest.getInstance("SHA-256")
+                .digest((text==null?"":text).getBytes(java.nio.charset.StandardCharsets.UTF_8));
+            StringBuilder out=new StringBuilder(32);
+            for(int at=0;at<TRACE_BYTES;at++)out.append(String.format(java.util.Locale.ROOT,"%02x",digest[at]));
+            return out.toString();
+        } catch(java.security.NoSuchAlgorithmException none) {
+            // Cannot happen: SHA-256 is required of every Java. Named rather than swallowed all the same.
+            throw new IllegalStateException("SHA-256 is missing",none);
+        }
+    }
+    static final int TRACE_BYTES=16;
+
     /** What the open page should say, once the note underneath it has changed. */
     static final class Page {
         /** The text to show. */
@@ -134,6 +181,16 @@ final class Arriving {
         if(now.equals(said))return new Page(now,false);
         if(now.equals(was))return new Page(said,false);
         return new Page(Merge.merge(was,now,said).text,true);
+    }
+
+    /**
+     * The same, knowing whether anything was typed on the page since it was last written down. Where nothing was, the
+     * page is taken to say what the notebook said then, whatever is on the screen: blank rules tapped onto it, a note
+     * longer than the page takes, anything that changed the words without a key. Only typing is writing, and a page
+     * nobody typed on never becomes a revision of its own - it simply says what arrived.
+     */
+    static Page onThePage(String kept,String page,String stored,boolean typed) {
+        return onThePage(kept,typed?page:kept,stored);
     }
 
     private Arriving(){}

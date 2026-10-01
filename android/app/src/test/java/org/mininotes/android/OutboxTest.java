@@ -23,6 +23,20 @@ public class OutboxTest {
         assertTrue(Outbox.waiting(List.of(),List.of(PAGE),nothingSent()).isEmpty());
         assertTrue(Outbox.waiting(List.of(on(Sharing.Scope.BOOK,"b9",ANA,false)),List.of(PAGE),nothingSent()).isEmpty());
     }
+    @Test public void aNoteDeepInsideIsOwedByARuleOnAnythingAboveIt() {
+        // Three collections down: its nearest is its book, its top its collection, for whatever still reads those.
+        Outbox.Page deep=new Outbox.Page("p3",List.of("top","middle","inner"),4);
+        assertEquals("inner",deep.book);assertEquals("top",deep.collection);
+        assertEquals(List.of("top","middle","inner","p3"),deep.path());
+        assertEquals(1,Outbox.waiting(List.of(on(Sharing.Scope.THING,"top",ANA,false)),List.of(deep),nothingSent()).size());
+        assertEquals(1,Outbox.waiting(List.of(on(Sharing.Scope.BOOK,"middle",ANA,false)),List.of(deep),nothingSent()).size());
+        assertTrue(Outbox.waiting(List.of(on(Sharing.Scope.THING,"elsewhere",ANA,false)),List.of(deep),nothingSent()).isEmpty());
+        // On Home: nothing above it, and only its own rule or the library's reaches it.
+        Outbox.Page home=new Outbox.Page("p4",List.of(),4);
+        assertEquals("",home.book);assertEquals("",home.collection);assertEquals(List.of("p4"),home.path());
+        // Made the old way, its two fields are its path.
+        assertEquals(List.of("c1","b1","p1"),PAGE.path());assertNull(PAGE.above);
+    }
     @Test public void aSharedPageThatHasNeverGoneIsOwed() {
         List<Outbox.Wait> owed=Outbox.waiting(List.of(on(Sharing.Scope.BOOK,"b1",ANA,false)),List.of(PAGE),nothingSent());
         assertEquals(1,owed.size());
@@ -135,5 +149,41 @@ public class OutboxTest {
     @Test public void aClockThatWentBackwardsDoesNotPostponeItForEver() {
         List<Outbox.Handed> handed=List.of(new Outbox.Handed(ANA,"p1",5,T0,3));
         assertEquals(1,Outbox.due(handed,at(),at("p1",5),T0-MINUTE).size());
+    }
+
+    // ---- answers kept until their device is in reach ----
+
+    private static byte[] page(int n){byte[] one=new byte[16];one[15]=(byte)n;return one;}
+
+    @Test public void aKeptAnswerIsTheLatestForEachDeviceAndNote() {
+        Outbox.Answers kept=new Outbox.Answers();
+        kept.keep(ANA,page(1),5,false,T0);
+        kept.keep(ANA,page(1),7,true,T0);
+        assertEquals("an older revision's answer does not push out a later one",1,kept.keep(ANA,page(1),6,false,T0));
+        kept.keep(TABLET,page(1),7,true,T0);
+        kept.keep(ANA,page(2),7,true,T0);
+        assertEquals(3,kept.size());
+        List<Outbox.Answers.One> said=new java.util.ArrayList<>();
+        assertArrayEquals(new int[]{3,0},kept.sayAll(said::add,T0));
+        assertEquals(7,said.get(0).revision);
+        assertTrue(said.get(0).took);
+    }
+
+    @Test public void anAnswerThatWentAnotherWayIsNoLongerKept() {
+        Outbox.Answers kept=new Outbox.Answers();
+        kept.keep(ANA,page(1),5,false,T0);
+        kept.went(ANA,page(1),4);
+        assertEquals("an older answer going says nothing about this one",1,kept.size());
+        kept.went(ANA,page(1),5);
+        assertEquals(0,kept.size());
+    }
+
+    @Test public void keptAnswersThatFindNoWayStayAndTheVeryOldGo() {
+        Outbox.Answers kept=new Outbox.Answers();
+        kept.keep(ANA,page(1),5,false,T0);
+        kept.keep(TABLET,page(1),5,false,T0-Outbox.Answers.FOR-1);
+        assertArrayEquals(new int[]{0,1},kept.sayAll(one->{throw new IllegalStateException(Direct.WAITS);},T0));
+        for(int n=0;n<Outbox.Answers.MOST+10;n++)kept.keep(ANA+n,page(1),1,false,T0);
+        assertEquals(Outbox.Answers.MOST,kept.size());
     }
 }

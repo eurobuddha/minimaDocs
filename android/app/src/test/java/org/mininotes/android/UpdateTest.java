@@ -119,6 +119,14 @@ public class UpdateTest {
         assertEquals("",Update.digest(hex+"x"));
     }
 
+    @Test public void theDotSaysNothingTheNewestOrBehind() {
+        assertEquals("never heard from the repository: no dot",Update.Standing.UNKNOWN,Update.standing("","0.2.010"));
+        assertEquals("a page in place of the line: no dot",Update.Standing.UNKNOWN,Update.standing("<html>","0.2.010"));
+        assertEquals("the same one: green",Update.Standing.LATEST,Update.standing("0.2.010","0.2.010"));
+        assertEquals("newer than what is published: still the newest there is",Update.Standing.LATEST,Update.standing("0.0.130","0.2.010"));
+        assertEquals("a newer one is out: yellow",Update.Standing.BEHIND,Update.standing("v0.2.011","0.2.010"));
+    }
+
     @Test public void bytesAreWrittenAsTheChecksumIs() {
         assertEquals("00ff10ab",Update.hex(new byte[]{0,(byte)0xff,0x10,(byte)0xab}));
         assertEquals("",Update.hex(new byte[0]));

@@ -2,7 +2,13 @@ package org.mininotes.android;
 
 /** Commit against the current row, preserving anything received while typing. */
 final class DesktopEdits {
-    static NoteStore.Note save(NoteStore store,NoteStore.Note base,String title,String body) {
+    static NoteStore.Note save(NoteStore store,NoteStore.Note base,String title,String body){return save(store,base,title,body,null);}
+
+    /**
+     * @param runs who wrote each letter of {@code body} (see Writers), or null where the page does not know: what is
+     *             new is then nobody's. Put together with what arrived while typing, each letter keeps its writer.
+     */
+    static NoteStore.Note save(NoteStore store,NoteStore.Note base,String title,String body,Writers runs) {
         var db=store.getWritableDatabase();db.beginTransaction();
         try {
             NoteStore.Note current=store.get(base.id);
@@ -14,6 +20,8 @@ final class DesktopEdits {
             NoteStore.Note next=current.copy();
             next.body=Merge.merge(base.body,body,current.body).text;
             next.title=Merge.merge(base.title,title,current.title).text;
+            // The page's letters keep the page's writers; what only the notebook had keeps its own.
+            next.writers=runs==null?null:Writers.follow(next.body,Writers.UNKNOWN,body,runs,current.body,store.writersOf(current.id,current.body));
             if(!next.body.equals(current.body)||!next.title.equals(current.title)) {
                 store.keepVersion(current.id,"");
                 next.revision=current.revision+1;next.updated=System.currentTimeMillis();
@@ -23,4 +31,3 @@ final class DesktopEdits {
         } finally{db.endTransaction();}
     }
 }
-

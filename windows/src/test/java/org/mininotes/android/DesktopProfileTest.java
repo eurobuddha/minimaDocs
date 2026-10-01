@@ -21,14 +21,25 @@ public class DesktopProfileTest {
             SwingUtilities.invokeAndWait(()->{assertNull(find(profile[0],"Save name",true));((JTextField)find(profile[0],"profileName",false)).setText("Desk fixture");});
             pad.disk.flush(15000);SwingUtilities.invokeAndWait(()->{});
             assertEquals("Desk fixture",new org.mininotes.desktop.platform.content.Context(folder.toFile()).getSharedPreferences("settings",0).getString("me",""));
+            // The second name, what the owner's own devices call this PC, saved as typed and with when it was chosen.
+            SwingUtilities.invokeAndWait(()->((JTextField)find(profile[0],"profileDevice",false)).setText("Study PC"));
+            pad.disk.flush(15000);SwingUtilities.invokeAndWait(()->{});
+            var kept=new org.mininotes.desktop.platform.content.Context(folder.toFile()).getSharedPreferences("settings",0);
+            assertEquals("Study PC",kept.getString("device",""));assertTrue(kept.getLong("deviceChanged",0)>0);assertTrue(kept.getLong("meChanged",0)>0);
+            assertEquals("Study PC",Node.deviceHere(pad.context));assertEquals("Desk fixture",Node.nameHere(pad.context));
             String line=Pairing.write("Desk fixture","MxSynthetic@127.0.0.1:9001",Point.shorten(Envelope.keys().getPublic()),Point.shorten(Envelope.keys().getPublic()));
             SwingUtilities.invokeAndWait(()->{
                 JLabel qr=(JLabel)find(profile[0],"profileQr",false),state=(JLabel)find(profile[0],"connectionState",false);
                 JTextArea address=(JTextArea)find(profile[0],"maximaAddress",false),permanent=(JTextArea)find(profile[0],"permanentAddress",false);
                 DesktopProfile.render(new DesktopProfile.Connection("Desk fixture","MxSynthetic@127.0.0.1:9001","MAX#synthetic#fixture",2,line),qr,address,permanent,state);
                 assertEquals("MxSynthetic@127.0.0.1:9001",address.getText());assertEquals("Connected · 2 relays",state.getText());assertNotNull(qr.getIcon());
+                // Offline, nothing is said about the door; the line is drawn here as a PC would say it, for the picture.
+                JTextArea direct=(JTextArea)find(profile[0],"directState",false);assertNotNull(direct);assertEquals(" ",direct.getText());
+                direct.setText(Direct.reachability(true,"OFF","this network has no forwardable public port"));
                 profile[0].validate();
-                try{BufferedImage image=new BufferedImage(profile[0].getWidth(),profile[0].getHeight(),BufferedImage.TYPE_INT_RGB);var g=image.createGraphics();profile[0].paint(g);g.dispose();Path shot=Path.of("build/verification/windows-profile.png");Files.createDirectories(shot.getParent());javax.imageio.ImageIO.write(image,"png",shot.toFile());}catch(Exception e){throw new RuntimeException(e);}
+                try{BufferedImage image=new BufferedImage(profile[0].getWidth(),profile[0].getHeight(),BufferedImage.TYPE_INT_RGB);var g=image.createGraphics();profile[0].paint(g);g.dispose();Path shot=Path.of("build/verification/windows-profile.png");Files.createDirectories(shot.getParent());javax.imageio.ImageIO.write(image,"png",shot.toFile());
+                    // The whole of it, below the fold too, where the Connection card says whether the PC can be reached directly.
+                    Component whole=((JScrollPane)find(profile[0],"profileScroll",false)).getViewport().getView();BufferedImage all=new BufferedImage(whole.getWidth(),whole.getHeight(),BufferedImage.TYPE_INT_RGB);var w=all.createGraphics();whole.paint(w);w.dispose();javax.imageio.ImageIO.write(all,"png",Path.of("build/verification/windows-profile-whole.png").toFile());}catch(Exception e){throw new RuntimeException(e);}
                 DesktopProfile.render(new DesktopProfile.Connection("Desk fixture","","",0,""),qr,address,permanent,state);
                 assertNull(qr.getIcon());assertEquals("",address.getText());assertTrue(state.getText().startsWith("Not connected"));
             });

@@ -107,7 +107,8 @@ as the network goes.** Measured on a Pixel 7 Pro, off its charger, screen off: `
 `mState=IDLE` within twelve minutes, the process and the service were both still up, and nothing reached
 the node — a note sent to it then was taken by a relay and never heard. An app that wants to receive
 through the phone's deep sleep has to be exempted from battery optimisation by its owner
-(`REQUEST_IGNORE_BATTERY_OPTIMIZATIONS`); nothing here asks. When testing arrival, check
+(`REQUEST_IGNORE_BATTERY_OPTIMIZATIONS`); since 0.0.112 Settings → *Keep listening while the phone sleeps* asks
+Android, by a tap and never on its own, and a `Waking` alarm wakes the pad every five minutes or so. When testing arrival, check
 `adb shell dumpsys deviceidle | grep mState` on the receiving phone before believing a silence.
 
 ## What to look for in the log

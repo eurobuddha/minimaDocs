@@ -38,7 +38,7 @@ public final class Lending extends ContentProvider {
     private NoteStore.Held asked(Uri uri) throws FileNotFoundException {
         String id=uri==null?null:uri.getLastPathSegment();
         if(id==null||Attachment.idOf(Attachment.entry(id))==null)throw new FileNotFoundException("Not a file of ours");
-        NoteStore.Held held=store().file(id);
+        NoteStore.Held held=store().keptFile(id);
         if(held==null)throw new FileNotFoundException("No such file");
         return held;
     }

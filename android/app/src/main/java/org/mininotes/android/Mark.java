@@ -17,25 +17,19 @@ import android.graphics.drawable.Drawable;
  * different weights that changed shape with whatever typeface the phone happened to use. This draws them:
  * one ring, the same size and the same stroke every time, with a different thing inside it.
  *
- * <ul>
- *   <li><b>Here</b> — an empty ring. Nothing leaves this phone, and nothing is wrong with that.</li>
- *   <li><b>Gone</b> — a tick. Everybody it reaches has what it says now.</li>
- *   <li><b>Waiting</b> — an arrow going up, and the ring filled behind it, because this is the one of the
- *       three that is asking for something.</li>
- *   <li><b>Paused</b> — two bars. This phone has stopped taking the thing in. It used to wear the tick, since
- *       it owed nobody anything, which was true and said the opposite of what mattered.</li>
- * </ul>
+ * <p>Which of the six a thing wears is {@link SyncMark}'s to say, shared with the PC: an empty ring (only here),
+ * an arrow going up with the ring filled behind it (waiting to go), three dots (sent, not confirmed yet), a tick
+ * (everybody has it), two bars (paused here), and an exclamation mark with the ring filled (gone wrong). The two
+ * that ask for something are the two filled in.
  *
  * <p>Drawn from the size it is given, so it follows the reading ladder like everything else.
  */
 final class Mark extends Drawable {
-    enum What { HERE, GONE, WAITING, PAUSED }
-
-    private final What what;
+    private final SyncMark what;
     private final int ink;
     private final Paint paint=new Paint(Paint.ANTI_ALIAS_FLAG);
 
-    Mark(What what,int ink){this.what=what;this.ink=ink;}
+    Mark(SyncMark what,int ink){this.what=what;this.ink=ink;}
 
     @Override public void draw(Canvas canvas) {
         android.graphics.Rect where=getBounds();
@@ -49,7 +43,7 @@ final class Mark extends Drawable {
         paint.setStrokeJoin(Paint.Join.ROUND);
         paint.setColor(ink);
 
-        if(what==What.WAITING) {
+        if(what.filled()) {
             paint.setStyle(Paint.Style.FILL);
             canvas.drawCircle(cx,cy,r,paint);
         } else {
@@ -58,17 +52,32 @@ final class Mark extends Drawable {
             canvas.drawCircle(cx,cy,r-stroke/2f,paint);
         }
 
-        if(what==What.HERE)return;
+        if(what==SyncMark.HERE)return;
 
         paint.setStyle(Paint.Style.STROKE);
         paint.setStrokeWidth(stroke);
         Path path=new Path();
-        if(what==What.PAUSED) {
+        if(what==SyncMark.SENT) {
+            // Three dots, the sign for something still happening, each a round the width of the stroke.
+            paint.setStyle(Paint.Style.FILL);
+            float apart=r*0.42f;
+            for(int i=-1;i<=1;i++)canvas.drawCircle(cx+i*apart,cy,stroke*0.75f,paint);
+            return;
+        } else if(what==SyncMark.STUCK) {
+            // An exclamation mark, cut out of the filled ring as the arrow is.
+            paint.setColor(PAPER_HOLE);
+            float h=r*0.86f;
+            path.moveTo(cx,cy-h*0.62f);path.lineTo(cx,cy+h*0.12f);
+            canvas.drawPath(path,paint);
+            paint.setStyle(Paint.Style.FILL);
+            canvas.drawCircle(cx,cy+h*0.56f,stroke*0.7f,paint);
+            return;
+        } else if(what==SyncMark.PAUSED) {
             // Two bars, the sign every player uses for the same thing.
             float h=r*0.42f, apart=r*0.26f;
             path.moveTo(cx-apart,cy-h);path.lineTo(cx-apart,cy+h);
             path.moveTo(cx+apart,cy-h);path.lineTo(cx+apart,cy+h);
-        } else if(what==What.GONE) {
+        } else if(what==SyncMark.GONE) {
             // A tick, sized off the ring so it never touches it.
             float w=r*0.92f;
             path.moveTo(cx-w*0.55f,cy+w*0.04f);

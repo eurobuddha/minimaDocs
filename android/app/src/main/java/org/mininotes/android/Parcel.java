@@ -38,9 +38,32 @@ final class Parcel {
     /** One device that has this thing, as the list of them travels. */
     static final class Member {
         final String key,address,name; final int level; final long changed;
+        /**
+         * The key to seal for this device, in its short form, or empty where the sender does not know it. It is what
+         * lets everybody on a list reach everybody else on it without having paired: see {@link Linking}. It rides
+         * after the list of files, where a build from before stops reading, so it is said only where that list is.
+         */
+        final byte[] agreement;
         Member(String key,String address,String name,int level,long changed) {
+            this(key,address,name,level,changed,null);
+        }
+        Member(String key,String address,String name,int level,long changed,byte[] agreement) {
             this.key=key==null?"":key;this.address=address==null?"":address;
             this.name=name==null?"":name;this.level=level;this.changed=changed;
+            this.agreement=agreement==null?new byte[0]:agreement;
+        }
+    }
+
+    /**
+     * One collection above a note, as the path tail says it (see {@link Things} and docs/HOME.md): the sender's id for
+     * it, its name, its icon and colour, and where the sender keeps it among what is beside it. The icon, colour and
+     * order are used only where the collection is first made here; its name is followed, as a shelf's always was.
+     */
+    static final class Step {
+        final String id,name,icon; final int tint; final long ordinal;
+        Step(String id,String name,String icon,int tint,long ordinal) {
+            this.id=id==null?"":id;this.name=name==null?"":name;this.icon=icon==null?"":icon;
+            this.tint=tint;this.ordinal=ordinal;
         }
     }
 
@@ -109,6 +132,65 @@ final class Parcel {
         Sent(String collection,String collectionName,String book,String bookName,
              String title,String body,boolean writes,java.util.List<Member> members,
              String scope,String target,boolean answer,long basedOn,boolean carries) {
+            this(collection,collectionName,book,bookName,title,body,writes,members,scope,target,answer,basedOn,carries,
+                null,0L);
+        }
+        /**
+         * The files the note keeps at the sender's end, or null where the sender did not say - a build from
+         * before files travelled, or a list that would not fit. See {@link Enclosure}.
+         *
+         * <p>Null and empty are not the same thing, and the difference is the whole of what makes this safe:
+         * an empty list says the note keeps nothing, so whatever came from that device is taken out; a list
+         * not said takes nothing out.
+         */
+        final java.util.List<Enclosure.Listed> files;
+        /**
+         * When the sender wrote that list, by its own clock. The same note can go twice at one revision - a
+         * file added, or gone up - and a list carried the long way round can arrive after a newer one; only
+         * the newest list from a device is taken. Compared only with what the same device said before.
+         */
+        final long filesAsOf;
+        Sent(String collection,String collectionName,String book,String bookName,
+             String title,String body,boolean writes,java.util.List<Member> members,
+             String scope,String target,boolean answer,long basedOn,boolean carries,
+             java.util.List<Enclosure.Listed> files,long filesAsOf) {
+            this(collection,collectionName,book,bookName,title,body,writes,members,scope,target,answer,basedOn,carries,
+                files,filesAsOf,null);
+        }
+        /**
+         * The texts the sender's note has said before this one, newest first, each by its {@link Arriving#trace}; or
+         * null where the sender did not say. What arrived was written on top of every one of them, so a device whose
+         * note says one of them exactly has nothing the sender does not, and takes what came: see
+         * {@link Arriving#weigh(String,long,String,long,String,long,boolean,boolean)}.
+         *
+         * <p>Rides after the keys, which ride after the files: a build from before stops reading before it.
+         */
+        final java.util.List<String> history;
+        Sent(String collection,String collectionName,String book,String bookName,
+             String title,String body,boolean writes,java.util.List<Member> members,
+             String scope,String target,boolean answer,long basedOn,boolean carries,
+             java.util.List<Enclosure.Listed> files,long filesAsOf,java.util.List<String> history) {
+            this(collection,collectionName,book,bookName,title,body,writes,members,scope,target,answer,basedOn,carries,
+                files,filesAsOf,history,null,"",null);
+        }
+        /**
+         * Every collection above the note from Home down, or null where the sender did not say - a build from before
+         * collections nested, or a parcel too big to say it in. Empty is a note on Home. See {@link Things}.
+         *
+         * <p>Rides after the texts held before, which a build from before reads and stops after; so it is said only
+         * behind a list of files, and the texts are said - as none - where there are none, to stand in front of it.
+         */
+        final java.util.List<Step> path;
+        /** The note's own icon, by its name in the set, and its picture: empty where it has none. Said with the path. */
+        final String icon; final byte[] image;
+        Sent(String collection,String collectionName,String book,String bookName,
+             String title,String body,boolean writes,java.util.List<Member> members,
+             String scope,String target,boolean answer,long basedOn,boolean carries,
+             java.util.List<Enclosure.Listed> files,long filesAsOf,java.util.List<String> history,
+             java.util.List<Step> path,String icon,byte[] image) {
+            this.path=path;this.icon=icon==null?"":icon;this.image=image==null?new byte[0]:image;
+            this.history=history;
+            this.files=files;this.filesAsOf=filesAsOf;
             this.answer=answer;this.basedOn=basedOn<0?-1L:basedOn;this.carries=carries;
             this.collection=collection;this.collectionName=collectionName;
             this.book=book;this.bookName=bookName;this.title=title;this.body=body;this.writes=writes;
@@ -119,6 +201,19 @@ final class Parcel {
 
     /** The most members one thing may be shared with. A list, not a broadcast network. */
     static final int MEMBERS_MOST=64;
+    /**
+     * Room for what says where one file is and the key that opens it: a sixteen-megabyte file is some
+     * ninety pieces named by their hash, and a few places to fetch them from.
+     */
+    static final int MANIFEST_MOST=16384;
+    /** How many earlier texts a note says it held: enough for a device that missed a morning's writing. */
+    static final int HISTORY_MOST=48;
+    /** What says the list of earlier texts begins, so bytes after the keys that are anything else are left alone. */
+    private static final int HISTORY_MARK=0x4d4e4831;   // "MNH1"
+    /** What says the path begins, after the texts held before. */
+    private static final int PATH_MARK=0x4d4e5031;      // "MNP1"
+    /** Room for an icon's name in the set, and for a picture: a square thumbnail of at most 32 KB (decision 4). */
+    static final int ICON_MOST=64, IMAGE_MOST=32*1024;
 
     private Parcel(){}
 
@@ -153,8 +248,77 @@ final class Parcel {
         out.writeLong(sent.basedOn);
         // And after that, what a build before carrying never wrote: it reads the number above and stops.
         out.writeBoolean(sent.carries);
+        // And after that, what a build before files travelled never wrote: it reads the flag above and stops.
+        // Nothing at all where the sender says nothing, so that "no list" and "nothing on it" stay apart.
+        if(sent.files!=null) {
+            out.writeLong(sent.filesAsOf);
+            int files=Math.min(sent.files.size(),Enclosure.FILES_MOST);
+            out.writeInt(files);
+            for(int at=0;at<files;at++) {
+                Enclosure.Listed one=sent.files.get(at);
+                put(out,one.id,ID_MOST);
+                put(out,one.name,NAME_MOST);
+                put(out,one.kind,NAME_MOST);
+                out.writeLong(one.bytes);
+                put(out,one.manifest,MANIFEST_MOST);
+            }
+            // And after the files, the key to seal for each device on the list, in the list's order. Only here,
+            // behind a list of files: a build from before reads that list and stops, where with no list it would
+            // read these bytes as one, fail, and take the note for bare text written over somebody's words. And only
+            // where there is a key to give: a list with none ends where it always ended.
+            // A path is said after the texts held before, so where there is a path there are texts - none, if need be.
+            boolean pathed=sent.path!=null;
+            boolean keyed=sent.history!=null||pathed;
+            for(int at=0;at<many;at++){int length=sent.members.get(at).agreement.length;if(length>0&&length<=KEY_MOST)keyed=true;}
+            // Where the texts held before follow, the keys are said even where none is known - each as nothing, which a
+            // build from before reads as no key - so that what follows them is never read as keys, or keys as it.
+            if(keyed) {
+                out.writeInt(many);
+                for(int at=0;at<many;at++) {
+                    byte[] agreement=sent.members.get(at).agreement;
+                    out.writeInt(agreement.length<=KEY_MOST?agreement.length:0);
+                    if(agreement.length<=KEY_MOST)out.write(agreement);
+                }
+            }
+            if(sent.history!=null||pathed) {
+                int held=sent.history==null?0:Math.min(sent.history.size(),HISTORY_MOST);
+                out.writeInt(HISTORY_MARK);
+                out.writeInt(held);
+                for(int at=0;at<held;at++)out.write(traceBytes(sent.history.get(at)));
+            }
+            if(pathed)writePath(out,sent.path,sent.icon,sent.image);
+        }
         out.flush();
         return bytes.toByteArray();
+    }
+
+    /**
+     * The same, made to fit in {@code most} bytes: an envelope takes no more than {@link Envelope#MAX_TEXT},
+     * and a build on the far side refuses anything bigger whole. Where the list will not fit, the files that
+     * say most about where they are go on being named but stop saying where, biggest first - they are not
+     * with everybody yet, and say so - and where even their names will not fit, the list is not said at all,
+     * which takes nothing out at the far end.
+     */
+    static byte[] wrap(Sent sent,int most) throws IOException {
+        byte[] whole=wrap(sent);
+        if(whole.length<=most||sent.files==null)return whole;
+        java.util.List<Enclosure.Listed> lighter=new java.util.ArrayList<>(sent.files);
+        while(true) {
+            int biggest=-1;
+            for(int at=0;at<lighter.size();at++)
+                if(!lighter.get(at).manifest.isEmpty()&&(biggest<0||lighter.get(at).manifest.length()>lighter.get(biggest).manifest.length()))biggest=at;
+            if(biggest<0)break;
+            lighter.set(biggest,lighter.get(biggest).unsaid());
+            byte[] tried=wrap(with(sent,lighter));
+            if(tried.length<=most)return tried;
+        }
+        return wrap(with(sent,null));
+    }
+
+    private static Sent with(Sent sent,java.util.List<Enclosure.Listed> files) {
+        return new Sent(sent.collection,sent.collectionName,sent.book,sent.bookName,sent.title,sent.body,sent.writes,
+            sent.members,sent.scope,sent.target,sent.answer,sent.basedOn,sent.carries,files,sent.filesAsOf,
+            files==null?null:sent.history,files==null?null:sent.path,sent.icon,sent.image);
     }
 
     /**
@@ -192,22 +356,133 @@ final class Parcel {
                 basedOn=in.readLong();
             }
             boolean carries=in.available()>0&&in.readBoolean();
+            // A list of files, said whole or not at all, like the number above.
+            java.util.List<Enclosure.Listed> files=null;long asOf=0L;
+            if(in.available()>0) {
+                if(in.available()<12)throw new IllegalArgumentException("Cut short");
+                asOf=in.readLong();
+                int count=in.readInt();
+                if(count<0||count>Enclosure.FILES_MOST)throw new IllegalArgumentException("A list of "+count+" files");
+                files=new java.util.ArrayList<>(count);
+                for(int at=0;at<count;at++) {
+                    String id=get(in,ID_MOST), name=get(in,NAME_MOST), kind=get(in,NAME_MOST);
+                    long size=in.readLong();
+                    if(size<0)throw new IllegalArgumentException("A file of "+size+" bytes");
+                    files.add(new Enclosure.Listed(id,name,kind,size,get(in,MANIFEST_MOST)));
+                }
+                members=sealedFor(in,members);
+            }
+            java.util.List<String> history=files==null?null:heldBefore(in);
+            Path path=history==null?null:readPath(in);
             return new Sent(collection,collectionName,book,bookName,title,body,writes,members,scope,target,
-                answer,basedOn,carries);
+                answer,basedOn,carries,files,asOf,history,path==null?null:path.steps,path==null?"":path.icon,
+                path==null?null:path.image);
         } catch(IOException | IllegalArgumentException broken) {
             // Half a parcel is not a parcel. Nothing partly read is handed back.
             return null;
         }
     }
 
-    private static void put(DataOutputStream out,String said,int most) throws IOException {
+    /**
+     * The list again, each device with the key to seal for it where the sender said one. Read on its own, as a hello's
+     * tail is: keys that do not read leave the list as a build from before would have sent it, which is whole.
+     */
+    private static java.util.List<Member> sealedFor(DataInputStream in,java.util.List<Member> members) {
+        try {
+            if(in.available()<4||in.readInt()!=members.size())return members;
+            java.util.List<Member> keyed=new java.util.ArrayList<>(members.size());
+            for(Member one:members) {
+                int length=in.readInt();
+                if(length<0||length>KEY_MOST)return members;
+                byte[] key=new byte[length];in.readFully(key);
+                keyed.add(new Member(one.key,one.address,one.name,one.level,one.changed,key));
+            }
+            return keyed;
+        } catch(IOException damaged){return members;}
+    }
+
+    /**
+     * The texts the sender's note held before, where they follow the keys; null where they do not, or do not read -
+     * a list that does not read whole is no list, and the note is weighed by its counts as it always was.
+     */
+    private static java.util.List<String> heldBefore(DataInputStream in) {
+        try {
+            if(in.available()<8||in.readInt()!=HISTORY_MARK)return null;
+            int held=in.readInt();
+            if(held<0||held>HISTORY_MOST||in.available()<held*Arriving.TRACE_BYTES)return null;
+            java.util.List<String> history=new java.util.ArrayList<>(held);
+            byte[] one=new byte[Arriving.TRACE_BYTES];
+            StringBuilder hex=new StringBuilder();
+            for(int at=0;at<held;at++) {
+                in.readFully(one);hex.setLength(0);
+                for(byte b:one)hex.append(String.format(Locale.ROOT,"%02x",b));
+                history.add(hex.toString());
+            }
+            return history;
+        } catch(IOException damaged){return null;}
+    }
+
+    /** A path as it was read: the collections from Home down, and the thing's own icon and picture. */
+    static final class Path {
+        final java.util.List<Step> steps; final String icon; final byte[] image;
+        Path(java.util.List<Step> steps,String icon,byte[] image){this.steps=steps;this.icon=icon;this.image=image;}
+    }
+
+    /** The path, then the thing's own icon and picture: see {@link Sent#path}. Also how a {@link Carton} says its path. */
+    static void writePath(DataOutputStream out,java.util.List<Step> path,String icon,byte[] image) throws IOException {
+        int steps=Math.min(path==null?0:path.size(),Things.DEEPEST);
+        out.writeInt(PATH_MARK);
+        out.writeInt(steps);
+        for(int at=0;at<steps;at++) {
+            Step one=path.get(at);
+            put(out,one.id,ID_MOST);put(out,one.name,NAME_MOST);put(out,one.icon,ICON_MOST);
+            out.writeInt(one.tint);out.writeLong(one.ordinal);
+        }
+        put(out,icon,ICON_MOST);
+        byte[] picture=image==null||image.length>IMAGE_MOST?new byte[0]:image;
+        out.writeInt(picture.length);out.write(picture);
+    }
+
+    /**
+     * The path and the icon and picture after it; null where they are not there or do not read whole - a path that
+     * does not read is no path, and the note lands where its two old fields say.
+     */
+    static Path readPath(DataInputStream in) {
+        try {
+            if(in.available()<8||in.readInt()!=PATH_MARK)return null;
+            int steps=in.readInt();
+            if(steps<0||steps>Things.DEEPEST)return null;
+            java.util.List<Step> path=new java.util.ArrayList<>(steps);
+            for(int at=0;at<steps;at++)
+                path.add(new Step(get(in,ID_MOST),get(in,NAME_MOST),get(in,ICON_MOST),in.readInt(),in.readLong()));
+            String icon=get(in,ICON_MOST);
+            int length=in.readInt();
+            if(length<0||length>IMAGE_MOST)return null;
+            byte[] image=new byte[length];in.readFully(image);
+            return new Path(path,icon,image);
+        } catch(IOException | IllegalArgumentException damaged){return null;}
+    }
+
+    /** A trace as the bytes it is written in: anything that is not one is written as nothing that matches. */
+    private static byte[] traceBytes(String trace) {
+        byte[] out=new byte[Arriving.TRACE_BYTES];
+        if(trace==null||trace.length()!=Arriving.TRACE_BYTES*2)return out;
+        for(int at=0;at<out.length;at++) {
+            int high=Character.digit(trace.charAt(at*2),16), low=Character.digit(trace.charAt(at*2+1),16);
+            if(high<0||low<0)return new byte[Arriving.TRACE_BYTES];
+            out[at]=(byte)(high*16+low);
+        }
+        return out;
+    }
+
+    static void put(DataOutputStream out,String said,int most) throws IOException {
         byte[] bytes=(said==null?"":said).getBytes(StandardCharsets.UTF_8);
         if(bytes.length>most)throw new IOException("Too long to send: "+bytes.length+" of "+most);
         out.writeInt(bytes.length);
         out.write(bytes);
     }
 
-    private static String get(DataInputStream in,int most) throws IOException {
+    static String get(DataInputStream in,int most) throws IOException {
         int length=in.readInt();
         if(length<0||length>most)throw new IllegalArgumentException("A field said it was "+length+" long");
         byte[] bytes=new byte[length];

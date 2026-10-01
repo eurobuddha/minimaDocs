@@ -52,6 +52,28 @@ public class DesktopStoreTest {
         assertEquals(1,DesktopBackup.add(store,zip));assertEquals(2,store.pages(book.id).size());assertEquals(2,store.everyFile().size());
         for(var file:store.everyFile())assertEquals("test attachment",Files.readString(store.fileFor(file.id).toPath()));
     }
+    @Test public void replacingFromABackupRestoresThePadAsItWasColoursIncluded() throws Exception {
+        NoteStore.Note kept=note("Synthetic list kept in the backup");store.paint(NoteStore.Branch.Kind.PAGE,kept.id,4);
+        String book=store.someBook();store.paint(NoteStore.Branch.Kind.BOOK,book,6);
+        Path zip=temp.getRoot().toPath().resolve("restore.zip");DesktopBackup.write(store,zip);
+        NoteStore.Note later=note("Written after the backup");store.paint(NoteStore.Branch.Kind.PAGE,kept.id,1);
+        assertEquals(1,DesktopBackup.add(store,zip,null,true));
+        // The pad is what the backup was: the later note gone, the kept one with its own id and colour.
+        assertNull(store.get(later.id));assertEquals("Synthetic list kept in the backup",store.get(kept.id).body);
+        assertEquals(4,store.colourOf(NoteStore.Branch.Kind.PAGE,kept.id));assertEquals(6,store.colourOf(NoteStore.Branch.Kind.BOOK,book));
+    }
+    @Test public void theReadingRungAndColourStrengthAreKeptAsThePhoneKeepsThem() {
+        // A PC set on the older four sizes lands on the nearest rung of the ten; a new one in the middle.
+        assertEquals(DesktopLook.FIRST,DesktopLook.rung(context));
+        context.getSharedPreferences("settings",0).edit().putString("textSize","3").apply();assertEquals(7,DesktopLook.rung(context));
+        DesktopLook.keepRung(context,12);assertEquals(9,DesktopLook.rung(context));
+        assertEquals(18f,DesktopLook.size(DesktopLook.FIRST),0.01f);
+        assertEquals(Tint.FIRST_TONE,DesktopLook.tone(context));DesktopLook.keepTone(context,7);assertEquals(7,DesktopLook.tone(context));
+        // No colour washes nothing; a colour at a louder tone washes further from the paper.
+        java.awt.Color paper=Desktop.PAPER;assertEquals(paper,DesktopLook.wash(Tint.NONE,paper,0.12f,0.72f,9));
+        int quiet=DesktopLook.wash(1,paper,0.12f,0.72f,0).getBlue(),loud=DesktopLook.wash(1,paper,0.12f,0.72f,9).getBlue();
+        assertTrue(loud<quiet);
+    }
     @Test public void damagedBackupIsAtomicAndZipPathsAreRefused() throws Exception {
         NoteStore.Note n=note("keep me");Path zip=temp.getRoot().toPath().resolve("bad.zip");
         try(var out=new java.util.zip.ZipOutputStream(Files.newOutputStream(zip))){out.putNextEntry(new java.util.zip.ZipEntry("../outside"));out.write(1);}

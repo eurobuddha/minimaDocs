@@ -19,6 +19,10 @@ final class Keys {
     String line(String name,String address,String offer,boolean writes,String scope,String target) throws Exception {
         return Pairing.write(name,address,Point.shorten(agreement().getPublic()),Point.shorten(signing().getPublic()),offer,writes,scope,target);
     }
+    /** The same, offering a level: Admin travels as Pairing.write says. */
+    String line(String name,String address,String offer,Sharing.Level level,String scope,String target) throws Exception {
+        return Pairing.write(name,address,Point.shorten(agreement().getPublic()),Point.shorten(signing().getPublic()),offer,level,scope,target);
+    }
     private KeyPair kept(String name) throws Exception {
         Path file=context.getFilesDir().toPath().resolve("keys").resolve(name+".protected");
         if(Files.exists(file)) {

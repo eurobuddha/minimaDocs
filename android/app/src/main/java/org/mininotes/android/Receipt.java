@@ -128,6 +128,64 @@ final class Receipt {
     /** The number that says what was brought has been collected, by what kind of thing it was. */
     static int collected(int sort){return sort==Courier.ANSWER?COLLECTED_ANSWER:COLLECTED;}
 
+    /**
+     * "I have this file" and "I cannot get this file from where you said", about one file kept with a shared
+     * note (see {@link Enclosure}). The envelope names the file where it names a note: a file's id is made
+     * the way a note's is, sixteen bytes written out. Said only to a device that has shown it knows what an
+     * answer is, and read by one from before files travelled as a later build's answer, which is to say not
+     * at all.
+     *
+     * <p>The first is the only thing that lets a file stop saying it is not with everybody yet - as with a
+     * note, a relay taking the pieces is not somebody having them. The second is how a device that cannot
+     * get the pieces asks for them to go up again: they sit on relays that let things go when their shelf
+     * fills, and only the device that has the file can put it back.
+     */
+    static final int FILE_HERE=12, FILE_MISSING=13;
+
+    /**
+     * "This device takes files sent to it on their own" (see {@link Drop}). A sending is never offered to a
+     * device that has not said so, because a build from before would write the offer over a note. Said once a run
+     * to every paired device that has shown it knows what an answer is - and read by one from before as a later
+     * build's answer, which is to say not at all. The envelope names nothing.
+     */
+    static final int TAKES_FILES=14;
+
+    /**
+     * The answers about a sending, which the envelope names where it names a note: every file it lists is here;
+     * the person it was for said no; a file cannot be had from where the offer said, so its pieces should go up
+     * to a relay. Said only to a device that offered a sending, so only to one that knows them.
+     */
+    static final int DROP_HAVE=15, DROP_REFUSED=16, DROP_MISSING=17;
+
+    /**
+     * "This build knows about persons" (see {@link Persons}), in one of two ways: as it is, to a device this one does
+     * not count as its owner's, and with "and you are one of my own devices" to one it does. A card goes only to a
+     * device that is yours at both ends, and only the second says so from the far end. Said once a run to every
+     * paired device that has shown it knows what an answer is, again when which of the two it would be changes, and
+     * said back as {@link #TAKES_FILES} is. A build from before reads either as a later build's answer, which is to
+     * say not at all. The envelope names nothing.
+     */
+    static final int PERSONS=18, PERSONS_MINE=19;
+
+    /**
+     * "This device's notebook is locked: what arrives waits sealed until it is opened", and "open again". A locked
+     * notebook takes nothing in and answers nothing, so what was sent to it looked on its way for ever, the mark amber
+     * with nothing anybody could do; this lets the other devices say it is locked instead. Said as it locks, while it
+     * can still seal for them, and once it opens, only to devices that have said {@link #PERSONS} - builds that read an
+     * unknown number as a later build's answer, which is to say not at all. The envelope names nothing; when it was
+     * said rides in its moment, so a word that took the long way round does not undo a later one.
+     */
+    static final int LOCKED=20, OPENED=21;
+
+    /**
+     * "This build knows about trees": notes and collections nested as deep as anybody likes, a parcel's path, and a
+     * collection travelling on its own (see {@link Things}, {@link Carton} and docs/HOME.md). A device that has not
+     * said it is a 0.1 device, and is sent only what fits three levels; the rest waits until it says this. Said once
+     * a run to every paired device that has shown it knows what an answer is, as {@link #PERSONS} is, and read by a
+     * build from before as a later build's answer, which is to say not at all. The envelope names nothing.
+     */
+    static final int TREE=22;
+
     private Receipt(){}
 
     /** The inside of an answer. */

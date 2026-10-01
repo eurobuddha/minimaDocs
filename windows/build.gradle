@@ -1,5 +1,5 @@
 plugins { id 'java'; id 'application' }
-version = '0.0.021'
+version = '0.2.010'
 repositories { mavenCentral() }
 java { sourceCompatibility = JavaVersion.VERSION_17; targetCompatibility = JavaVersion.VERSION_17 }
 application { mainClass = 'org.mininotes.android.Desktop' }
@@ -11,6 +11,9 @@ dependencies {
     implementation 'net.java.dev.jna:jna-platform:5.18.0'
     implementation 'com.github.sarxos:webcam-capture:0.3.12'
     implementation 'com.formdev:flatlaf:3.6'
+    // A picture set on a phone is WebP, which Java cannot read by itself: this ImageIO plugin, pure Java, reads it, so the
+    // PC draws the phone's pictures (docs/HOME.md, step 4). Found by ImageIO on its own; nothing here names it.
+    runtimeOnly 'com.twelvemonkeys.imageio:imageio-webp:3.15.2'
     runtimeOnly 'org.slf4j:slf4j-nop:1.7.36'
     testImplementation 'junit:junit:4.13.2'
 }
@@ -19,7 +22,7 @@ dependencies {
 // adapted; generated files are never edited or committed.
 def portable = ['Arriving','Attachment','Background','Envelope','Feedback','Find','Hello',
     'Merge','Outbox','Pairing','Parcel','Point','Receipt','Reorder','RevisionClock',
-    'SchemaMigrations','SyncStatus','Sha3','Sharing','Tint','Update','Vault','Sealed','Courier']
+    'SchemaMigrations','SyncStatus','SyncMark','Sha3','Sharing','Tint','Update','Vault','Sealed','Courier','Enclosure','Direct','Nearby','Home','Relays','Given','Drop','DropList','Unsent','Persons','Recording','Linking','NoteLine','Waits','Links','Reading','Writers','Things','Carton','Overview','Grid','Layout','Icons','Thumb','Looks']
 def adapted = ['NoteStore','Post','Node']
 def androidSource = file('../android/app/src/main/java/org/mininotes/android')
 def generated = layout.buildDirectory.dir('generated/sources/shared')
@@ -41,6 +44,11 @@ tasks.register('sharedSources') {
                         .replace('org.mininotes.desktop.platform.content.pm.PackageManager.PERMISSION_GRANTED', '0')
                         .replace('android.os.Build.MODEL', '"Windows PC"')
                     source = source.replace('    private Node(){}', '    private Node(){}\n    static synchronized void retryStart(){if(node==null)tried=false;}')
+                    // The PC, and only the PC, asks its router for a public port (docs/DIRECT.md). Refused
+                    // loudly if the line has moved, rather than building a PC that quietly never asks.
+                    def pc = 'static final boolean A_PC=false;'
+                    if (!source.contains(pc)) throw new org.gradle.api.GradleException('Node.java no longer says ' + pc)
+                    source = source.replace(pc, 'static final boolean A_PC=true;')
                 }
             }
             new File(dest, name + '.java').setText(source, 'UTF-8')
@@ -52,6 +60,8 @@ sourceSets {
         java.srcDir generated
         java.srcDir '../android/maxima-core/src/main/java'
         resources.srcDir '../android/maxima-core/src/main/resources'
+        // Lucide's set (icons.txt) lives beside Icons, as it does in the phone's build.
+        resources.srcDir '../android/app/src/main/resources'
     }
     test {
         java.srcDir '../android/app/src/test/java'

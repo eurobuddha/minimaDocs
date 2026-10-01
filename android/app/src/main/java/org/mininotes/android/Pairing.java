@@ -53,6 +53,8 @@ final class Pairing {
         final String offer;
         /** True where the offer is to read and write. Reading is what an offer means unless it says so. */
         final boolean writes;
+        /** What the offer lets them do: Can read, Can write, or Admin. {@code writes} is this, read as "may write". */
+        final Sharing.Level level;
         /**
          * Which thing is being offered, in a form a machine can act on: the level, and its id on the
          * offering phone. {@code offer} is the sentence a person reads; this is what an acceptance quotes
@@ -67,8 +69,12 @@ final class Pairing {
         }
         Said(String name,String address,byte[] agreement,byte[] signing,String offer,boolean writes,
              String scope,String target) {
+            this(name,address,agreement,signing,offer,writes?Sharing.Level.WRITE:Sharing.Level.READ,scope,target);
+        }
+        Said(String name,String address,byte[] agreement,byte[] signing,String offer,Sharing.Level level,
+             String scope,String target) {
             this.name=name;this.address=address;this.agreement=agreement;this.signing=signing;
-            this.offer=offer==null?"":offer;this.writes=writes;
+            this.offer=offer==null?"":offer;this.level=offered(level);this.writes=this.level.writes();
             this.scope=scope==null?"":scope;this.target=target==null?"":target;
         }
     }
@@ -93,6 +99,17 @@ final class Pairing {
     /** The same again, naming the thing so an acceptance can quote it back. */
     static String write(String name,String address,byte[] agreement,byte[] signing,String offer,boolean writes,
                         String scope,String target) {
+        return write(name,address,agreement,signing,offer,writes?Sharing.Level.WRITE:Sharing.Level.READ,scope,target);
+    }
+
+    /**
+     * The same again, offering a level. Admin rides where no build from before looks for it: the mark is "w", so a
+     * build from before reads Can write - never more - and the level's number follows the scope after a colon
+     * ({@link #ADMIN_AFTER}), which a build from before only quotes back. So an Admin offer needs a scope to name.
+     */
+    static String write(String name,String address,byte[] agreement,byte[] signing,String offer,Sharing.Level level,
+                        String scope,String target) {
+        boolean writes=offered(level).writes();
         // A device may not know its own Maxima address yet — its node may not have been asked, or may not be
         // running. The keys are what pairing is for; where to send can be learnt afterwards and filled in.
         if(agreement==null||agreement.length==0||signing==null||signing.length==0)
@@ -106,7 +123,8 @@ final class Pairing {
             // And which thing, where there is one to name. Two more fields, so a phone that has only ever
             // seen six goes on reading every line this one writes.
             if(scope!=null&&!scope.trim().isEmpty()&&target!=null&&!target.trim().isEmpty())
-                line+=BETWEEN+clean(scope,NAME_MOST)+BETWEEN+clean(target,ADDRESS_MOST);
+                line+=BETWEEN+clean(scope,NAME_MOST)+(offered(level)==Sharing.Level.ADMIN?ADMIN_AFTER+Sharing.Level.ADMIN.said():"")
+                    +BETWEEN+clean(target,ADDRESS_MOST);
         }
         return line;
     }
@@ -142,7 +160,35 @@ final class Pairing {
         String offer=parts.length>=6?parts[4].trim():"";
         boolean writes=parts.length>=6&&"w".equals(parts[5].trim());
         String scope=parts.length==8?parts[6].trim():"", target=parts.length==8?parts[7].trim():"";
-        return new Said(name.isEmpty()?"Their device":name,address,agreement,signing,offer,writes,scope,target);
+        Sharing.Level level=writes?levelIn(scope):Sharing.Level.READ;
+        return new Said(name.isEmpty()?"Their device":name,address,agreement,signing,offer,level,scopeIn(scope),target);
+    }
+
+    /** What follows a scope when an offer is more than Can write: the level's number. */
+    static final String ADMIN_AFTER=":";
+
+    /**
+     * The scope a line or a hello names, without the level after it. A build from before quotes back the scope the
+     * line gave it, level and all, so whatever reads a scope reads it through this.
+     */
+    static String scopeIn(String said) {
+        if(said==null)return "";
+        int at=said.indexOf(ADMIN_AFTER);
+        return (at<0?said:said.substring(0,at)).trim();
+    }
+
+    /** What a scope says an offer that writes lets them do: Can write, or more where a number after it says so. */
+    static Sharing.Level levelIn(String said) {
+        int at=said==null?-1:said.indexOf(ADMIN_AFTER);
+        if(at<0)return Sharing.Level.WRITE;
+        try{Sharing.Level level=Sharing.Level.of(Integer.parseInt(said.substring(at+1).trim()));
+            return level.writes()?level:Sharing.Level.WRITE;}
+        catch(NumberFormatException damaged){return Sharing.Level.WRITE;}
+    }
+
+    /** An offer is to read at least, and never more than Admin: nobody is offered being taken off, or owning a thing. */
+    static Sharing.Level offered(Sharing.Level level) {
+        return level==null||level==Sharing.Level.GONE?Sharing.Level.READ:level;
     }
 
     /**

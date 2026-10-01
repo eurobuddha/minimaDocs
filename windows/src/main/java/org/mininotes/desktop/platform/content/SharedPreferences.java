@@ -19,6 +19,7 @@ public final class SharedPreferences {
         } catch(Exception failure){throw new IllegalStateException("Could not open this device's settings",failure);}
     }
     public synchronized String getString(String key,String fallback){return values.optString(key,fallback);}
+    public synchronized long getLong(String key,long fallback){return values.optLong(key,fallback);}
     public synchronized Set<String> getStringSet(String key,Set<String> fallback) {
         JSONArray array=values.optJSONArray(key);
         if(array==null)return new HashSet<>(fallback);
@@ -30,6 +31,7 @@ public final class SharedPreferences {
     public final class Editor {
         private final Map<String,Object> changes=new LinkedHashMap<>();
         public Editor putString(String key,String value){changes.put(key,value);return this;}
+        public Editor putLong(String key,long value){changes.put(key,value);return this;}
         public Editor putStringSet(String key,Set<String> value){changes.put(key,new JSONArray(value));return this;}
         public void apply() {
             synchronized(SharedPreferences.this) {

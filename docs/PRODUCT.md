@@ -8,6 +8,8 @@ Architecture as built: a native Android APK that is its own Maxima node — the 
 
 **Where this document stands.** Everything from *Sync design* down was written on 13 September 2026 as a plan, before any of it existed, and is kept as that: what was intended, against which what was built can be judged. What was built is in [SHARING.md](SHARING.md); what has been seen working is recorded, build by build, in a verification log the maintainer keeps privately. The plan is still ahead of the app in three places that matter — an acknowledgement from the far end (item 5), tombstones (item 7), and encryption at rest (item 3) — and behind it in one: the app merges line by line where the plan only promised conflict copies.
 
+**Files on their own** (2026-09-27, built, not yet seen between devices). The owner asked for a drop box: files sent straight to another device, belonging to no note, as Snapdrop does on one network. It earns its place because the pad already carries files between paired devices; this lets one go without a note to hang it on. See [SHARING.md](SHARING.md), *Sending files*.
+
 ## What the network brings
 
 | Capability | User benefit | What Mininotes must supply |

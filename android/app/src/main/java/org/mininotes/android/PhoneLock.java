@@ -17,10 +17,11 @@ import java.util.Arrays;
 import net.zetetic.database.sqlcipher.SQLiteDatabase;
 
 /**
- * The password lock on this phone's notebook, as the notebook and its files see it.
+ * The lock on this phone's notebook, as the notebook and its files see it.
  *
  * <p>On disk: the notebook, encrypted by SQLCipher with a key nobody types, and {@code vault.key}, that key
- * sealed with the password and with the twelve words ({@link Vault}). Attachments are sealed with the same
+ * sealed with the twelve words and, if its owner chose one, a password ({@link Vault}); how it is chosen
+ * and what the screens say about it is {@link LockChoice}. Attachments are sealed with the same
  * key ({@link Sealed}). Nothing leaves the phone.
  *
  * <p>Putting the lock on copies the notebook into an encrypted file, checks the copy holds every note, and
@@ -30,7 +31,6 @@ import net.zetetic.database.sqlcipher.SQLiteDatabase;
  */
 final class PhoneLock {
     static final String KEPT="vault.key",PENDING="vault.key.new",INBOX="inbox";
-    static final String WARNING="If you lose both the backup password and the 12 recovery words, nobody can open this notebook. Not you, and not the people who make Mininotes. There is no email reset and no copy anywhere else.";
     /** While the notebook is being swapped, whatever arrives goes to the inbox rather than into it. */
     static volatile boolean busy;
 
@@ -41,11 +41,14 @@ final class PhoneLock {
     /** Whether the notebook can be read now: it has no lock, or its key is in hand. */
     static boolean open(Context c){return !locked(c)||NoteStore.key()!=null;}
     static byte[] kept(Context c) throws IOException{return read(file(c,KEPT));}
+    /** Whether a password opens this notebook. A lock that cannot be read is taken to have one, as every older lock does. */
+    static boolean hasPassword(Context c){try{return Vault.hasPassword(kept(c));}catch(Exception unreadable){return true;}}
 
     /** What a lock that never finished going on or coming off left behind, cleared at opening. */
     static void tidy(Context c) {
         if(busy)return;
-        if(!locked(c))file(c,PENDING).delete();
+        // The phone's unlock is sealed before the lock goes on; a lock abandoned after that leaves it behind.
+        if(!locked(c)){file(c,PENDING).delete();if(hasBio(c))forgetBio(c);}
         forget(c.getDatabasePath("mininotes-next.db"));forget(c.getDatabasePath("mininotes-next.db-journal"));
     }
 
@@ -65,10 +68,33 @@ final class PhoneLock {
     /**
      * Unlocking with fingerprint, face or the phone's own screen lock: the notebook's key, sealed once more with
      * a key that lives in the phone's secure hardware and is let out only after Android's own prompt says so.
-     * The password and the words still open it; this is a third copy, and the easiest one to remove.
+     * The words, and the password if there is one, still open it; this is one more copy, and the one that
+     * lives only in this phone.
      */
     static final String BIO="vault.bio",ALIAS="mininotes-unlock";
     static boolean hasBio(Context c){return file(c,BIO).isFile();}
+    /** Set up, and on an Android that can ask for it (the prompt with the screen lock beside it needs 11). */
+    static boolean bioHere(Context c){return android.os.Build.VERSION.SDK_INT>=30&&hasBio(c);}
+
+    /** Whether this phone can open Mininotes with its own unlock now: Android 11 or later, and a screen lock set. */
+    static boolean phoneCan(Context c) {
+        if(android.os.Build.VERSION.SDK_INT<30)return false;
+        android.hardware.biometrics.BiometricManager asks=c.getSystemService(android.hardware.biometrics.BiometricManager.class);
+        return asks!=null&&asks.canAuthenticate(android.hardware.biometrics.BiometricManager.Authenticators.BIOMETRIC_STRONG
+            |android.hardware.biometrics.BiometricManager.Authenticators.DEVICE_CREDENTIAL)==android.hardware.biometrics.BiometricManager.BIOMETRIC_SUCCESS;
+    }
+
+    /** Whether the prompt will most likely ask for a fingerprint, so the button can say so. */
+    static boolean fingerprint(Context c) {
+        if(android.os.Build.VERSION.SDK_INT<30||!c.getPackageManager().hasSystemFeature(android.content.pm.PackageManager.FEATURE_FINGERPRINT))return false;
+        android.hardware.biometrics.BiometricManager asks=c.getSystemService(android.hardware.biometrics.BiometricManager.class);
+        return asks!=null&&asks.canAuthenticate(android.hardware.biometrics.BiometricManager.Authenticators.BIOMETRIC_STRONG)==android.hardware.biometrics.BiometricManager.BIOMETRIC_SUCCESS;
+    }
+
+    /** The hardware key is gone: the screen lock was removed, or the key was otherwise let go by Android. */
+    static final class Gone extends IOException{Gone(){super("The phone's unlock key is gone.");}}
+    /** Whether the phone's unlock can never open it again, rather than having failed this once. */
+    static boolean lost(Exception e){return e instanceof Gone||e instanceof android.security.keystore.KeyPermanentlyInvalidatedException;}
 
     /** A cipher over the hardware key, to be handed to Android's prompt. A new hardware key when sealing. */
     static javax.crypto.Cipher bioCipher(Context c,boolean seal) throws Exception {
@@ -79,13 +105,16 @@ final class PhoneLock {
                     android.security.keystore.KeyProperties.PURPOSE_ENCRYPT|android.security.keystore.KeyProperties.PURPOSE_DECRYPT)
                 .setBlockModes(android.security.keystore.KeyProperties.BLOCK_MODE_GCM)
                 .setEncryptionPaddings(android.security.keystore.KeyProperties.ENCRYPTION_PADDING_NONE)
-                .setKeySize(256).setUserAuthenticationRequired(true).setInvalidatedByBiometricEnrollment(true);
+                .setKeySize(256).setUserAuthenticationRequired(true)
+                // Where the phone's screen lock opens it anyway (11 and later), a new fingerprint would only
+                // strand whoever chose no password at their recovery words, and keep nobody out.
+                .setInvalidatedByBiometricEnrollment(android.os.Build.VERSION.SDK_INT<30);
             if(android.os.Build.VERSION.SDK_INT>=30)spec.setUserAuthenticationParameters(0,
                 android.security.keystore.KeyProperties.AUTH_BIOMETRIC_STRONG|android.security.keystore.KeyProperties.AUTH_DEVICE_CREDENTIAL);
             make.init(spec.build());make.generateKey();
         }
         javax.crypto.SecretKey hardware=(javax.crypto.SecretKey)store.getKey(ALIAS,null);
-        if(hardware==null)throw new IOException("The phone's unlock key is gone.");
+        if(hardware==null)throw new Gone();
         javax.crypto.Cipher aes=javax.crypto.Cipher.getInstance("AES/GCM/NoPadding");
         if(seal)aes.init(javax.crypto.Cipher.ENCRYPT_MODE,hardware);
         else{byte[] kept=read(file(c,BIO));aes.init(javax.crypto.Cipher.DECRYPT_MODE,hardware,new javax.crypto.spec.GCMParameterSpec(128,kept,0,12));}
@@ -188,10 +217,10 @@ final class PhoneLock {
         catch(IOException e){return false;}
     }
 
-    /** Every attachment sealed (lock on) or opened (lock off), each replaced whole. */
+    /** Every attachment, and every file received on its own, sealed (lock on) or opened (lock off), each replaced whole. */
     static void every(Context c,byte[] key,boolean seal) throws IOException {
         NoteStore store=NoteStore.of(c);
-        for(NoteStore.Held held:store.everyFile()) {
+        for(NoteStore.Held held:store.everyFileKept()) {
             File f=store.fileFor(held.id);
             if(!f.isFile()||sealed(f)==seal)continue;
             File next=new File(f.getPath()+".next");

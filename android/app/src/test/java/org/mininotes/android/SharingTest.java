@@ -121,7 +121,8 @@ public class SharingTest {
         assertEquals("this note",Sharing.shortly(Sharing.Scope.PAGE,"Chain wax"));
         assertEquals("the note Chain wax",Sharing.travelling(Sharing.Scope.PAGE,"Chain wax"));
         assertEquals("the collection Allotment",Sharing.travelling(Sharing.Scope.COLLECTION,"Allotment"));
-        assertEquals("the book Seeds",Sharing.travelling(Sharing.Scope.BOOK,"Seeds"));
+        // A book is a collection inside a collection since 0.2.001, and is called one.
+        assertEquals("the collection Seeds",Sharing.travelling(Sharing.Scope.BOOK,"Seeds"));
     }
 
     // ---- what one device may do with a page, which is what decides whether its words are taken in ----------
@@ -168,5 +169,57 @@ public class SharingTest {
         assertNull("Somebody else's rule is not theirs",
             Sharing.standing(List.of(at(Sharing.Scope.COLLECTION,HOME,STRANGER,Sharing.Level.ADMIN,"key-of-stranger")),
                 HOME,DIARY,PAGE,List.of(FRIEND),KEY));
+    }
+
+    // ---- the four roles: what each may give and change, here and in what arrives -------------------------------
+
+    @Test public void theOwnerGivesAnyRoleAnAdminOnlyWriteAndReadAnybodyElseNothing() {
+        assertEquals(List.of(Sharing.Level.ADMIN,Sharing.Level.WRITE,Sharing.Level.READ),Sharing.grantable(true,null));
+        assertEquals(List.of(Sharing.Level.WRITE,Sharing.Level.READ),Sharing.grantable(false,Sharing.Level.ADMIN));
+        assertTrue(Sharing.grantable(false,Sharing.Level.WRITE).isEmpty());
+        assertTrue(Sharing.grantable(false,Sharing.Level.READ).isEmpty());
+        assertTrue(Sharing.grantable(false,null).isEmpty());
+    }
+
+    @Test public void anAdminChangesWritersAndReadersButNeitherTheOwnerNorAnotherAdmin() {
+        assertTrue(Sharing.mayChange(false,Sharing.Level.ADMIN,Sharing.Level.WRITE,false));
+        assertTrue(Sharing.mayChange(false,Sharing.Level.ADMIN,Sharing.Level.READ,false));
+        assertFalse("another admin",Sharing.mayChange(false,Sharing.Level.ADMIN,Sharing.Level.ADMIN,false));
+        assertFalse("the owner",Sharing.mayChange(false,Sharing.Level.ADMIN,Sharing.Level.ADMIN,true));
+        assertFalse("the owner, however the list has them",Sharing.mayChange(false,Sharing.Level.ADMIN,Sharing.Level.WRITE,true));
+        // The owner changes anybody, admins included - and is never changed.
+        assertTrue(Sharing.mayChange(true,null,Sharing.Level.ADMIN,false));
+        assertTrue(Sharing.mayChange(true,null,Sharing.Level.READ,false));
+        assertFalse(Sharing.mayChange(true,null,Sharing.Level.ADMIN,true));
+        // A writer or a reader changes nobody.
+        assertFalse(Sharing.mayChange(false,Sharing.Level.WRITE,Sharing.Level.READ,false));
+        assertFalse(Sharing.mayChange(false,Sharing.Level.READ,Sharing.Level.READ,false));
+    }
+
+    @Test public void onlyTheOwnersListsSayAnythingAboutTheOwnerOrTheAdmins() {
+        // From the owner, anything.
+        assertTrue(Sharing.mayCarry(true,false,Sharing.Level.ADMIN,Sharing.Level.READ));
+        assertTrue(Sharing.mayCarry(true,false,Sharing.Level.WRITE,Sharing.Level.ADMIN));
+        // From anybody else: writers and readers, yes.
+        assertTrue(Sharing.mayCarry(false,false,Sharing.Level.WRITE,Sharing.Level.READ));
+        assertTrue(Sharing.mayCarry(false,false,Sharing.Level.READ,Sharing.Level.GONE));
+        assertTrue(Sharing.mayCarry(false,false,null,Sharing.Level.WRITE));
+        // Never the owner, never making an admin, never an admin.
+        assertFalse(Sharing.mayCarry(false,true,Sharing.Level.ADMIN,Sharing.Level.GONE));
+        assertFalse(Sharing.mayCarry(false,true,null,Sharing.Level.WRITE));
+        assertFalse(Sharing.mayCarry(false,false,Sharing.Level.WRITE,Sharing.Level.ADMIN));
+        assertFalse(Sharing.mayCarry(false,false,null,Sharing.Level.ADMIN));
+        assertFalse(Sharing.mayCarry(false,false,Sharing.Level.ADMIN,Sharing.Level.WRITE));
+        assertFalse(Sharing.mayCarry(false,false,Sharing.Level.ADMIN,Sharing.Level.GONE));
+    }
+
+    @Test public void everyRoleSaysWhatItLetsSomebodyDoInTheSameWordsEverywhere() {
+        assertEquals("Owner",Sharing.OWNER);
+        assertEquals("Admin",Sharing.Level.ADMIN.words());
+        assertEquals("Can write",Sharing.Level.WRITE.words());
+        assertEquals("Can read",Sharing.Level.READ.words());
+        for(Sharing.Level level:Sharing.Level.values())assertFalse(level.does().isEmpty());
+        assertTrue(Sharing.OWNER_DOES.contains("changing anyone's role"));
+        assertTrue(Sharing.Level.ADMIN.does().contains("Not the owner or other admins"));
     }
 }

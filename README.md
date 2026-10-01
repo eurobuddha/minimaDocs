@@ -56,14 +56,14 @@ network, and the first time it takes a few seconds to find a relay. **⋮ →
 Profile → Connection** says *Connected* once it has, and says what to do if it
 has not.
 
-1. **Show a code.** Open the collection, book or note, tap the ring in its bar
+1. **Show a code.** Open the collection or note, tap the ring in its bar
    (or **⋮ → Sharing**), then **Share → Show them my code**. *Read only* or
    *Read & write* is chosen on the code itself.
-2. **Scan it** on the other phone: **+** on the shelves → **From another
-   device** — or just point the phone's own camera at it; the code is a
-   `mininotes://` link and the camera offers to open it. Accept. A strip at the
-   foot of the screen says what is happening — saving, finding the other phone,
-   telling it — until the thing arrives.
+2. **Scan it** on the other phone: point the phone's own camera at it — the
+   code is a `mininotes://` link and the camera offers to open it — or use the
+   scanner in the app, **⋮ → People and devices → Share with someone**.
+   Accept. A strip at the foot of the screen says what is happening — saving,
+   finding the other phone, telling it — until the thing arrives.
 3. The first phone asks whether to give it to them. Say yes and it is sent.
 4. From then on it keeps itself up to date: what you write goes a few seconds
    after you stop, and what they write comes back and is merged. The ring on
@@ -78,9 +78,9 @@ automatically* and its delay, *Sync now*, *Pause receiving*, and **Unfollow**
 for anyone but the owner, which tells the others.
 
 Once a phone is paired with anything, the pad goes on listening after it is
-closed. Android shows a notification for as long as that lasts. **⋮ → Profile →
+closed. Android shows a notification for as long as that lasts. **⋮ → Settings →
 Listen while the pad is closed** switches it off, and so does **Stop listening**
-on the notification. **Keep listening while the phone sleeps** (Profile) asks
+on the notification. **Keep listening while the phone sleeps** (Settings) asks
 Android to let Mininotes through its deep sleep and wakes it for a moment every
 few minutes; without it, the pad hears while the phone is awake or charging.
 Whatever was sent in the meantime is sent again until your phone answers, and
@@ -101,23 +101,34 @@ other.
 
 ## What it does
 
-- **Shares.** A collection, a book or one note, to phones you have paired with,
+- **Shares.** A collection or one note, to phones you have paired with,
   sealed end to end over Maxima — to read, to write in, or to hand on. It
   arrives while the pad is closed, and two people's writing is merged.
 - **Writes.** A ruled page, the cursor in it, saved as you go. No save button.
-- **Holds.** Collections hold books, books hold notes. Nothing is buried deeper.
-- **Colours.** One colour scale and a tone slider, set per collection, book or
-  note, and it follows the phone's light and dark themes.
-- **Attaches.** Any file, kept with the note and carried in backups.
+- **Holds.** Notes and collections, and a collection holds notes and other
+  collections, as deep as you like. (Since 0.2.001 a book is a collection inside a
+  collection; see [docs/HOME.md](docs/HOME.md).)
+- **Colours.** One colour scale and a tone slider, set per collection or note,
+  and it follows the phone's light and dark themes.
+- **Attaches.** Any file, or several at once, kept with the note and carried
+  in backups.
+- **Takes what you share.** Mininotes is on Android's share sheet: a
+  screenshot, photos, files, text or a link go into a new note or one of the
+  notes you used last.
+- **Sends files.** Straight to another of your devices or somebody you paired
+  with, in no note - door to door on the same Wi-Fi. What comes lands on Home,
+  marked *new* until you open it, and can be moved anywhere; files from
+  somebody else's device are asked about first. **⋮ → Sent files** lists what
+  went.
 - **Remembers.** Every version of a note, with a way back to any of them.
-- **Puts away.** One archive and one bin for everything, with a way back out.
-- **Backs up.** One file holding every collection, book, note and attachment.
+- **Puts away.** One archive and one bin for everything, on Home beside your notes, with a way back out.
+- **Backs up.** One file holding every collection, note and attachment.
   Importing asks whether to add to what is here or replace it.
 - **Finds.** Search across the whole pad, your favourites, what you wrote in
-  lately, and **Tree view** — every collection, book and note at once.
+  lately, and **Tree view** — every collection and note at once.
 
-**Lock Mininotes** (⋮ → Security) and the notebook, its attachments and your
-backups are encrypted on the device (SQLCipher). It then opens with your
+**Lock Mininotes** (⋮ → Settings → Security) and the notebook, its attachments
+and your backups are encrypted on the device (SQLCipher). It then opens with your
 fingerprint or screen lock, with a backup password and 12 recovery words as
 spare keys. Every note is also sealed end to end on its way to another device.
 
@@ -150,7 +161,7 @@ not to an issue.
 
 The Windows desktop build lives in [windows/](windows/README.md). On Windows
 with JDK 17, run `./windows/build.ps1 -Package`; extract the resulting
-`dist/latest/Mininotes-Windows-0.0.021.zip` and open `Mininotes/Mininotes.exe`.
+`dist/latest/Mininotes-Windows-0.2.010.zip` and open `Mininotes/Mininotes.exe`.
 The bundle includes Java. It is a preview: what was checked on which build is
 recorded before each release in a log the maintainer keeps privately.
 

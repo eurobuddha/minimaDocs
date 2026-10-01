@@ -208,4 +208,39 @@ public class ArrivingTest {
         assertEquals(Arriving.What.NEWER,said.what);
         assertEquals("Same",said.text);
     }
+
+    @Test public void aPageNobodyTypedOnSaysWhatArrivedWhateverIsOnTheScreen() {
+        // Blank rules tapped onto it, or a note cut short by the page: not typed, so not writing to keep.
+        Arriving.Page said=Arriving.onThePage("Milk\nEggs","Milk\nEggs\n\n\n","Milk\nEggs\nBread",false);
+        assertEquals("Milk\nEggs\nBread",said.text);
+        assertFalse(said.unsaved);
+        said=Arriving.onThePage("Milk\nEggs","Milk","Oat milk\nEggs",false);
+        assertEquals("Oat milk\nEggs",said.text);
+        assertFalse(said.unsaved);
+    }
+
+    @Test public void aPageTypedOnIsPutTogetherWithWhatArrived() {
+        Arriving.Page said=Arriving.onThePage("Milk\nEggs","Milk\nEggs\nTea","Oat milk\nEggs",true);
+        assertEquals("Oat milk\nEggs\nTea",said.text);
+        assertTrue(said.unsaved);
+    }
+
+    @Test public void whatTheSenderSaysItWroteOnTopOfIsTakenEvenWhereTheCountsWouldMerge() {
+        // Agreed at 60; this device took their 61 from somebody else, so its count is past the agreement.
+        Arriving.Decision said=Arriving.weigh("B",61,"A",60,"C",62,true,false);
+        assertEquals(Arriving.What.NEWER,said.what);
+        assertEquals("C",said.text);
+        assertEquals(62,said.revision);
+        // What arrived is a text this device has already had: behind what is here.
+        said=Arriving.weigh("C",62,"A",59,"B",61,false,true);
+        assertEquals(Arriving.What.OLDER,said.what);
+        // Words this device once held, written again over there on top of what is here: their word wins.
+        said=Arriving.weigh("A\nmore",61,"A",59,"A",62,true,true);
+        assertEquals(Arriving.What.NEWER,said.what);
+        assertEquals("A",said.text);
+        // Neither known: the counts, as before.
+        assertEquals(Arriving.What.MERGED,Arriving.weigh("A\nB",61,"A",60,"A\nC",61,false,false).what);
+        // And the counts first where they can decide.
+        assertEquals(Arriving.What.OLDER,Arriving.weigh("Mine, later",5,"Agreed",2,"Agreed",2,true,false).what);
+    }
 }

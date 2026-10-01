@@ -120,6 +120,16 @@ public class ReceiptTest {
         assertFalse(Parcel.open(Parcel.wrap(new Parcel.Sent("","","","","","just text",false))).answer);
     }
 
+    /** Every answer says one thing: no two numbers the same, and "knows about persons" after the files' answers. */
+    @Test public void everyAnswerHasANumberOfItsOwn() throws Exception {
+        java.util.Set<Integer> seen=new java.util.HashSet<>();
+        for(java.lang.reflect.Field one:Receipt.class.getDeclaredFields())
+            if(one.getType()==int.class&&java.lang.reflect.Modifier.isStatic(one.getModifiers()))
+                assertTrue(one.getName(),seen.add(one.getInt(null)));
+        assertEquals(18,Receipt.PERSONS);assertEquals(19,Receipt.PERSONS_MINE);
+        assertEquals(Receipt.PERSONS_MINE,Receipt.open(Receipt.wrap(Receipt.PERSONS_MINE)));
+    }
+
     @Test public void nothingAndNonsenseAreNotAnswers() {
         assertEquals(0,Receipt.open(null));
         assertEquals(0,Receipt.open(new byte[0]));

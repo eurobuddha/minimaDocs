@@ -80,6 +80,13 @@ final class Keys {
             Point.shorten(signing().getPublic()),offer,writes,scope,target);
     }
 
+    /** The same, offering a level: Admin travels as Pairing.write says. */
+    String line(String name,String address,String offer,Sharing.Level level,String scope,String target)
+            throws GeneralSecurityException, IOException {
+        return Pairing.write(name,address,Point.shorten(agreement().getPublic()),
+            Point.shorten(signing().getPublic()),offer,level,scope,target);
+    }
+
     /** A public key as it arrived from somebody else: refused rather than trusted if it is not a key. */
     /** A public key as it arrived, long form or short. See {@link Point}. */
     static PublicKey publicKey(byte[] encoded) throws GeneralSecurityException {

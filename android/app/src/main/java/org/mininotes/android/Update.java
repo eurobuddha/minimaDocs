@@ -48,6 +48,16 @@ final class Update {
      * as if it ended in zeros. Either name being unreadable is "no": saying nothing about an update is a
      * small loss, and announcing one that does not exist sends somebody to a page with nothing on it.
      */
+    /**
+     * What the dot beside the version says (the owner's ask, 2026-10-01): nothing yet - the repository has not been heard
+     * from, or could not be read - no dot; this is the newest there is, green; a newer one is out, yellow.
+     */
+    enum Standing{UNKNOWN,LATEST,BEHIND}
+    static Standing standing(String published,String installed) {
+        if(read(published).isEmpty()||read(installed).isEmpty())return Standing.UNKNOWN;
+        return newer(published,installed)?Standing.BEHIND:Standing.LATEST;
+    }
+
     static boolean newer(String published,String installed) {
         long[] theirs=numbers(read(published)),ours=numbers(read(installed));
         if(theirs==null||ours==null)return false;

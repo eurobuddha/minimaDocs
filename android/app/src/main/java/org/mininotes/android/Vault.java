@@ -24,6 +24,11 @@ import javax.crypto.spec.SecretKeySpec;
  * opens it. So a forgotten password is not a lost notebook - the words open it and a new password is
  * set - and changing the password seals the same key again without touching the words or the notebook.
  *
+ * <p>The password is the owner's choice. A phone that opens with its own unlock may keep no password at all:
+ * then the password's copy is left empty, and the words are the one way in that does not need this phone.
+ * Nothing is weaker for it - twelve words are far harder to guess than a password - but the words then
+ * carry everything the password would have.
+ *
  * <p>Nobody else holds anything. There is no server and no email: the words are the only way back, which
  * is why they are shown once, when the lock is set, and asked for back before it is.
  *
@@ -58,10 +63,29 @@ final class Vault {
     }
     static Made make(char[] password) throws GeneralSecurityException{return make(password,ROUNDS);}
 
+    /** A lock with no password: the words, and whatever else seals the key beside it (the phone's own unlock). */
+    static Made makeWithoutPassword(int rounds) throws GeneralSecurityException {
+        byte[] key=new byte[KEY];RANDOM.nextBytes(key);
+        List<String> words=Bip39.generate(WORDS);
+        return new Made(write(rounds,new byte[0],seal(key,phrase(words),rounds),keep(key,String.join(" ",words).toLowerCase(java.util.Locale.ROOT))),key,words);
+    }
+    static Made makeWithoutPassword() throws GeneralSecurityException{return makeWithoutPassword(ROUNDS);}
+
+    /** Whether a password opens this lock. Every lock made before the choice has one. */
+    static boolean hasPassword(byte[] kept) throws Refused{return read(kept).byPassword.length>0;}
+
+    /** The password's copy taken out. The words, and so the notebook, stay as they were. */
+    static byte[] withoutPassword(byte[] kept) throws Refused {
+        Parts parts=read(kept);
+        return write(parts.rounds,new byte[0],parts.byWords,parts.wordsByKey);
+    }
+
     /** The key, from the password. */
     static byte[] open(byte[] kept,char[] password) throws Refused {
         if(password==null||password.length==0)throw new Refused("That did not open it.");
         Parts parts=read(kept);
+        // No password kept: any password is simply the wrong one, said the same way.
+        if(parts.byPassword.length==0)throw new Refused("That did not open it.");
         return unseal(parts.byPassword,password,parts.rounds);
     }
 
@@ -76,8 +100,9 @@ final class Vault {
         return unseal(parts.byWords,phrase(said),parts.rounds);
     }
 
-    /** A new password for the same key. The words, and so the notebook, stay as they were. */
+    /** A new password for the same key - or a first one. The words, and so the notebook, stay as they were. */
     static byte[] newPassword(byte[] kept,byte[] key,char[] password) throws Refused,GeneralSecurityException {
+        if(password==null||password.length==0)throw new IllegalArgumentException("A password cannot be empty.");
         Parts parts=read(kept);
         return write(parts.rounds,seal(key,password,parts.rounds),parts.byWords,parts.wordsByKey);
     }

@@ -76,7 +76,14 @@ final class ColourEmoji {
     static boolean joins(int cp){return cp==0x200D||cp==0xFE0F||(cp>=0x1F3FB&&cp<=0x1F3FF)||(cp>=0xE0020&&cp<=0xE007F)||cp==0x20E3;}
 
     /** Every emoji of this component that is in view, in colour. Called after the text itself is painted. */
-    void paint(JTextComponent text,Graphics g0) {
+    void paint(JTextComponent text,Graphics g0){paint(text,g0,null);}
+
+    /**
+     * @param behind the colour under the text where it is not its own background - a card, a bar - or null
+     *               for its background. Passed in, never set on the component: setting a colour while
+     *               painting asks for another paint, and the window then redraws itself for ever.
+     */
+    void paint(JTextComponent text,Graphics g0,Color behind) {
         String all=text.getText();if(all==null||all.isEmpty())return;
         Rectangle view=text.getVisibleRect();
         int from,to;
@@ -96,13 +103,13 @@ final class ColourEmoji {
                 if(!starts(cp)){i+=Character.charCount(cp);continue;}
                 int end=i+Character.charCount(cp);
                 while(end<all.length()){int next=all.codePointAt(end);if(joins(next)||(all.codePointBefore(end)==0x200D&&next>=0x2000)){end+=Character.charCount(next);}else break;}
-                paintRun(text,g,frc,sized,metrics,all,i,end);
+                paintRun(text,g,frc,sized,metrics,all,i,end,behind);
                 i=end;
             }
         } finally{g.dispose();}
     }
 
-    private void paintRun(JTextComponent text,Graphics2D g,FontRenderContext frc,Font sized,FontMetrics metrics,String all,int start,int end) {
+    private void paintRun(JTextComponent text,Graphics2D g,FontRenderContext frc,Font sized,FontMetrics metrics,String all,int start,int end,Color behind) {
         Rectangle2D at;
         try{at=text.modelToView2D(start);}catch(Exception e){return;}
         if(at==null)return;
@@ -110,7 +117,7 @@ final class ColourEmoji {
         GlyphVector shaped=sized.layoutGlyphVector(frc,chars,start,end,Font.LAYOUT_LEFT_TO_RIGHT);
         float x=(float)at.getX(),y=(float)at.getY()+metrics.getAscent();
         boolean chosen=text.getSelectionStart()!=text.getSelectionEnd()&&start>=text.getSelectionStart()&&start<text.getSelectionEnd();
-        Color ground=chosen?text.getSelectionColor():text.getBackground();
+        Color ground=chosen?text.getSelectionColor():behind!=null?behind:text.getBackground();
         for(int n=0;n<shaped.getNumGlyphs();n++) {
             int[] pairs=layers.get(shaped.getGlyphCode(n));
             if(pairs==null)continue;
