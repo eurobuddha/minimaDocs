@@ -652,14 +652,24 @@ final class DesktopHome extends JPanel {
         };
         plus.setContentAreaFilled(false);plus.setBorderPainted(false);plus.setFocusPainted(false);plus.setOpaque(false);
         plus.setPreferredSize(new Dimension(64,64));plus.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
-        plus.setToolTipText("New note or collection");plus.getAccessibleContext().setAccessibleName("New");
+        plus.setToolTipText("New note or collection, or one from another device");plus.getAccessibleContext().setAccessibleName("New");
         plus.addActionListener(e->{
-            JPopupMenu menu=new JPopupMenu();
-            JMenuItem note=new JMenuItem("Note");note.addActionListener(a->pad.newNoteIn(where.get()));menu.add(note);
-            JMenuItem collection=new JMenuItem("Collection");collection.addActionListener(a->newCollection(where.get()));menu.add(collection);
+            JPopupMenu menu=plusMenu(where.get());
             Dimension m=menu.getPreferredSize();menu.show(plus,plus.getWidth()-m.width-6,-m.height-2);
         });
         return plus;
+    }
+
+    /**
+     * What a + offers where it is: a note and a collection made there; and on every +, something from another device - a
+     * note or a collection someone shows the code of, scanned or pasted - which arrives on Home (the owner: "this is key").
+     */
+    JPopupMenu plusMenu(String where) {
+        JPopupMenu menu=new JPopupMenu();
+        JMenuItem note=new JMenuItem("Note");note.addActionListener(a->pad.newNoteIn(where));menu.add(note);
+        JMenuItem collection=new JMenuItem("Collection");collection.addActionListener(a->newCollection(where));menu.add(collection);
+        menu.addSeparator();JMenuItem other=new JMenuItem("From another device…");other.addActionListener(a->pad.scanCode(null));menu.add(other);
+        return menu;
     }
 
     /**
@@ -1682,8 +1692,10 @@ final class DesktopHome extends JPanel {
             // the page as it passes. Left and right, held at the edge for two thirds of a second.
             java.awt.Point in=new java.awt.Point(screen);SwingUtilities.convertPointFromScreen(in,grid);
             int rows=grid.rows(),top=grid.cellBounds(0,0).y,bottom=grid.cellBounds(rows-1,0).y+HIGH,wait=650;
-            int reach=28,dy=in.y<top?-1:in.y>=bottom?1:0;
-            if(dy<0)wait=0;else if(dy>0)wait=dock.isShowing()?300:0;
+            // Down only at the page's lower edge or past it, after a moment: anywhere over the last row it is let go there.
+            java.awt.Point foot=new java.awt.Point(0,scroll.getHeight());foot=SwingUtilities.convertPoint(scroll,foot,grid);
+            int reach=28,low=Math.max(bottom,foot.y-reach),dy=in.y<top?-1:in.y>=low?1:0;
+            if(dy<0)wait=0;else if(dy>0)wait=dock.isShowing()?400:250;
             int dx=dy!=0?0:p.x<reach?-1:p.x>scroll.getWidth()-reach?1:0;
             if(dx==0&&dy==0){edge.stop();turnedAt=false;return;}
             // One page for each time it goes out: back into the rows, or off the edge and back, for the next.

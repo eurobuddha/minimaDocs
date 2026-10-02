@@ -50,6 +50,24 @@ public class DesktopLinkTest {
 
     private static byte[] page(String id){UUID u=UUID.fromString(id);return java.nio.ByteBuffer.allocate(16).putLong(u.getMostSignificantBits()).putLong(u.getLeastSignificantBits()).array();}
 
+    @Test public void acceptingAgainBringsAnEarlierCopyOutOfTheBin() throws Exception {
+        // The owner, 2026-10-02: a collection shared again arrived into the bin, where an earlier copy had been put.
+        Device a=new Device("Test phone",A_AT),b=new Device("Test tablet",B_AT);
+        b.pair(a,"Test phone");
+        String id=UUID.randomUUID().toString();
+        b.hear(a.note(b,id,1,"first line",List.of(b.member(Sharing.Level.WRITE.said(),5_000L,true)),false));
+        assertEquals("first line",b.store.get(id).body);
+        b.store.putAway(NoteStore.Branch.Kind.PAGE,id,true,true);
+        assertTrue("in the bin",b.store.get(id).deleted);
+        assertTrue("accepted again: back out",b.store.acceptedBack(A_AT,id));
+        assertFalse(b.store.get(id).deleted);
+        assertFalse("nothing to bring back now",b.store.acceptedBack(A_AT,id));
+        b.store.putAway(NoteStore.Branch.Kind.PAGE,id,false,true);
+        assertTrue("out of the archive too",b.store.acceptedBack(A_AT,id));
+        assertFalse(b.store.get(id).archived);
+        assertFalse("something never here: nothing",b.store.acceptedBack(A_AT,UUID.randomUUID().toString()));
+    }
+
     @Test public void devicesOnOneListLinkThroughItAndNobodyElseDoes() throws Exception {
         Device a=new Device("Test phone",A_AT),b=new Device("Test tablet",B_AT),c=new Device("Test PC",C_AT),d=new Device("Somebody else",D_AT);
         b.pair(a,"Test phone");c.pair(a,"Test phone");

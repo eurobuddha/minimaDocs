@@ -131,9 +131,15 @@ public class DesktopPagesTest {
             assertEquals("let go on the page above",Layout.page(0,-1),byName(onEdt(()->store.contents(Things.HOME)),"Bills").page);
             SwingUtilities.invokeAndWait(pad::undo);settle(pad);
             assertEquals("Undo: back on the main page",Layout.CENTRE,byName(onEdt(()->store.contents(Things.HOME)),"Bills").page);
-            // Below the rows, with the dock there: the page below after a moment, not as it passes on its way to the dock.
+            // Over the last row: it stays on this page, to be let go there.
             SwingUtilities.invokeAndWait(()->grid.showPage(0,0));settle(pad);
-            Point below=onEdt(()->{Rectangle r=grid.cellBounds(grid.rows()-1,1);Point p=new Point(r.x+r.width/2,r.y+r.height+4);SwingUtilities.convertPointToScreen(p,grid);return p;});
+            Point lastRow=onEdt(()->{Rectangle r=grid.cellBounds(grid.rows()-1,1);Point p=new Point(r.x+r.width/2,r.y+r.height-6);SwingUtilities.convertPointToScreen(p,grid);return p;});
+            SwingUtilities.invokeAndWait(()->carryAt(pad,tile(grid,"Bills"),lastRow));
+            Thread.sleep(600);SwingUtilities.invokeAndWait(()->{});
+            SwingUtilities.invokeAndWait(()->{assertEquals("over the last row: no turn",0,grid.pageY);pad.home.carry.cancel();});
+            settle(pad);
+            // At the page's lower edge, with the dock there: the page below after a moment, not as it passes on its way to the dock.
+            Point below=onEdt(()->{Point p=new Point(home.scroll.getWidth()/2,home.scroll.getHeight()-8);SwingUtilities.convertPointToScreen(p,home.scroll);return p;});
             SwingUtilities.invokeAndWait(()->{carryAt(pad,tile(grid,"Bills"),below);
                 if(home.dock.isShowing())assertEquals("not yet, while the dock is there",0,grid.pageY);});
             Thread.sleep(600);SwingUtilities.invokeAndWait(()->{});
@@ -142,6 +148,15 @@ public class DesktopPagesTest {
                 carryTo(pad,back);pad.home.carry.cancel();});
             settle(pad);
             assertEquals("Esc: where it was",Layout.CENTRE,byName(onEdt(()->store.contents(Things.HOME)),"Bills").page);
+
+            // Every + takes something from another device too (the owner: "this is key"), a card's as well as Home's.
+            SwingUtilities.invokeAndWait(()->{
+                List<String> onHome=new ArrayList<>(),inACard=new ArrayList<>();
+                for(Component one:home.plusMenu(Things.HOME).getComponents())if(one instanceof JMenuItem item)onHome.add(item.getText());
+                for(Component one:home.plusMenu("some-collection").getComponents())if(one instanceof JMenuItem item)inACard.add(item.getText());
+                assertEquals(List.of("Note","Collection","From another device…"),onHome);
+                assertEquals(List.of("Note","Collection","From another device…"),inACard);
+            });
 
             // Favourites and search shown or not, from Home's own menu; on the main page only either way.
             SwingUtilities.invokeAndWait(()->grid.showPage(0,0));
@@ -152,7 +167,7 @@ public class DesktopPagesTest {
 
             // Home's right-click: everything about Home.
             List<String> rows2=onEdt(()->{List<String> said=new ArrayList<>();JPopupMenu menu=menuOf(pad);for(Component c:menu.getComponents())if(c instanceof JMenuItem item)said.add(item.getText());return said;});
-            for(String want:new String[]{"New note","New collection","Sync now","Show favourites","Show search","All pages"})
+            for(String want:new String[]{"New note","New collection","From another device…","Sync now","Show favourites","Show search","All pages"})
                 assertTrue(want+" in "+rows2,rows2.contains(want));
             assertTrue("Home's colour in "+rows2,rows2.stream().anyMatch(t->t.startsWith("Colour")));
 

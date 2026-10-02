@@ -1,5 +1,5 @@
 plugins { id 'java'; id 'application' }
-version = '0.2.010'
+version = '0.2.012'
 repositories { mavenCentral() }
 java { sourceCompatibility = JavaVersion.VERSION_17; targetCompatibility = JavaVersion.VERSION_17 }
 application { mainClass = 'org.mininotes.android.Desktop' }

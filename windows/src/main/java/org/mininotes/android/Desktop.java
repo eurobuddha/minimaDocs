@@ -30,7 +30,7 @@ public final class Desktop {
     /** Whether this PC's notebook is encrypted, always in sight; a click opens Security. */
     final JLabel security=new JLabel();
     /** This build, beside the name in the bar - and, when a newer one is out, the way to it. */
-    static final String VERSION="0.2.010";
+    static final String VERSION="0.2.012";
     final JLabel version=new JLabel();
     /** Beside the version, only while a newer one is out: an outlined button, so it reads as one to press. */
     final JButton updateButton=new JButton();
@@ -825,9 +825,12 @@ public final class Desktop {
         recorder.leaving(note.id);
         page.setEditable(false);title.setEditable(false);
         if(base!=null)carets.put(base.id,page.getCaretPosition());
+        // Opened at the top, the caret at its start (the owner, 2026-10-02: a note opened where it was left, in the middle,
+        // and the beginning had to be scrolled back to); the same note drawn again keeps its place.
+        int at=base!=null&&base.id.equals(note.id)?page.getCaretPosition():0;
         // The note's own size before its words, so they are never drawn at another note's first.
         drawing=true;base=note;dirty=false;showSize(rung);title.setText(note.title);page.put(note.body,note.writers);
-        page.setCaretPosition(Math.min(carets.getOrDefault(note.id,0),page.getDocument().getLength()));drawing=false;
+        page.setCaretPosition(Math.min(at,page.getDocument().getLength()));drawing=false;
         // One of the things open, for the overview; not a blank page nothing was written on, as on the phone.
         if(written(note))overview.remember(Overview.Kind.NOTE,note.id);
         fileCards.show(note.id);washPage();syncMark.setVisible(false);noteMark=null;
@@ -1332,6 +1335,8 @@ public final class Desktop {
             undoRow(menu);
             item(menu,"New note",()->newNoteIn(in));
             item(menu,"New collection",()->home.newCollection(in));
+            // And what someone else shows the code of, as every + offers it (the owner: "this is key").
+            item(menu,"From another device…",()->scanCode(null));
             selected=library();menu.add(syncRow(library()));
             menu.addSeparator();
             menu.add(ticked("Show favourites",showing(SHOW_DOCK),()->setShowing(SHOW_DOCK,!showing(SHOW_DOCK))));
@@ -1342,6 +1347,7 @@ public final class Desktop {
         } else {
             item(menu,"New note",()->newNoteIn(in));
             item(menu,"New collection",()->home.newCollection(in));
+            item(menu,"From another device…",()->scanCode(null));
             menu.addSeparator();
             for(Component one:thingMenu(here).getComponents())menu.add(one);
         }
@@ -1415,6 +1421,8 @@ public final class Desktop {
         }
         if(divided&&note.getMenuComponentCount()>0)note.getPopupMenu().remove(note.getMenuComponentCount()-1);
         menu.addSeparator();menu.add(note);
+        // And what someone else shows the code of, from a note as from every + and every menu (the owner: "this is key").
+        menu.addSeparator();menu.add(line("From another device…",null,true,()->scanCode(null)));
         return menu;
     }
     /** The note's own lines a right-click on its page offers straight away, in this order; the rest are under This note. */
@@ -2604,6 +2612,26 @@ public final class Desktop {
         return DesktopUi.chooseRole(frame,"Share “"+name+"”","What may they do with it?",may,
             may.contains(Sharing.Level.WRITE)?Sharing.Level.WRITE:may.get(0),"Show my code");
     }
+    /**
+     * Somebody on another network while notes go only between the owner's devices, which reach nothing beyond this Wi-Fi:
+     * said so, with helpers offered there and then, and what was being done done again with them (the owner, 2026-10-02:
+     * "make sure we can share with everybody"). Not now, and it is kept.
+     */
+    void helpersFor(String name,Runnable then) {
+        JPanel body=DesktopUi.column();
+        DesktopUi.add(body,DesktopUi.note("This PC sends notes only between your devices, on the same network, so it cannot reach "+name
+            +". Helpers can: relays that pass sealed notes on, which they cannot read. Their device needs them too, if it has them off."));
+        DesktopUi.gap(body,DesktopUi.S);DesktopUi.add(body,DesktopUi.quiet("This can be changed back in Settings, How notes travel."));
+        boolean[] yes={false};JDialog[] box={null};
+        JButton use=DesktopUi.primary("Use helpers",()->{yes[0]=true;box[0].dispose();});
+        box[0]=DesktopUi.sheet(frame,name+" is on another network",body,DesktopUi.footer(use),true);
+        DesktopUi.show(box[0],440,320);
+        if(!yes[0]){status.setText("Saved "+name+". This PC tells them again at each start.");return;}
+        status.setText("Connecting to your relays…");
+        connectivity.submit(()->{Node.onlyMine(context,false);return null;},
+            done->{status.setText("Helpers carry notes when needed now");then.run();},
+            failure->status.setText("That could not be changed."));
+    }
     private void showCode(NoteStore.Branch target,Sharing.Scope scope,Sharing.Level role) {
         status.setText("Preparing sharing code…");
         network.submit(()->keys.line(Node.nameHere(context),address(),Sharing.travelling(scope,target.name),role,scope.name(),target.id),line->{
@@ -2620,6 +2648,18 @@ public final class Desktop {
                 DesktopUi.Text copied=DesktopUi.quiet(" ");
                 JButton link=button("Copy link",()->{Toolkit.getDefaultToolkit().getSystemClipboard().setContents(new StringSelection(Pairing.link(line)),null);copied.setText("Link copied. Send it to them another way if they cannot scan.");});
                 DesktopUi.gap(body,DesktopUi.M);DesktopUi.add(body,DesktopUi.actions(link));DesktopUi.gap(body,DesktopUi.S);DesktopUi.add(body,copied);
+                // Notes only between the owner's devices: the code carries no relay, so only a device on this network can use it.
+                if(Node.onlyMine(context)) {
+                    DesktopUi.gap(body,DesktopUi.M);DesktopUi.add(body,DesktopUi.quiet("This code works only for devices on this network: this PC sends notes only between your devices."));
+                    JButton anywhere=button("Use helpers, so anybody anywhere can use it",()->{
+                        Window up=SwingUtilities.getWindowAncestor(body);if(up!=null)up.dispose();
+                        status.setText("Connecting to your relays…");
+                        connectivity.submit(()->{Node.onlyMine(context,false);return null;},
+                            done->{status.setText("Helpers carry notes when needed now");showCode(target,scope,role);},
+                            failure->status.setText("That could not be changed."));
+                    });
+                    DesktopUi.gap(body,DesktopUi.S);DesktopUi.add(body,DesktopUi.actions(anywhere));
+                }
                 DesktopUi.tell(frame,"Share “"+target.name+"”",body);
             } catch(Exception e){failed(e);}
         },this::failed);
@@ -2633,14 +2673,17 @@ public final class Desktop {
             disk.submit(()->code.camera()?"":Envelope.code(keys.signing().getPublic(),Keys.publicKey(said.signing)),digits->{
             JPanel body=DesktopUi.column();
             DesktopUi.add(body,DesktopUi.person(said.name,said.offer.isEmpty()?"Wants to pair with this PC":said.offer+"  ·  "+said.level.words()));
+            // Wherever the + was that took it, what is shared arrives on Home: said before it is accepted, as on the phone.
+            if(!said.offer.isEmpty()){DesktopUi.gap(body,DesktopUi.S);DesktopUi.add(body,DesktopUi.quiet("It will appear on Home when it arrives."));}
             if(!said.offer.isEmpty()){DesktopUi.gap(body,DesktopUi.S);DesktopUi.add(body,DesktopUi.note(said.level.does()));}
             if(!digits.isEmpty()) {
-                // A code read from a picture or a link, not a camera: the two devices compare digits first.
-                DesktopUi.gap(body,DesktopUi.M);DesktopUi.add(body,DesktopUi.note("Check that the other device shows the same code. Accept only if it matches."));
+                // A code read from a picture or a link, not a camera: taken all the same (the owner, 2026-10-02: asking for
+                // digits the other device never showed was a dead end), with what a paste cannot prove said, and how to check.
+                DesktopUi.gap(body,DesktopUi.M);DesktopUi.add(body,DesktopUi.note("Pasted, not scanned. To be sure nobody changed it on the way, open People on both devices afterwards: each shows six digits for the other, and they must be the same. Here:"));
                 DesktopUi.gap(body,DesktopUi.S);JLabel shown=new JLabel(digits);shown.setFont(DesktopUi.BODY.deriveFont(Font.BOLD,28f));shown.setForeground(INK);DesktopUi.add(body,shown);
             }
             boolean[] yes={false};JDialog[] box={null};
-            JButton accept=DesktopUi.primary(digits.isEmpty()?"Accept":"The codes match — accept",()->{yes[0]=true;box[0].dispose();});
+            JButton accept=DesktopUi.primary(said.offer.isEmpty()?"Pair":"Accept",()->{yes[0]=true;box[0].dispose();});
             box[0]=DesktopUi.sheet(frame,said.offer.isEmpty()?"Pair with "+said.name+"?":"Accept from "+said.name+"?",body,DesktopUi.footer(accept),true);
             DesktopUi.show(box[0],440,480);if(!yes[0])return;
             boolean[] elsewhere={false};
@@ -2654,9 +2697,11 @@ public final class Desktop {
                 // A plain code too: the device that showed it has to hear about this PC, or it drops as a
                 // stranger's everything this PC shares with it. Kept, and said again at each start until answered.
                 store.accepting(said.address,said.name,said.scope,said.target,said.level);
+                // An earlier copy of it put in the bin or the archive here comes back out: accepting is wanting it.
+                if(!said.target.isEmpty())store.acceptedBack(said.address,said.target);
                 try{Post.accept(context,keys,said,Node.nameHere(context),address());}catch(Exception notNow){return false;}
                 return true;
-            },told->{if(elsewhere[0]){status.setText("Saved "+said.name+". "+Node.ON_THE_SAME_WIFI);refresh();return;}status.setText(said.target.isEmpty()?(told?"Paired. "+said.name+" is asked to pair back":"Paired. "+said.name+" is told when it is next reachable"):"Paired — waiting for "+said.name+" to approve and send");refresh();if(shareTarget!=null)people(shareTarget);},e->{status.setText("Pairing has not finished. Reopen the app to retry, or try the link again.");});
+            },told->{if(elsewhere[0]){refresh();helpersFor(said.name,()->receiveCode(code,shareTarget));return;}status.setText(said.target.isEmpty()?(told?"Paired. "+said.name+" is asked to pair back":"Paired. "+said.name+" is told when it is next reachable"):"Paired — waiting for "+said.name+" to approve and send");refresh();if(shareTarget!=null)people(shareTarget);},e->{status.setText("Pairing has not finished. Reopen the app to retry, or try the link again.");});
             },this::failed);
         } catch(Exception e){failed(e);}
     }
@@ -2797,8 +2842,13 @@ public final class Desktop {
             // Under a device only one end counts as the owner's, what stops names travelling and the switch that mends it.
             java.util.Map<String,String> sided=new java.util.HashMap<>();
             for(NoteStore.Contact one:all){String line=Post.oneSided(context,one);if(line!=null)sided.put(one.address,line);}
+            // The six digits from this PC's key and theirs: the same on their screen under People, if nothing came between
+            // the two - what a code pasted rather than scanned is checked by.
+            java.util.Map<String,String> checks=new java.util.HashMap<>();
+            for(NoteStore.Contact one:all)if(one.signing.length>0)
+                try{checks.put(one.address,Envelope.code(keys.signing().getPublic(),Keys.publicKey(one.signing)));}catch(Exception unreadable){/* no digits for it */}
             return new Object[]{all,target==null?heldByPerson():java.util.Map.of(),store.linkedLines(),sided,
-                target==null?List.<Sharing.Level>of():store.mayGive(Sharing.Scope.valueOf(target.kind.name()),target.id)};
+                target==null?List.<Sharing.Level>of():store.mayGive(Sharing.Scope.valueOf(target.kind.name()),target.id),checks};
         },loaded->{
             @SuppressWarnings("unchecked") java.util.List<NoteStore.Contact> contacts=(java.util.List<NoteStore.Contact>)loaded[0];
             @SuppressWarnings("unchecked") java.util.Map<String,java.util.List<Held>> held=(java.util.Map<String,java.util.List<Held>>)loaded[1];
@@ -2806,6 +2856,7 @@ public final class Desktop {
             @SuppressWarnings("unchecked") java.util.Map<String,String> through=(java.util.Map<String,String>)loaded[2];
             @SuppressWarnings("unchecked") java.util.Map<String,String> sided=(java.util.Map<String,String>)loaded[3];
             @SuppressWarnings("unchecked") List<Sharing.Level> mayGive=(List<Sharing.Level>)loaded[4];
+            @SuppressWarnings("unchecked") java.util.Map<String,String> checks=(java.util.Map<String,String>)loaded[5];
             java.util.function.Supplier<List<Sharing.Level>> giving=()->mayGive;
             // Two parts: your own devices, by what you call each, this PC first; then people, by the names they chose.
             JDialog[] box={null};JPanel own=DesktopUi.column(),others=DesktopUi.column();
@@ -2851,6 +2902,7 @@ public final class Desktop {
                 DesktopMenus.echoOnRightClick(person,offered);list.add(person);
                 if(target!=null)continue;
                 if(sided.containsKey(contact.address)){JPanel why=DesktopUi.column();why.setBorder(BorderFactory.createEmptyBorder(0,44,DesktopUi.S,0));DesktopUi.add(why,DesktopUi.quiet(sided.get(contact.address)));list.add(why);}
+                if(checks.containsKey(contact.address)){JPanel check=DesktopUi.column();check.setBorder(BorderFactory.createEmptyBorder(0,44,DesktopUi.S,0));DesktopUi.add(check,DesktopUi.quiet("Check with them: "+checks.get(contact.address)));list.add(check);}
                 // What they have, thing by thing, each with its role - changed here, or taken away.
                 java.util.List<Held> theirs=held.getOrDefault(contact.address,java.util.List.of());
                 if(theirs.isEmpty()){JPanel none=DesktopUi.column();none.setBorder(BorderFactory.createEmptyBorder(0,44,DesktopUi.S,0));DesktopUi.add(none,DesktopUi.quiet("Nothing shared with "+contact.name+" yet."));list.add(none);continue;}

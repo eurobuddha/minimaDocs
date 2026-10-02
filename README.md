@@ -161,7 +161,7 @@ not to an issue.
 
 The Windows desktop build lives in [windows/](windows/README.md). On Windows
 with JDK 17, run `./windows/build.ps1 -Package`; extract the resulting
-`dist/latest/Mininotes-Windows-0.2.010.zip` and open `Mininotes/Mininotes.exe`.
+`dist/latest/Mininotes-Windows-0.2.012.zip` and open `Mininotes/Mininotes.exe`.
 The bundle includes Java. It is a preview: what was checked on which build is
 recorded before each release in a log the maintainer keeps privately.
 

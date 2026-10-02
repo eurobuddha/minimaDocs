@@ -16,7 +16,7 @@ Windows x64, JDK 17, and internet access for the first dependency download:
 ```
 
 The script runs the shared and Windows tests and makes
-`dist/latest/Mininotes-Windows-0.2.010.zip` plus its SHA-256 checksum. Extract the whole
+`dist/latest/Mininotes-Windows-0.2.012.zip` plus its SHA-256 checksum. Extract the whole
 ZIP and run `Mininotes/Mininotes.exe`. Keep the runtime and app folders beside
 the executable. No Java installation is required to run this bundle.
 
@@ -64,7 +64,8 @@ an offline device has no newer edits.
 **Home** fills the window, as a phone's home screen fills the phone (see
 `docs/HOME.md`): your collections and notes as icons, in your order, then the
 files other devices sent you, marked *new* until opened. **+** at the bottom
-right makes a note or a collection; the search field under the icons finds
+right makes a note or a collection, or takes one from another device (scan the code
+they show, or paste the code they sent - also in every menu); the search field under the icons finds
 notes, collections and files; the button beside it (or Ctrl+Tab) shows the
 notes and collections you have open, with **Close all**; the dock under it holds
 your favourites. A collection opens as a card over Home - collections go inside
@@ -77,8 +78,8 @@ it (or a touchpad) sideways, and Page Up / Page Down; a double-click on empty ro
 back to the main page, where the favourites and the search are; Ctrl with the wheel shows
 every page at once, where a page can be dragged to another place, or onto another page to
 change places with it. Carry an icon to the left or right edge and hold it there to take it
-to the page beyond - that is how a new page comes to be; carried above the rows or below
-them, it goes to the page above or below at once. The dot before the version is green on
+to the page beyond - that is how a new page comes to be; carried above the rows it goes to the
+page above at once, and down to the page's lower edge, to the page below. The dot before the version is green on
 the newest version, yellow when a newer one is out. Right-click is everything about what you
 click: on Home, its colour, the text size, and whether the favourites and the search show. The archive and the bin are icons on Home,
 each with how many things wait in it, opening as a card of what is in it (Settings → Window can put them
@@ -105,8 +106,9 @@ phone's Mininotes scanner, then approve the phone's request on this PC. To accep
 a phone's offer, use **From another device**: start a webcam, open a QR image,
 or paste an image or sharing link from the clipboard. Camera access starts only
 when you press Start camera; frames are not recorded. Windows camera permissions
-must allow desktop apps. Pasted links and saved images ask you to compare the
-same six-digit verification code on both devices, as mobile does.
+must allow desktop apps. A pasted link or a saved image is accepted as a scan is,
+and says so; afterwards People shows six digits for each device, the same on
+both if nothing changed the code on the way, as on the phone.
 
 **Profile**, also in the top bar, contains the editable device name, personal
 pairing QR, copyable live Maxima address, address-only QR, permanent address,

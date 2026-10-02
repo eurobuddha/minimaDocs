@@ -155,6 +155,10 @@ public class DesktopGalleryTest {
             menuShot(pad,"47b-menu-page",()->{pad.page.select(0,19);
                 try{Rectangle at=pad.page.modelToView2D(5).getBounds();rightClick(pad.page,at.x+2,at.y+at.height/2);}catch(Exception e){throw new RuntimeException(e);}});
             assertEquals("the right-click moved the words chosen","Pick up fresh bread",pad.page.getSelectedText());
+            // A note's right-click takes something from another device too, as every + and every menu does.
+            SwingUtilities.invokeAndWait(()->{java.util.List<String> rows=new java.util.ArrayList<>();
+                for(Component c:pad.paperMenu(pad.page,null).getComponents())if(c instanceof JMenuItem item)rows.add(item.getText());
+                assertTrue("From another device in "+rows,rows.contains("From another device…"));});
             // On an address: Open link first.
             menuShot(pad,"47c-menu-page-link",()->{pad.page.setCaretPosition(0);pad.paperMenu(pad.page,new Links.Link(0,4,"https://example.org")).show(pad.page,60,40);});
             // Share, right-clicked: what else sharing offers.

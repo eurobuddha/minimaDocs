@@ -20,10 +20,10 @@ if ($Package) {
     $stamp = Get-Date -Format 'yyyyMMdd-HHmmss'
     $destination = Join-Path $project "build\package-$stamp"
     & (Join-Path $jdk 'bin\jpackage.exe') --type app-image --name Mininotes `
-        --app-version 0.2.10 --vendor Mininotes --dest $destination `
+        --app-version 0.2.12 --vendor Mininotes --dest $destination `
         --icon (Join-Path $project 'build\icons\Mininotes.ico') `
         --input (Join-Path $project 'build\package-input') `
-        --main-jar Mininotes-Windows-0.2.010.jar --main-class org.mininotes.android.Desktop `
+        --main-jar Mininotes-Windows-0.2.012.jar --main-class org.mininotes.android.Desktop `
         --java-options '-Dsun.awt.fontconfig=$APPDIR\fontconfig.properties' `
         --add-modules java.base,java.desktop,java.sql,java.logging,java.naming,java.net.http,jdk.crypto.ec,jdk.unsupported
     if ($LASTEXITCODE -ne 0) { throw 'Windows packaging failed.' }
@@ -31,21 +31,21 @@ if ($Package) {
     $archived = Join-Path $project '..\dist\archive'
     New-Item -ItemType Directory $latest,$archived -Force | Out-Null
     # Only the newest build stays in dist\latest; whatever was there before is moved to dist\archive.
-    Get-ChildItem $latest -Filter 'Mininotes-Windows-*' | Where-Object { $_.Name -notlike 'Mininotes-Windows-0.2.010*' } |
+    Get-ChildItem $latest -Filter 'Mininotes-Windows-*' | Where-Object { $_.Name -notlike 'Mininotes-Windows-0.2.012*' } |
         ForEach-Object { try { Move-Item -LiteralPath $_.FullName -Destination $archived -Force } catch { Write-Output "Left in latest (it is open): $($_.TargetObject)" } }
-    $archive = Join-Path $latest 'Mininotes-Windows-0.2.010.zip'
+    $archive = Join-Path $latest 'Mininotes-Windows-0.2.012.zip'
     Compress-Archive -Path (Join-Path $destination 'Mininotes') -DestinationPath $archive -Force
     $hash = (Get-FileHash -LiteralPath $archive -Algorithm SHA256).Hash.ToLowerInvariant()
-    "$hash  Mininotes-Windows-0.2.010.zip" | Set-Content -Encoding ascii "$archive.sha256"
+    "$hash  Mininotes-Windows-0.2.012.zip" | Set-Content -Encoding ascii "$archive.sha256"
     # The app itself, ready to run, beside its zip - one folder, the EXE at its top - and a shortcut to it.
-    $app = Join-Path $latest 'Mininotes-Windows-0.2.010'
+    $app = Join-Path $latest 'Mininotes-Windows-0.2.012'
     if (Test-Path $app) { Remove-Item $app -Recurse -Force }
     Copy-Item (Join-Path $destination 'Mininotes') $app -Recurse
     $shell = New-Object -ComObject WScript.Shell
     $link = $shell.CreateShortcut((Join-Path $latest 'Mininotes.lnk'))
     $link.TargetPath = (Resolve-Path (Join-Path $app 'Mininotes.exe')).Path
     $link.WorkingDirectory = (Resolve-Path $app).Path
-    $link.Description = 'Mininotes for Windows 0.2.010'
+    $link.Description = 'Mininotes for Windows 0.2.012'
     $link.Save()
     # Earlier packaging folders are only copies of what dist keeps; the newest stays, in case it is open.
     Get-ChildItem (Join-Path $project 'build') -Directory -Filter 'package-*' | Where-Object { $_.FullName -ne $destination } |

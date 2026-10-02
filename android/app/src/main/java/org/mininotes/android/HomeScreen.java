@@ -171,8 +171,10 @@ final class HomeScreen {
         gridScroll=new ScrollView(a);
         gridScroll.setClipToPadding(false);gridScroll.setVerticalScrollBarEnabled(false);
         grid=new GridLayout(a);grid.setColumnCount(columns(a.getResources().getDisplayMetrics().widthPixels));
-        // Room under the last row, so the + never sits over the last icons once the grid is scrolled to its end.
-        grid.setPadding(a.dp(8),a.dp(6),a.dp(8),a.dp(96));
+        // Room under the last row for the + and no more (56 and its 16 under it), so a page holds every row that fits: with
+        // 96 the Graphene's pages had three rows over an empty band a row and a half tall, which looked like a fourth row
+        // and turned the page when a thing was carried into it (the owner, 2026-10-02).
+        grid.setPadding(a.dp(8),a.dp(6),a.dp(8),a.dp(76));
         gridScroll.addView(grid,new FrameLayout.LayoutParams(-1,-2));
         here.addView(gridScroll,new FrameLayout.LayoutParams(-1,-1));
         desk.addView(pager,new FrameLayout.LayoutParams(-1,-1));
@@ -750,7 +752,9 @@ final class HomeScreen {
 
     /**
      * The + : a round button, with no word on it, as a phone's own is - named for anybody who cannot see it. It offers
-     * the two things there are, for where it is: Home's makes them on Home, a pop-up's in that collection.
+     * the two things there are, for where it is: Home's makes them on Home, a pop-up's in that collection. Every + also
+     * takes something from another device - a note or a collection someone shows the code of, scanned or pasted - which
+     * arrives on Home, as the box that takes it says (the owner: "this is key").
      *
      * @param where the collection it makes things in, asked when it is pressed, so a pop-up that has moved on is followed
      */
@@ -762,7 +766,8 @@ final class HomeScreen {
         plus.setBackground(new android.graphics.drawable.RippleDrawable(android.content.res.ColorStateList.valueOf(0x40FFFFFF),round,null));
         plus.setElevation(a.dp(6));
         plus.setContentDescription("New");
-        plus.setOnClickListener(v->a.heldMenu(v,null,"Note",(Runnable)()->newNote(where.get()),"Collection",(Runnable)()->newCollection(where.get())));
+        plus.setOnClickListener(v->a.heldMenu(v,null,"Note",(Runnable)()->newNote(where.get()),"Collection",(Runnable)()->newCollection(where.get()),
+            null,"From another device…",(Runnable)a::addFromSomeone));
         return plus;
     }
 
@@ -1730,9 +1735,12 @@ final class HomeScreen {
         int dy=0;long wait=650;
         if(homeLaid!=null&&homeLaid.rows>0) {
             int top=rect(grid).top+grid.getPaddingTop(),bottom=top+homeLaid.rows*homeLaid.height;
+            // Down only at the page's lower edge - where the dots are - or past it, after a moment: anywhere over the last
+            // row it is let go there (the owner, 2026-10-02: "too sensitive to the bottom").
+            int edge=Math.max(bottom,rect(pager).bottom-a.dp(44));
             boolean docked=dock.row!=null&&dock.row.getVisibility()==View.VISIBLE;
             if(y<top){dy=-1;wait=0;}
-            else if(y>bottom){dy=1;wait=docked?300:0;}
+            else if(y>edge){dy=1;wait=docked?400:250;}
         }
         int dx=dy!=0?0:x<r.left+reach?-1:x>r.right-reach?1:0;
         if(dx==0&&dy==0){cancelEdge();turnedHere=false;return;}

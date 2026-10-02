@@ -2010,7 +2010,10 @@ public final class MainActivity extends Activity {
         holds(kept);
         loading=true;page.put(note.body,note.writers);loading=false;
         linkify();
-        page.setSelection(page.getText().length());
+        // Opened at the top, the cursor at its start: it opened at the end, which on a long note is somewhere in the middle
+        // of the screen's worth, and the beginning had to be scrolled back to every time (the owner, 2026-10-02).
+        page.setSelection(0);
+        final Pad opened=page;page.post(()->{if(page==opened)opened.scrollTo(0,0);});
         showTitle();
         askWriters();
     }
@@ -2911,11 +2914,13 @@ public final class MainActivity extends Activity {
                 :here.kind==NoteStore.Branch.Kind.BIN?"Bin":"Here");
         // What + makes there, first in the room's menu, as a right-click on the room offers it on the PC (decision 44); Home's
         // ⋮ is Home's room too.
-        boolean atHome=here.kind==NoteStore.Branch.Kind.LIBRARY;
+        boolean atHome=here.kind==NoteStore.Branch.Kind.LIBRARY,another=false;
         if((room||atHome)&&(atHome||here.kind==NoteStore.Branch.Kind.COLLECTION||here.kind==NoteStore.Branch.Kind.BOOK)&&shelves) {
             final String in=atHome?Things.HOME:here.id;
             sheet.row("New note",()->homeScreen().newNote(in));
             sheet.row("New collection",()->homeScreen().newCollection(in));
+            // And what someone else shows the code of, as every + offers it (the owner: "this is key").
+            sheet.row("From another device…",this::addFromSomeone);another=true;
         }
         if(atHome) {
             // Nothing is shared from here. Who receives what is decided on a collection or a note —
@@ -2984,7 +2989,7 @@ public final class MainActivity extends Activity {
             // go, and "copy all" at a collection never said what all of it would look like when it landed.
             sheet.row("Send to another app",()->sendElsewhere(here));
         }
-        if(app)appRows(sheet);
+        if(app)appRows(sheet,!another);
         sheet.show(anchor);
     }
 
@@ -3176,7 +3181,7 @@ public final class MainActivity extends Activity {
      * finding, the places things are put away, and the app itself. On and off switches are not here; they are
      * all in Settings.
      */
-    private void appRows(Sheet sheet) {
+    private void appRows(Sheet sheet,boolean another) {
         sheet.line();
         sheet.heading("Find");
         sheet.row("Search",this::searching);
@@ -3193,9 +3198,10 @@ public final class MainActivity extends Activity {
         sheet.line();
         sheet.heading("People");
         sheet.row("People and devices",this::addressBook);
-        // Somebody's code read with this phone's own camera, or their link pasted: + offered it while + made anything, and
-        // makes only notes and collections now (docs/HOME.md, decision 40). The PC's menu has it here too.
-        sheet.row("Scan a code…",this::addFromSomeone);
+        // Somebody's code read with this phone's own camera, or their link pasted - a note, a collection, or a device of
+        // theirs: every ⋮ has it, as every + does (the owner: "this is key"), named as the PC names it. Not twice: where
+        // the menu offers it among what is made there, it is not repeated here.
+        if(another)sheet.row("From another device…",this::addFromSomeone);
         sheet.line();
         sheet.heading("Backup");
         sheet.row("Export backup",()->pick(EXPORT));
@@ -3914,9 +3920,17 @@ public final class MainActivity extends Activity {
         },e->{});
     }
 
+    /** The line under a code that is up, saying what it waits for, and which thing the code offers. */
+    private TextView codeWaiting;private String codeWaitingFor="";
+    /** That line, saying something new, if the code up offers this thing. */
+    private void codeSays(String target,String words) {
+        if(codeWaiting!=null&&codeWaiting.isAttachedToWindow()&&target.equals(codeWaitingFor))codeWaiting.setText(words);
+    }
+
     /** Saved as a device, given what they accepted, and sent it — in that order and in one go. */
     private void giveItTo(final Hello.Said them,final Sharing.Scope scope) {
         final int job=busy("Adding "+them.name+"\u2026");
+        codeSays(them.target,them.name+" accepted. Sending it to them\u2026");
         network.submit(()->{
             store.pairedWith(them.address,them.name,false,them.agreement,them.signing);
             // Everything, accepted: that is another device of the owner's, and it is marked as theirs here.
@@ -3931,8 +3945,9 @@ public final class MainActivity extends Activity {
             return null;
         // It said "has it" here, before a word had been sent. What it says now is what is true: the
         // sending is next, and the strip goes on into it.
-        },done->{askToSaySo();refresh();refreshOwed();sendAfterSharing(scope,them.target,job,them.name);},
-            e->{busyDone(job,null);alert("Could not give it to them. Nothing was changed.");});
+        },done->{askToSaySo();refresh();refreshOwed();sendAfterSharing(scope,them.target,job,them.name);
+                codeSays(them.target,them.name+" accepted. It is on its way to them: show the code to somebody else, or close.");},
+            e->{busyDone(job,null);codeSays(them.target,"Could not give it to "+them.name+".");alert("Could not give it to them. Nothing was changed.");});
     }
 
     /** Saved as a device, introduced, and answered, so their phone stops saying hello. */
@@ -4042,7 +4057,7 @@ public final class MainActivity extends Activity {
                 into.addView(part("Recent"));
                 for(NoteStore.Branch one:lately)into.addView(hitRow(one,box));
             }
-            if(kept.isEmpty()&&lately.isEmpty())into.addView(under("Nothing on the shelves yet."));
+            if(kept.isEmpty()&&lately.isEmpty())into.addView(under("Nothing here yet."));
         },e->{});
     }
 
@@ -4099,7 +4114,7 @@ public final class MainActivity extends Activity {
             LinearLayout body=inside();
             final AlertDialog box=new Box().setTitle("Tree view")
                 .setView(scrolling(body)).create();
-            if(all.isEmpty())body.addView(under("Nothing on the shelves yet."));
+            if(all.isEmpty())body.addView(under("Nothing here yet."));
             for(final NoteStore.Branch thing:all)body.addView(treeRow(thing,box));
             box.show();
         },e->alert(READ_FAILED));
@@ -4658,8 +4673,7 @@ public final class MainActivity extends Activity {
         tile.setContentDescription(branch.name+", "+branch.detail);
         tile.setOnClickListener(v->{
             if(branch.kind==NoteStore.Branch.Kind.INBOX)
-                alert("Notes another device shares with you arrive on the shelves, in the collection "
-                    +"they came out of, marked as having come from it.");
+                alert("Notes another device shares with you arrive on Home, marked as having come from it.");
             else enter(branch);
         });
         placeHeld(tile,branch);
@@ -5326,12 +5340,18 @@ public final class MainActivity extends Activity {
             // Under a device only one end counts as the owner's, what stops names travelling and the switch that mends it.
             Map<String,String> sided=new HashMap<>();
             for(NoteStore.Contact one:known){String line=Post.oneSided(this,one);if(line!=null)sided.put(one.address,line);}
-            return new Object[]{known,held,store.linkedLines(),sided};
+            // The six digits from this phone's key and theirs: the same on their screen under People and devices, if
+            // nothing came between the two - what a code pasted rather than scanned is checked by.
+            Map<String,String> checks=new HashMap<>();
+            for(NoteStore.Contact one:known)if(one.signing.length>0)
+                try{checks.put(one.address,Envelope.code(keys().signing().getPublic(),Keys.publicKey(one.signing)));}catch(Exception unreadable){/* no digits for it */}
+            return new Object[]{known,held,store.linkedLines(),sided,checks};
         },loaded->{
             @SuppressWarnings("unchecked") List<NoteStore.Contact> known=(List<NoteStore.Contact>)loaded[0];
             @SuppressWarnings("unchecked") Map<String,List<Object[]>> held=(Map<String,List<Object[]>>)loaded[1];
             @SuppressWarnings("unchecked") Map<String,String> through=(Map<String,String>)loaded[2];
             @SuppressWarnings("unchecked") Map<String,String> sided=(Map<String,String>)loaded[3];
+            @SuppressWarnings("unchecked") Map<String,String> checks=(Map<String,String>)loaded[4];
             LinearLayout body=inside();final AlertDialog[] box={null};
             // Two parts: your own devices, by what you call each of them, this one first; then people, by the
             // names they chose. A device moves between them by its switch.
@@ -5360,6 +5380,7 @@ public final class MainActivity extends Activity {
                 // Never scanned here: linked through something both have, and it says what (see Linking).
                 else if(through.containsKey(contact.address))words.addView(label(through.get(contact.address),QUIET,MUTED));
                 if(sided.containsKey(contact.address))words.addView(label(sided.get(contact.address),QUIET,MUTED));
+                if(checks.containsKey(contact.address))words.addView(label("Check with them: "+checks.get(contact.address),QUIET,MUTED));
                 entry.addView(words,new LinearLayout.LayoutParams(0,-2,1));
                 // Whether it is a device of yours: on or off, so a switch.
                 android.widget.Switch mine=new android.widget.Switch(this);mine.setText("My device  ");mine.setTextColor(MUTED);mine.setChecked(contact.mine);
@@ -5549,30 +5570,36 @@ public final class MainActivity extends Activity {
         final Pairing.Said them;
         try{them=Pairing.read(said);}catch(IllegalArgumentException e){alert(e.getMessage());return;}
         if(scanned) {
-            if(them.offer.isEmpty()&&outside) {
-                new Box().setTitle(them.name).setMessage("Pair with this device?")
-                    .setPositiveButton("Pair",(d,w)->keepPairing(them)).show();
-                return;
-            }
+            if(them.offer.isEmpty()&&outside){pairOrAccept(them,"");return;}
             if(them.offer.isEmpty()){keepPairing(them);return;}
-            new Box().setTitle(them.name+" is sharing with you")
-                .setMessage(them.offer+"\n"+"\n"+them.level.words()+": "+them.level.does()
-                    +(them.writes?" What you write goes back to them.":" Writing in it stays on this phone.")
-                    +"\n"+"\n"+"It will appear on your shelves when it arrives.")
-                .setPositiveButton("Accept",(d,w)->keepPairing(them))
-                .show();
+            pairOrAccept(them,"");
             return;
         }
-        background.submit(()->Envelope.code(keys().signing().getPublic(),Keys.publicKey(them.signing)),digits->{
-            new Box().setTitle(them.name)
-                .setMessage("This line came from somewhere else, so it could have been changed on the way."
-                    +" Send them your code as well: when they read it, their phone shows six digits too, and"
-                    +" the two must be the same.\n\nThis phone says:\n\n        "+digits
-                    +"\n\nScanning the code off their screen instead needs none of this.")
-                .setPositiveButton("They match",(d,w)->keepPairing(them))
-                .setNeutralButton("They differ",(d,w)->alert("Nothing was saved. Scan the code from the screen instead."))
-                .show();
-        },e->alert("That line's keys could not be read. Nothing was saved."));
+        // Pasted, or a link from somewhere else: taken as a scanned code is (the owner, 2026-10-02: a pasted code that asked
+        // for six digits the other phone never showed was a dead end). What a paste cannot prove - that nothing changed
+        // it on the way - is said, with the six digits both phones show for each other under People and devices.
+        background.submit(()->Envelope.code(keys().signing().getPublic(),Keys.publicKey(them.signing)),
+            digits->pairOrAccept(them,digits),e->alert("That line's keys could not be read. Nothing was saved."));
+    }
+
+    /**
+     * The one box for a code, scanned or pasted: pair with a device, or accept what somebody shares. A pasted one says so,
+     * and the six digits to check: the same on both phones, under People and devices, means nothing came between them.
+     */
+    private void pairOrAccept(final Pairing.Said them,String digits) {
+        String pasted=digits.isEmpty()?"":"\n\nPasted, not scanned. To be sure nobody changed it on the way, open People and devices"
+            +" on both phones afterwards: each shows six digits for the other, and they must be the same. Here: "+digits+".";
+        if(them.offer.isEmpty()) {
+            new Box().setTitle("Pair with "+them.name+"?").setMessage("It will be able to share notes with this phone."+pasted)
+                .setPositiveButton("Pair",(d,w)->keepPairing(them)).show();
+            return;
+        }
+        new Box().setTitle(them.name+" is sharing with you")
+            .setMessage(them.offer+"\n\n"+them.level.words()+": "+them.level.does()
+                +(them.writes?" What you write goes back to them.":" Writing in it stays on this phone.")
+                +"\n\n"+"It will appear on Home when it arrives."+pasted)
+            .setPositiveButton("Accept",(d,w)->keepPairing(them))
+            .show();
     }
 
     /** The strip that is waiting for what somebody offered to arrive, put away by the arriving. */
@@ -5581,6 +5608,26 @@ public final class MainActivity extends Activity {
         if(awaiting==0)return;
         busyDone(awaiting,"Not here yet. It comes when their phone is next open.");awaiting=0;
     };
+
+    /**
+     * A code from another network while notes go only between the owner's devices, which reach nothing beyond this
+     * Wi-Fi: said so, with the one way to reach them offered there and then - helpers, switched on, and the pairing
+     * finished (the owner, 2026-10-02: "make sure we can share with everybody"). Not now, and it is kept, and told again.
+     */
+    private void helpersFor(final Pairing.Said said) {
+        new Box().setTitle(said.name+" is on another network")
+            .setMessage("This phone sends notes only between your devices, on the same Wi-Fi, so it cannot reach "+said.name
+                +". Helpers can: relays that pass sealed notes on, which they cannot read. Their phone needs them too, if it"
+                +" has them off."+"\n\n"+"This can be changed back in Settings, How notes travel.")
+            .setPositiveButton("Use helpers",(d,w)->{
+                final int job=busy("Connecting to your relays\u2026");
+                background.submit(()->{Node.onlyMine(this,false);return null;},
+                    done->{busyDone(job,"Helpers carry notes when needed now");keepPairing(said);},
+                    e->busyDone(job,"That could not be changed"));
+            })
+            .setNegativeButton("Not now",(d,w)->toast(said.name+" is saved. This phone tells them again each time it is opened."))
+            .show();
+    }
 
     private void keepPairing(Pairing.Said said) {
         final int job=busy("Saving "+said.name+"\u2026");
@@ -5610,6 +5657,8 @@ public final class MainActivity extends Activity {
                 String mine=getSharedPreferences("settings",MODE_PRIVATE).getString("address","");
                 // Kept before it is sent, because the sending may be to a phone nobody is holding.
                 store.accepting(said.address,said.name,said.scope,said.target,said.level);
+                // An earlier copy of it put in the bin or the archive here comes back out: accepting is wanting it.
+                if(!said.target.isEmpty())store.acceptedBack(said.address,said.target);
                 busySay(job,said.target.isEmpty()?"Telling "+said.name+" you paired\u2026":"Telling "+said.name+" you accepted\u2026");
                 // Not reaching them is not a failure to pair, and is not reported as one: it used to land
                 // in "Could not save that device. Nothing was changed.", after the device had been saved.
@@ -5623,7 +5672,7 @@ public final class MainActivity extends Activity {
             background.submit(()->{Listening.settle(this);return null;},settled->askToSaySo(),e->{});
             if(elsewhere[0]) {
                 busyDone(job,null);
-                alert(said.name+" is saved, but is not on this Wi-Fi. "+Node.ON_THE_SAME_WIFI+" This phone tells them again each time it is opened.");
+                helpersFor(said);
                 return;
             }
             if(said.offer.isEmpty()){
@@ -5765,7 +5814,7 @@ public final class MainActivity extends Activity {
             final AlertDialog[] up={null};
             body.addView(part("People and devices"));
             body.addView(tapRow("Connect my other device…",()->{if(up[0]!=null)up[0].dismiss();shareSheet(Sharing.Scope.LIBRARY,Sharing.EVERYTHING,"Everything");}));
-            body.addView(tapRow("Scan a code…",()->{if(up[0]!=null)up[0].dismiss();addFromSomeone();}));
+            body.addView(tapRow("From another device…",()->{if(up[0]!=null)up[0].dismiss();addFromSomeone();}));
             body.addView(tapRow("People and devices",()->{if(up[0]!=null)up[0].dismiss();addressBook();}));
             body.addView(part("BACKUP"));
             body.addView(under("One file holding every collection, note and attachment on this phone."));
@@ -6518,13 +6567,33 @@ public final class MainActivity extends Activity {
             TextView waiting=under("Waiting for them to scan it\u2026");
             waiting.setGravity(Gravity.CENTER);waiting.setPadding(0,dp(10),0,0);
             body.addView(waiting);
+            // Told when they accept, by scanning or by pasting: it said "waiting" long after it was done (2026-10-02).
+            codeWaiting=waiting;codeWaitingFor=target;
+            // Notes only between the owner's devices: the code carries no relay, so only a device on this Wi-Fi can use it.
+            // Said, with the way to share with anybody anywhere (the owner, 2026-10-02).
+            final AlertDialog[] box={null};
+            if(Node.onlyMine(this)) {
+                TextView only=under("This code works only for devices on this Wi-Fi: this phone sends notes only between your devices.");
+                only.setGravity(Gravity.CENTER);only.setPadding(0,dp(8),0,0);body.addView(only);
+                body.addView(tapRow("Use helpers, so anybody anywhere can use it",()->{
+                    if(box[0]!=null)box[0].dismiss();
+                    final int job=busy("Connecting to your relays\u2026");
+                    background.submit(()->{Node.onlyMine(this,false);return null;},
+                        done->{busyDone(job,"Helpers carry notes when needed now");shareSheet(scope,target,name);},
+                        e->busyDone(job,"That could not be changed"));
+                }));
+            }
             // The one thing to decide, as the roles this phone may give, each over what it lets them do. Choosing
             // redraws the code, because the code is what carries it.
             TextView ask=label("What may they do with it?",QUIET,MUTED);ask.setPadding(0,dp(14),0,dp(4));
             body.addView(ask);
             for(final Sharing.Level one:may)
                 body.addView(levelPick(one,one==offerLevel,()->{offerLevel=one;shareSheet(scope,target,name);}));
-            new Box().setTitle("Share "+Sharing.shortly(scope,name)).setView(scrolling(body))
+            // Opened at the top, the whole code in view: the box scrolled itself to the roles below it as they took the
+            // focus, and the code's top corners went under the title, where no camera can read them (seen 2026-10-02).
+            ScrollView up=scrolling(body);
+            up.setDescendantFocusability(android.view.ViewGroup.FOCUS_BEFORE_DESCENDANTS);up.setFocusableInTouchMode(true);
+            box[0]=new Box().setTitle("Share "+Sharing.shortly(scope,name)).setView(up)
                 .setNeutralButton("Add someone",(d,w)->typeAddress(scope,target,name))
                 .setPositiveButton("Copy",(d,w)->{
                     ClipboardManager board=(ClipboardManager)getSystemService(CLIPBOARD_SERVICE);
@@ -7284,7 +7353,7 @@ public final class MainActivity extends Activity {
      * whole of it - there is nothing to choose first, and a box offering two ways to do one thing is a box
      * asking a question nobody came with.
      */
-    private void addFromSomeone() {
+    void addFromSomeone() {
         scanning(said->tookAddress(null,"","",said,true),()->pasted(null,"",""));
     }
 

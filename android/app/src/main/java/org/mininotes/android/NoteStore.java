@@ -2270,6 +2270,30 @@ final class NoteStore extends SQLiteOpenHelper implements Home.Shelf {
         getWritableDatabase().insertWithOnConflict("accepting",null,v,SQLiteDatabase.CONFLICT_REPLACE);
     }
 
+    /**
+     * What was accepted, out of the bin or the archive where this device had put an earlier copy of it: accepting it again is
+     * wanting it, and it arrived into the bin unseen (the owner, 2026-10-02). Its own id here is the one it arrives under.
+     *
+     * @return whether a copy was brought back
+     */
+    boolean acceptedBack(String address,String target) {
+        if(target==null||target.isEmpty())return false;
+        // A collection is kept here under an id of its own made from theirs; a note under theirs.
+        List<String> ids=new ArrayList<>();String made=shelfId(address,target);
+        if(!made.isEmpty())ids.add(made);
+        ids.add(target);
+        for(Branch.Kind kind:new Branch.Kind[]{Branch.Kind.COLLECTION,Branch.Kind.PAGE})for(String here:ids) {
+            String away=kind==Branch.Kind.PAGE?"deleted":"binned";
+            try(Cursor c=getReadableDatabase().query(table(kind),new String[]{away,"archived"},"id=?",new String[]{here},null,null,null,"1")) {
+                if(!c.moveToFirst())continue;
+                if(c.getInt(0)==0&&c.getInt(1)==0)return false;
+            }
+            restore(kind,here);
+            return true;
+        }
+        return false;
+    }
+
     /** Everything still unanswered, oldest first, and not tried past all reason. */
     List<Accepting> waitingToAccept() {
         List<Accepting> waiting=new ArrayList<>();

@@ -533,6 +533,16 @@ Decisions 54-55 and a fault, the owner's word on 0.2.009 the same night.
 - **Up and down at once** (54): `HomeScreen.edgeWatch`, `DesktopHome.Carry.atTheEdge`.
 - **The dot** (55): `Update.standing` (tested), the phone's version line, the PC's version in the bar.
 
+### After step 5 - From another device on every + and every menu (0.2.011)
+
+Decision 56, the owner's word on the published 0.2.010. One menu builds every + (`HomeScreen.plus`, `DesktopHome.plusMenu`);
+the rooms' menus (`MainActivity.menuFor`, `Desktop.roomMenu`), the app's rows (`MainActivity.appRows`, where *Scan a
+code…* is now *From another device…*), and the PC page's right-click (`Desktop.paperMenu`) offer it too. The accepting
+box says the thing will appear on Home (it still said "on your shelves" on the phone, and nothing on the PC); a few
+other words left over from the shelves went with it. Decision 57, found the same night: a pasted code is accepted as a
+scanned one is (`MainActivity.pairOrAccept`, `Desktop.receiveCode`), with the six digits under People and devices on
+both apps; the share box opens at the top and says when they accept (`codeSays`).
+
 ## Decisions
 
 1. Home scrolls down; no side-swiped pages. (2026-09-30)
@@ -623,7 +633,7 @@ Decisions 54-55 and a fault, the owner's word on 0.2.009 the same night.
     another grid, takes the first free cell from the top. A grid narrower than the one a cell was chosen on moves that
     icon to the first free cell after its row.
 40. On the phone, scanning somebody's code is ⋮ → *Scan a code…* (in the People section), since **+** makes only notes
-    and collections; the camera still opens a code's link as before. (2026-09-30)
+    and collections; the camera still opens a code's link as before. (2026-09-30) *Replaced by decision 56.*
 41. **The owner's ask, 2026-09-30, during step 5: "let's make the archives and the bin as collections on the desktop
     with an option to hide them if wished."** Home shows an *Archive* and a *Bin* icon (Lucide `archive` and
     `trash-2`), like the Favourites icon: in a cell of their own, which a move keeps; not renamed, deleted,
@@ -690,6 +700,42 @@ Decisions 54-55 and a fault, the owner's word on 0.2.009 the same night.
 55. **The owner's ask, 2026-10-01: a dot before the version** - green on the newest version there is, yellow while a newer
     one is out; none until the repository has answered, or while looking is switched off. Yellow, a tap on it fetches the
     build, checks it and hands it to the installer, as before (0.0.109 on the phone, 0.0.020 on the PC).
+
+56. **The owner, 2026-10-02: "the + button doesn't include *From another device* anymore - we absolutely need this, this
+    is key: to scan the asset's QR code and paste the asset's code"; then "make sure all +, at all levels, pages,
+    collections and notes, and menu include it".** Every + - Home's on every page, every collection card's - offers
+    *Note*, *Collection* and, under a line, *From another device…*: the camera on the code someone shows of a note or a
+    collection (or of a device), with *Paste instead* for a code sent as a link. So do the menus: Home's and a card's own
+    (a long press or right-click on the empty room), under *New collection*; every ⋮ on the phone and the ⋯ on the PC, in
+    People (not twice where the menu has it already); and a right-click on a note's page on the PC. What is accepted
+    arrives on Home, and the box that accepts it says so.
+
+57. **The owner, 2026-10-02: a code pasted from the Pro on the Graphene stopped at "This line came from somewhere else"**,
+    asking for six digits the Pro never showed - a paste could not be finished. A pasted code (or a link opened from
+    elsewhere) is taken as a scanned one is: the same box, Accept or Pair, saying it was pasted and giving the six
+    digits; each device then shows the digits for every other under People and devices ("Check with them: …"), the
+    same on both if nothing came between them. Also seen: the share box opened scrolled to its roles, the top of its
+    code under the title where no camera could read it - it opens at the top now; and its "Waiting for them to scan
+    it…" never changed - it says when they accept, and that it is on its way to them.
+
+58. **The owner, 2026-10-02, three more from the phones.** (a) *A collection shared again did not show*: an earlier copy of
+    it was in the Graphene's bin, and the new arrival went into that copy. Accepting a share now brings an earlier copy
+    out of the bin or the archive (`NoteStore.acceptedBack`, both apps; tested in `DesktopLinkTest`). (b) *"Too sensitive
+    to the bottom ... we can't even drop an asset on the last row"*: a phone's page left an empty band a row and a half
+    tall under its last row - room kept for the + when Home scrolled - which looked like a row and turned the page. The
+    room is now the +'s and no more (76), so the Graphene's pages have four rows; and down is only at the page's lower
+    edge, where the dots are, or past it, after a quarter of a second (more while the dock shows) - on the PC too.
+    Decision 54 is changed so. (c) *"Each time I open the note … it opens in the middle"*: a note opened with the
+    cursor at its end; it opens at the top now, the cursor at its start, on both apps (the same note drawn again on the
+    PC keeps its place).
+
+59. **The owner, 2026-10-02: "trying to add from another Wi-Fi failed ... please make sure we can share with
+    everybody".** Both phones were set to *Only between my devices*, which has no relay: a code they show reaches only
+    this Wi-Fi, and a code from another network ended in "is saved, but is not on this Wi-Fi". Sharing with anybody
+    anywhere needs *Also through helpers when needed* on both ends. The setting is the owner's and stays his, but it is
+    offered where it bites: a code from another network asks "… is on another network - Use helpers?" and, said yes,
+    switches and finishes the pairing; a share box shown while only between the owner's devices says the code works only
+    on this Wi-Fi, with *Use helpers, so anybody anywhere can use it*, which switches and draws the code again. Both apps.
 
 ## Not decided, taken as written unless the owner says otherwise
 
