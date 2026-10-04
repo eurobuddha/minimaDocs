@@ -1,11 +1,13 @@
 /* Katalog chrome; retain the engine's product logo and About attribution. */
 :root, :root .theme-white, :root .theme-classic-light, :root .theme-gray {
-  --toolbar-header-document:#111111;
-  --toolbar-header-spreadsheet:#111111;
-  --background-toolbar:#F2F1EC;
-  --background-normal:#FCFBF7;
-  --background-secondary:#DEDDD6;
-  --highlight-button-hover:#DEDDD6;
-  --highlight-button-pressed:#E63312;
+  --toolbar-header-document:#111111!important;
+  --toolbar-header-spreadsheet:#111111!important;
+  --background-toolbar:#F2F1EC!important;
+  --background-normal:#FCFBF7!important;
+  --background-secondary:#DEDDD6!important;
+  --highlight-button-hover:#DEDDD6!important;
+  --highlight-button-pressed:#E63312!important;
 }
+.header-background-color,#toolbar:not(.style-off-tabs),#toolbar:not(.style-off-tabs) .toolbar,
+.toolbar .tabs,.toolbar .tabs .scroll,#box-document-title{background-color:#111111!important}
 button,.btn,.dropdown-menu,.form-control{border-radius:0!important}

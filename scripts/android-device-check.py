@@ -44,7 +44,7 @@ try:instrument('editors')
 finally:
     # Only these synthetic editor fixtures are retained; never capture identity setup.
     out=Path('android/build/device-checks');out.mkdir(parents=True,exist_ok=True)
-    for name in ['saved.docx','saved.xlsx','saved.minimadocs-image.json','docx-screen.png','xlsx-screen.png','image-screen.png','docx.pdf','xlsx.pdf','image.png']:
+    for name in ['saved.docx','saved.xlsx','saved.minimadocs-image.json','docx-screen.png','xlsx-screen.png','image-screen.png','docx-theme.json','xlsx-theme.json','docx.pdf','xlsx.pdf','image.png']:
         result=subprocess.run(['adb','-s',serial,'exec-out','run-as','com.eurobuddha.minimadocs','cat','cache/editor-checks/'+name],capture_output=True,timeout=30)
         if result.returncode==0:(out/name).write_bytes(result.stdout)
 adb('install','-r','android/build/parlons/app/build/outputs/apk/debug/app-debug.apk')

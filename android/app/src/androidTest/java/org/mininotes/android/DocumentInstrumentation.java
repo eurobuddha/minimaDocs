@@ -123,6 +123,12 @@ public final class DocumentInstrumentation extends Instrumentation {
                 }));
                 check(painted.await(30,java.util.concurrent.TimeUnit.SECONDS),"Editor did not render a frame");
                 waitForIdleSync();
+                if(!kind.equals("image")){
+                    java.util.concurrent.CountDownLatch inspected=new java.util.concurrent.CountDownLatch(1);String[] theme={null};
+                    runOnMainSync(()->activity.web.evaluateJavascript("JSON.stringify(Array.from(document.getElementById('editor').contentWindow.frames).map(w=>({url:w.location.pathname,classes:w.document.documentElement.className+' '+w.document.body.className,links:Array.from(w.document.querySelectorAll('link[rel=stylesheet]')).map(x=>({href:x.getAttribute('href'),loaded:!!x.sheet})),color:w.getComputedStyle(w.document.documentElement).getPropertyValue('--toolbar-header-document'),header:w.document.querySelector('.header-background-color')&&w.getComputedStyle(w.document.querySelector('.header-background-color')).backgroundColor})))",value->{theme[0]=value;inspected.countDown();}));
+                    check(inspected.await(10,java.util.concurrent.TimeUnit.SECONDS),"Could not inspect editor theme");
+                    artifact(kind+"-theme.json",theme[0].getBytes(java.nio.charset.StandardCharsets.UTF_8));
+                }
                 android.graphics.Bitmap screen=getUiAutomation().takeScreenshot();
                 if(screen!=null){try(ByteArrayOutputStream out=new ByteArrayOutputStream()){
                     screen.compress(android.graphics.Bitmap.CompressFormat.PNG,100,out);artifact(kind+"-screen.png",out.toByteArray());
