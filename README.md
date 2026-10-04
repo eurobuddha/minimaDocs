@@ -1,4 +1,78 @@
-# Mininotes
+# minimaDocs
+
+A development fork of Mininotes for an office and image-editing workspace over
+the embedded Maxima messaging network.
+
+**Current state:** the local fork and upstream history are established. The
+application code below is still Mininotes 0.2.012. The new editors, application
+branding, and Katalog interface have not been implemented. There is no
+minimaDocs release yet. The GitHub fork is
+[eurobuddha/minimaDocs](https://github.com/eurobuddha/minimaDocs).
+
+## Product scope
+
+- **Documents:** a complete Word-style editor, including formatted text,
+  document structure, tables, images, page layout, and file interchange.
+- **Spreadsheets:** workbooks with formulas, formatting, multiple sheets,
+  and file interchange.
+- **Images:** a Photoshop/GIMP-style editing workspace with editable layers
+  and reusable project files.
+- **Sharing:** retain Mininotes' embedded Maxima approach, encrypted delivery,
+  pairing, permissions, acknowledgements, and offline operation.
+- **Design:** reuse Atelier/Salon's Katalog language: paper backgrounds,
+  black rules, vermilion accents, square controls, and offset shadows.
+
+These are requirements, not a list of completed features. **Android is the
+first target**, as confirmed by the owner. The product name used for this fork
+is **minimaDocs**.
+
+## Fork and reuse record
+
+Base: `mininotesorg/mininotes` at
+`1aa9929f330f64b4b4f868e47cbb21bc56edb24a`, branch `minimadocs`.
+The `upstream` remote points to the original repository; `origin` points to
+`eurobuddha/minimaDocs`. Copyright and license notices remain in place.
+
+Sources inspected on 2026-10-04:
+
+| Source | Reuse assessment |
+| --- | --- |
+| This repository's `android/maxima-core/`, `Node`, `Post`, `Envelope`, and storage/sharing paths studied in this session | Existing transport and delivery foundation. No transport changes made. |
+| `/Users/eurobuddha/Projects/minima/apks/salon/app/src/main/java/com/eurobuddha/salon/Design.java` | Complete design helper read, with font dependencies and caller examples checked. Use its updated secondary-text contrast. |
+| `/Users/eurobuddha/Projects/minima/mds/statenft-suite/android/app/src/main/java/com/eurobuddha/statenft/Design.java` | Complete Atelier design helper read. Same Katalog family. |
+| Atelier `minidapp/styles.css`, `filtrport/entry.ts`, `filtrport/build.sh`, and `test/filtr.test.js` | CSS and integration inspected in part; regression test read and run successfully. FILTR remains a candidate, pending full editor inspection and layer/project persistence evaluation. |
+| `/Users/eurobuddha/Projects/tools/filtr/package.json` and `LICENSE` | Original engine dependencies and MIT notice inspected. |
+
+No office engine was found in the searched sibling manifests under
+`Projects/minima/mds`, `Projects/minima/desktop`, `Projects/web`, and
+`Projects/tools`. `miniFS/minima-docs-src` is a documentation website.
+
+[ONLYOFFICE Desktop Editors](https://github.com/ONLYOFFICE/DesktopEditors)
+is an office-suite candidate. [Univer](https://github.com/dream-num/univer)
+is an embeddable candidate; its published feature matrix places several
+required capabilities, including import/export and collaboration, in Pro.
+[miniPaint](https://github.com/viliusle/miniPaint) is a layered image-editor
+candidate. Their project documentation was inspected; their implementations
+have not been downloaded or evaluated, and none has been selected.
+
+## Integration constraint
+
+The existing note merge operates on plain-text lines. It must not receive
+serialized rich documents, spreadsheets, or image projects as though they were
+plain notes. Editor selection must establish format-aware persistence and
+concurrent-edit behavior before shared editing is enabled. Changes to stored
+formats need migration, recovery, and interoperability tests.
+
+GitHub access has been verified and the remote fork created. Editor selection
+and integration remain unfinished. No application source has been changed
+and no installer has been produced.
+
+## Upstream Mininotes documentation
+
+The remainder describes the inherited application. Its release links and
+installation instructions refer to upstream Mininotes, not minimaDocs.
+
+### Mininotes
 
 A paper pad on your phone that can hold the same note as another phone — yours,
 or somebody else's — with no server, no account, and nobody in between who can
