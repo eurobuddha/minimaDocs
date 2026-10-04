@@ -29,6 +29,8 @@ jobs:
         run: pnpm exec playwright install --with-deps chromium
       - name: DOCX and XLSX feature round trips
         run: pnpm exec playwright test test/e2e/docx-features.spec.ts test/e2e/xlsx-features.spec.ts --workers=1
+      - name: Embed import and PDF export regressions
+        run: pnpm exec playwright test test/e2e/embed-regression.spec.ts --workers=1
       - name: Compatibility reports
         if: always()
         uses: actions/upload-artifact@v4

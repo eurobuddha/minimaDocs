@@ -68,9 +68,23 @@ final class Arriving {
      */
     static Decision weigh(String here,long hereRev,String base,long baseRev,String theirs,long theirRev,
                           boolean theyHadMine,boolean iHadTheirs) {
-        if(here==null)return new Decision(What.NEW,theirs==null?"":theirs,Math.max(0,theirRev),false);
+        if(here==null){
+            if(RichDocument.marked(theirs)&&RichDocument.read(theirs)==null)return new Decision(What.OLDER,null,0,false);
+            return new Decision(What.NEW,theirs==null?"":theirs,Math.max(0,theirRev),false);
+        }
         String mine=here, came=theirs==null?"":theirs;
         if(mine.equals(came))return new Decision(What.NEWER,mine,Math.max(hereRev,theirRev),false);
+        // Office/image bytes are immutable attachments. Only their causal register is merged.
+        if(RichDocument.marked(mine)||RichDocument.marked(came)) {
+            RichDocument a=RichDocument.read(mine),b=RichDocument.read(came);
+            if(a==null||b==null)return new Decision(What.OLDER,null,hereRev,true);
+            try {
+                String joined=a.merge(b).text();
+                if(joined.equals(mine))return new Decision(What.OLDER,null,hereRev,false);
+                if(joined.equals(came))return new Decision(What.NEWER,joined,Math.max(hereRev,theirRev),false);
+                return new Decision(What.MERGED,joined,Math.max(hereRev,theirRev)+1,true);
+            }catch(IllegalArgumentException invalid){return new Decision(What.OLDER,null,hereRev,true);}
+        }
         // This phone has not written since the two sides last agreed, so what arrived simply follows it on.
         if(hereRev<=baseRev&&theirRev>=hereRev)return new Decision(What.NEWER,came,Math.max(theirRev,hereRev),false);
         // The sender had not written since then, so this phone is the one that moved: nothing to take.
@@ -110,6 +124,7 @@ final class Arriving {
      */
     static Decision copy(String here,long hereRev,long lastFromThem,String theirs,long theirRev) {
         String came=theirs==null?"":theirs;
+        if(RichDocument.marked(here)||RichDocument.marked(came))return weigh(here,hereRev,null,0,came,theirRev);
         if(here==null)return new Decision(What.NEW,came,Math.max(0,theirRev),false);
         if(theirRev<lastFromThem)return new Decision(What.OLDER,null,hereRev,false);
         // Counted on from where this phone is, never back: a count that went backwards would make the

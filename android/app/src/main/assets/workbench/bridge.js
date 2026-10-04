@@ -15,7 +15,7 @@
   }
   setInterval(()=>followInput(frame.contentWindow),1000);
   const origin=location.origin;
-  let pending=null,opened=false;
+  let pending=null,opened=false,saveTimeout=null,sequence=0,converting=false;
   let readyWait=null;
   const error=e=>MinimaDocs.error(e instanceof Error?e.message:String(e));
   const bytes=s=>Uint8Array.from(atob(s),c=>c.charCodeAt(0));
@@ -25,7 +25,19 @@
     read.onload=()=>resolve(String(read.result).split(',')[1]);read.readAsDataURL(blob);
   });
   const send=(type,payload={},id='open')=>frame.contentWindow.postMessage({type,payload,id},origin);
-  const returned=async blob=>{try{MinimaDocs.saved(await base64(blob));}catch(e){error(e);}finally{pending=null;}};
+  const returned=async (blob,request)=>{
+    if(pending!==request||converting)return;converting=true;
+    try{
+      const encoded=await base64(blob);if(pending!==request)return;
+      if(request.exportType)MinimaDocs.exported(encoded,request.exportType);else MinimaDocs.saved(encoded);
+    }catch(e){if(pending===request)error(e);}
+    finally{if(pending===request){pending=null;converting=false;clearTimeout(saveTimeout);}}
+  };
+  window.minimaDocsWritable=()=>{
+    config.readonly=false;
+    if(config.kind==='image')frame.contentWindow.document.body.inert=false;
+    else send('document:set-readonly',{readonly:false},'writable');
+  };
   // Same readiness flags used by the engine's save-stream.ts. Construction alone
   // does not mean the document and full editing API have finished loading.
   function officeReady() {
@@ -47,16 +59,30 @@
     },250);
   }
 
-  window.minimaDocsSave=async () => {
+  window.minimaDocsSave=()=>save();
+  window.minimaDocsExport=type=>save(type);
+  async function save(exportType='') {
     if(pending)return;
-    pending='save-'+Date.now();
+    if(exportType&&!['PDF','PNG'].includes(exportType))return error('Unsupported export format.');
+    const request=pending={id:'save-'+(++sequence),exportType};converting=false;
+    saveTimeout=setTimeout(()=>{if(pending!==request)return;pending=null;converting=false;error('Saving timed out. Your previous saved version is safe. Try Save again.');},180000);
     try {
       if(config.kind==='image') {
         if(!opened)throw new Error('The image editor is still opening.');
-        await returned(new Blob([frame.contentWindow.FileSave.export_as_json()],{type:'application/json'}));
-      } else send('document:save',{targetExt:config.kind.toUpperCase()},pending);
-    } catch(e){pending=null;error(e);}
-  };
+        const editor=frame.contentWindow;
+        const project=editor.FileSave.export_as_json();
+        if(exportType==='PNG') {
+          const info=JSON.parse(project).info;
+          if(!(info.width>0&&info.height>0&&info.width*info.height<=40000000))throw new Error('PNG export supports up to 40 million pixels.');
+          const canvas=editor.document.createElement('canvas');canvas.width=info.width;canvas.height=info.height;
+          const ctx=canvas.getContext('2d');editor.FileSave.disable_canvas_smooth(ctx);
+          editor.FileSave.Base_layers.convert_layers_to_canvas(ctx,null,false);
+          const blob=await new Promise(resolve=>canvas.toBlob(resolve,'image/png'));
+          if(!blob)throw new Error('Could not export this image.');await returned(blob,request);
+        }else await returned(new Blob([project],{type:'application/json'}),request);
+      } else send('document:save',{targetExt:exportType||config.kind.toUpperCase()},request.id);
+    } catch(e){if(pending===request){pending=null;converting=false;clearTimeout(saveTimeout);error(e);}}
+  }
 
   window.addEventListener('message',async event=>{
     if(event.origin!==origin||event.source!==frame.contentWindow)return;
@@ -65,14 +91,18 @@
     if(msg.type==='document:ready'&&!opened) {
       opened=true;
       if(config.base64) {
-        send('document:open-buffer',{fileName:config.name,buffer:bytes(config.base64).buffer});
+        send('document:open-buffer',{fileName:config.name,buffer:bytes(config.base64).buffer,readonly:!!config.readonly});
         delete config.base64;
       } else {
         try {await frame.contentWindow.onCreateNew('.'+config.kind);officeReady();}catch(e){error(e);}
       }
     } else if(msg.type==='document:opened') officeReady();
-    else if(msg.type==='document:saved'&&msg.id===pending) await returned(msg.payload.file);
-    else if(msg.type==='document:error'){pending=null;error(msg.payload?.message||'The editor could not complete that operation.');}
+    else if(msg.type==='document:dirty-changed'&&msg.payload?.dirty) MinimaDocs.changed();
+    else if(msg.type==='document:saved'&&pending&&msg.id===pending.id) {
+      if(msg.payload.dirty)MinimaDocs.changed();
+      await returned(msg.payload.file,pending);
+    }
+    else if(msg.type==='document:error'&&(!pending||!msg.id||msg.id===pending.id)){pending=null;converting=false;clearTimeout(saveTimeout);error(msg.payload?.message||'The editor could not complete that operation.');}
   });
 
   frame.addEventListener('load',async()=>{
@@ -114,6 +144,16 @@
         }
         delete config.base64;
       }
+      // Observe the same completed actions miniPaint uses for its undo history.
+      for(const name of ['do_action','undo_action','redo_action']) {
+        const original=editor.State?.[name];if(!original)continue;
+        editor.State[name]=async function(...args){
+          const result=await original.apply(this,args);
+          if(!config.readonly&&(name!=='do_action'||result?.status==='completed'))MinimaDocs.changed();
+          return result;
+        };
+      }
+      if(config.readonly)editor.document.body.inert=true;
       opened=true;MinimaDocs.ready();
     } catch(e){error(e);}
   });

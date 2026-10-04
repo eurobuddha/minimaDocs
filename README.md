@@ -3,40 +3,55 @@
 Android first office and image workspace, forked from Mininotes with its embedded
 Maxima messaging transport. Repository: [eurobuddha/minimaDocs](https://github.com/eurobuddha/minimaDocs), branch `minimadocs`.
 
-## Development preview 0.1.0
+## Android 0.2.0
 
-**First-release requirement:** reliable DOCX/XLSX import and export. Basic file
-round trips work; broader format compatibility is an acceptance gate, not yet a
-completed claim.
+**Docs**, **Sheets**, and **Images** each have a library, New and Import actions.
+Docs and Sheets use the bundled offline ONLYOFFICE engine from `ranuts/document`.
+Images use miniPaint with layers, tools, effects, undo and editable project files.
+The native interface uses Atelier/Salon's Katalog design.
 
-Home now offers **Docs**, **Sheets** and **Images**. Word processing and spreadsheets
-use the offline ONLYOFFICE engine packaged by `ranuts/document`. Images use miniPaint,
-including editable layers, tools, effects and project files. All editor assets ship
-inside the APK. Atelier/Salon's Katalog components supply the native interface.
+- Open a document directly from Home or its library. Save updates that same document.
+- DOCX and XLSX import/export preserve the editable Office file. PDF and flattened
+  PNG exports use Android's Save As picker. Layered images use `.minimadocs-image.json`.
+- Autosave keeps complete snapshots on this phone. Its interval adapts to export
+  cost (30–180 seconds, initially 60 seconds), and leaving the app requests a save.
+  Recovery reopens the last completed save. Process termination or locking can
+  lose edits made since that save; wait for Saved before an intentional shutdown.
+- Saved updates share through the existing Maxima file transport. A small causal
+  version record keeps concurrent edits as separate versions for review. Choosing
+  a version explicitly replaces the versions reviewed. Unseen edits remain separate.
+- Read-only document access is enforced again when writing storage. A separate
+  copy can be edited independently.
+- Files are limited to 16 MiB each. Imported originals remain on Home; Save creates
+  the editable document. Locked notebooks use existing SQLCipher and file encryption.
 
-**Save a copy** creates a new note with an editable DOCX, XLSX or
-`.minimadocs-image.json` attachment. Open that file to continue editing. Saved files
-use the existing notebook storage, encryption when notebook locking is enabled,
-and attachment sharing path. Individual editor files are limited to 16 MiB.
-Hold an attachment and choose **Export to phone** to write it through Android's
-Save As picker. Import existing files with the notebook's attachment picker or
-Android's Share action, then open the attached document.
+### Parlons contacts
 
-This is an integration preview, not the finished Google Docs-style product:
+Open **People and devices → Parlons contacts**, or **Share → Invite a Parlons contact**.
+Approve minimaDocs once in **Parlons → Settings → Apps using Maxima** (Connected apps).
+Both installed apps must have the same signing certificate, as Parlons requires.
 
-- Rich content is an attachment to a note; the note itself remains plain text.
-- Saving creates an independent copy. It does not update a shared original.
-- Rich documents have no autosave, crash recovery or concurrent-edit merge yet.
-  Save before closing, locking or leaving the app. Unsaved editor work can be lost
-  if Android kills the process or the notebook locks.
-- PDF/flattened-image export and comprehensive format compatibility remain to be integrated.
-- No end-to-end Maxima transfer test has been performed for these editor files.
-- The complete offline office engine makes the APK large. Older/low-memory phones
-  still need testing. The desktop-style office toolbar also needs more phone work.
-- Automatic app updates are disabled until a signed minimaDocs release exists.
+The contact list is read from Parlons and refreshes on its contact-change events.
+You can search, add or remove contacts, and send a minimaDocs pairing/document
+invitation with the selected access level. The recipient links minimaDocs to Parlons
+and reviews the invitation before accepting it. Invitations arriving while the app
+is closed are stored encrypted with the existing Android Keystore key; they expire
+after seven days. Removing a Parlons contact does not revoke existing document access:
+change that in the document's sharing settings.
 
-The original plain-text merge must never receive serialized Office or image
-projects. Shared editing needs its own version and conflict protocol.
+### How Maxima fits
+
+minimaDocs runs its own embedded Maxima messaging node. Parlons supplies its contact
+book and carries the initial invitation on a dedicated application channel. The
+existing minimaDocs node carries subsequent encrypted document updates.
+
+This messaging node does not validate the Minima blockchain or mine blocks. Shared
+updates are saved document snapshots; simultaneous typing is not merged character
+by character. Delivery depends on connectivity, relay availability and Android's
+background-execution policy. No document server or cloud Office service is required.
+
+The offline engines make the APK large (about 232 MiB). Automatic update checks
+remain disabled until a public signed release is available.
 
 ## Reused implementations
 
@@ -45,10 +60,11 @@ The `upstream` remote retains the original repository and history.
 
 | Source | Reuse and adaptations |
 | --- | --- |
-| `android/maxima-core/`, `NoteStore`, `Sealed`, attachment sharing | Existing node, storage, encryption and transport. Editor copies use the existing file transaction and sharing calls. |
+| `android/maxima-core/`, `NoteStore`, `Sealed`, attachment sharing | Existing node, storage, encryption and transport. Document snapshots use the existing file transaction and sharing calls. |
 | Salon `app/src/main/java/com/eurobuddha/salon/Design.java` and its fonts | Katalog helper reused in `Design.java`; Android resource font loading replaces the AndroidX call. |
 | Atelier `android/app/src/main/java/com/eurobuddha/statenft/Design.java`, `FILTRActivity.java`, FILTR integration and tests | Inspected design and editor integration. FILTR was not selected as the layered project engine. |
 | PocketWeb `AppServer.java`, `MiniwebUrl.java`, `MimeTypes.java`, `MiniwebUrlTest.java` | Asset-only HTTPS WebView pattern, URL validation, MIME types and tests. Editor routing serves bundled assets and blocks external requests. |
+| Parlons `app/src/main/java/com/eurobuddha/maxima/app/ipc/` and `app/build.gradle` | Existing registration, signature gate, approval, contact format, events, application subscription and family signing configuration. `MaximaConnection` adds a contact client and fixes explicit reply dispatch. |
 | [ranuts/document](https://github.com/ranuts/document/tree/9c743826d0152239dc7ad51677535d59679c7ff1) | Pinned `9c743826d0152239dc7ad51677535d59679c7ff1`. Existing embed API, editor readiness flags and DOCX/XLSX conversion. ONLYOFFICE logos and About retained. |
 | [miniPaint](https://github.com/viliusle/miniPaint/tree/a79733eb803fc97084ef0ee4faa96b031e69e1c0) | Pinned `a79733eb803fc97084ef0ee4faa96b031e69e1c0`. Existing `FileSave.export_as_json`, `FileOpen.load_json`, image import actions and undo engine. |
 
@@ -58,7 +74,7 @@ was found in the searched sibling projects. The chosen upstream integration code
 its dependencies, callers and available tests were inspected; the entire vendor
 engine has not been audited.
 
-## Build the Android preview
+## Build Android
 
 Use JDK 17 or 21, Android SDK 37, Node 24 and pnpm 11.4.0.
 The reusable CI action `.github/actions/prepare-editors/action.yml` checks out,
@@ -79,65 +95,66 @@ The preparation script bundles the engines and decompresses the converter WASM
 for Android asset responses. Generated assets are ignored by Git; an APK build
 fails if they have not been prepared. `android/local.properties` supplies the SDK
 path. Distribution copies of installers must include their version, for example
-`minimaDocs-0.1.0-debug.apk`.
+`minimaDocs-0.2.0-debug.apk`.
+
+Local release builds reuse Parlons' `MINIMA_FAMILY_RELEASE_*` Gradle properties,
+or the existing untracked `android/keystore.properties` format.
 
 Release tags build a **draft** Android release using configured signing secrets.
 They do not publish a Windows build. The inherited Windows source is retained.
 
 ## Validation
 
-On 2026-10-04, the Android emulator opened all three editors. Checks included:
+Local checks on 2026-10-05:
 
-- A saved DOCX reopened and an edited copy contained the text entered in Android.
-- An XLSX contained the entered `SUM(2,3)` formula and cached result `5`.
-- A brush stroke saved as a miniPaint project layer and reopened visibly intact.
-- 692 Android unit tests, release lint (0 errors, 28 warnings) and debug assembly passed.
-- 11 JavaScript tests cover the inherited transport and the editor bridge: readiness,
-  message origin, duplicate/stale replies, file limits, failed image imports and
-  session-only browser storage.
-- The pinned office engine's upstream unit tests and production build passed in
-  [GitHub Actions](https://github.com/eurobuddha/minimaDocs/actions/runs/37232525545).
-- Five upstream Chromium compatibility tests passed: DOCX tracked changes and
-  headers/footers, XLSX merged cells, formula results, and a 20,000-row sheet.
+- 705 Android unit tests pass, including causal convergence, replay and malformed
+  document handling, read-only replicas, and Parlons contact/invitation parsing.
+- 15 JavaScript tests pass, including origin checks, readiness, duplicate replies,
+  dirty state, timeout/retry, file limits, and keeping PDF exports separate from saves.
+- Release lint and signed release assembly pass.
+- Android storage instrumentation passed for same-document saves, concurrent
+  replicas, resolution, read-only refusal, encrypted reopening and locked refusal.
+- Earlier emulator checks opened all three editors, edited a DOCX, calculated
+  `SUM(2,3)` in XLSX, and saved/reopened a painted image layer.
+- The pinned office engine passed its upstream unit tests and five Chromium
+  compatibility tests: DOCX tracked changes and headers/footers, XLSX merged cells,
+  formulas and a 20,000-row sheet.
   [Compatibility run](https://github.com/eurobuddha/minimaDocs/actions/runs/37236287727).
-  These test the office engine in Chromium; broader Android import/export checks
-  remain pending because the emulator's shared storage stopped responding.
-- The fork's complete Android CI test, lint and release build passed in
-  [GitHub Actions](https://github.com/eurobuddha/minimaDocs/actions/runs/37235841914).
 
-See [NOTICE](NOTICE) for inherited and added third-party attribution. The bundled
-office engine carries AGPL-3.0 terms and notices, miniPaint is MIT, and the fonts
-use the SIL Open Font License. Engine licenses ship in the APK.
+The `Android device checks` workflow builds the existing Parlons source and runs
+storage, encrypted invitation recovery, packaged DOCX/XLSX round trips, PDF/PNG
+exports, and real Parlons approval/contacts on a disposable Android emulator.
+Its expanded checks are pending at this commit. The local emulator stopped running;
+this session cannot start a replacement because of macOS process permissions.
 
-## Code review
+See [NOTICE](NOTICE) for attribution. Office carries AGPL-3.0 terms, miniPaint is
+MIT, and the fonts use the SIL Open Font License. Engine licenses ship in the APK.
+
+## Code Review
 
 ### Summary
 
-The integration reuses encrypted file storage and transaction handling, keeps
-Office/image data outside the plain-text merge, and restricts WebView requests
-to bundled assets. Review fixes include true editor readiness, duplicate save
-callbacks, aborted image imports, locked file-picker returns, locale-independent
-routing, versioned artifacts and a build gate for missing editor assets.
+Snapshots use transactional notebook storage, immutable attachment IDs and causal
+version records. Office/image payloads never enter the plain-text merge. Parlons
+integration preserves its signature permission and approval gate. Invitations are
+bounded and encrypted at rest. Debug test activities are absent from release builds.
 
-### Findings before a production release
+### Findings addressed
 
-- **Critical — unsaved work has no recovery.** `EditorPane.java` holds edits in
-  WebView memory; `MainActivity.relockNow()` closes it. Add encrypted draft
-  persistence and recovery before relying on autosave-like behaviour.
-- **Major — compatibility acceptance remains incomplete.** The tested DOCX text,
-  XLSX formula and image layer cases are narrow. `scripts/create-office-fixtures.cjs`
-  reuses the engine's fixture builders for richer import cases. Their Android
-  import/export checks were interrupted when the emulator stopped responding,
-  and must be completed alongside real Word/Excel samples.
-- **Major — saved copies are independent documents.** `EditorPane.keepCopy()`
-  creates a new note and attachment. Versioned updates, permissions and conflict
-  handling are required before rich realtime shared editing can be claimed.
+- **Critical — concurrent versions could be discarded by autosave.** Conflict review
+  now requires explicit resolution; autosave preserves unseen concurrent branches.
+- **Major — explicit Parlons replies were dropped.** The manifest receiver now
+  dispatches matching requests, with a signature permission on both IPC receivers.
+- **Major — stale export replies could finish a later save.** Unique request IDs,
+  conversion guards and timeout checks prevent cross-request callbacks.
+- **Major — copied backups retained old file IDs.** Document records now remap their
+  attachment IDs and validate required files before moving them.
 
 ### Verdict
 
-**Request changes for a production release.** This branch is a development
-checkpoint; no public release has been published. The items above are explicit
-acceptance gates for the requested product.
+**Device validation pending.** Local unit, lint and signed build checks pass.
+The new device workflow is the remaining validation gate. Autosave recovers completed
+snapshots; it does not promise to recover keystrokes since the last completed save.
 
 ## Upstream Mininotes documentation
 

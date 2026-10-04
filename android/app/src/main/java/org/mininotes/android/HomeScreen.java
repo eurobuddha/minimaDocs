@@ -152,7 +152,7 @@ final class HomeScreen {
         for(int i=0;i<names.length;i++) {
             final String kind=kinds[i];TextView button=Design.chip(a,names[i],false);
             button.setTextColor(a.INK);button.setBackground(a.edged(a.CARD,Tint.NONE,false));
-            button.setOnClickListener(v->a.editDocument(kind,null));
+            button.setOnClickListener(v->a.documentLibrary(kind));
             LinearLayout.LayoutParams slot=new LinearLayout.LayoutParams(0,a.dp(48),1);slot.setMargins(a.dp(3),0,a.dp(3),0);create.addView(button,slot);
         }
         a.root.addView(create);

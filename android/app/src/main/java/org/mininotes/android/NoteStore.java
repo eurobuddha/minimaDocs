@@ -172,6 +172,7 @@ final class NoteStore extends SQLiteOpenHelper implements Home.Shelf {
             return head.isEmpty()?"Untitled":head;
         }
         String rest() {
+            if(RichDocument.marked(preview))return preview.startsWith(RichDocument.PREFIX+"xlsx")?"Spreadsheet":preview.startsWith(RichDocument.PREFIX+"image")?"Layered image":"Word document";
             if(!title.trim().isEmpty())return preview.replace('\n',' ').trim();
             int line=preview.indexOf('\n');
             return line<0?"":preview.substring(line+1).replace('\n',' ').trim();
@@ -560,7 +561,7 @@ final class NoteStore extends SQLiteOpenHelper implements Home.Shelf {
         values.put("kind",file.kind);values.put("bytes",file.bytes);values.put("added",file.added);
         values.put("held",heldAs(file.held));
         values.put("place",-file.added);
-        db.insertWithOnConflict("files",null,values,SQLiteDatabase.CONFLICT_REPLACE);
+        if(db.insertWithOnConflict("files",null,values,SQLiteDatabase.CONFLICT_REPLACE)<0)throw new IllegalStateException("Could not save the file");
         if(changed&&shelf(file.held))touched(db,file.note);
     }
 
@@ -676,9 +677,12 @@ final class NoteStore extends SQLiteOpenHelper implements Home.Shelf {
     List<Enclosure.Listed> enclosed(String note) {
         List<Enclosure.Listed> all=new ArrayList<>();
         if(home(note))return all;
-        for(Held file:filesOf(keptWith(note),note))
+        Note page=get(note);RichDocument document=page==null?null:RichDocument.read(page.body);
+        for(Held file:filesOf(keptWith(note),note)) {
+            if(document!=null&&!document.heads.containsValue(file.id))continue;
             all.add(new Enclosure.Listed(file.id,file.name,file.kind,file.bytes,
                 Enclosure.travels(file.bytes)?manifestOf(file.id):""));
+        }
         return all;
     }
 
@@ -710,7 +714,14 @@ final class NoteStore extends SQLiteOpenHelper implements Home.Shelf {
                 here.addAll(ids(db,"SELECT id FROM files WHERE id=?",one.id));
                 declined.addAll(ids(db,"SELECT id FROM incoming WHERE id=? AND (declined=1 OR origin<>?)",one.id,from));
             }
+            Note page=get(note);RichDocument document=page==null?null:RichDocument.read(page.body);
+            if(document!=null){List<Enclosure.Listed> current=new ArrayList<>();for(Enclosure.Listed one:files)if(document.heads.containsValue(one.id))current.add(one);files=current;}
             Enclosure.Plan plan=Enclosure.plan(files,fromThem,here,waiting,declined);
+            // A stale attachment list cannot remove a concurrent document head.
+            if(document!=null) {
+                plan.drop.removeIf(document.heads::containsValue);
+                plan.forget.removeIf(document.heads::containsValue);
+            }
             for(Enclosure.Listed one:plan.fetch) {
                 ContentValues v=new ContentValues();
                 v.put("id",one.id);v.put("note",note);v.put("origin",from);v.put("name",Attachment.named(one.name));
@@ -742,7 +753,8 @@ final class NoteStore extends SQLiteOpenHelper implements Home.Shelf {
             fetch=!plan.fetch.isEmpty()||!plan.refresh.isEmpty()||newDoor;drop=plan.drop;
             db.setTransactionSuccessful();
         } finally {db.endTransaction();}
-        if(!drop.isEmpty())sweep();
+        Note keptPage=get(note);
+        if(!drop.isEmpty()||(keptPage!=null&&RichDocument.read(keptPage.body)!=null))sweep();
         return fetch;
     }
 
@@ -1243,7 +1255,7 @@ final class NoteStore extends SQLiteOpenHelper implements Home.Shelf {
      * Bytes with no row are deleted. Rows are written after the copy and deleted before it, so the only
      * thing that can be left behind is a file nobody claims — never a row pointing at nothing.
      */
-    void sweep() {
+    synchronized void sweep() {
         Set<String> kept=new HashSet<>();
         try(Cursor c=getReadableDatabase().query("files",new String[]{"id"},null,null,null,null,null)) {
             while(c.moveToNext())kept.add(c.getString(0));
@@ -1744,6 +1756,10 @@ final class NoteStore extends SQLiteOpenHelper implements Home.Shelf {
     void save(SQLiteDatabase db,Note n) {
         // A list row holds a truncated body; writing one back would silently cut the page down to its preview.
         if(!n.complete)throw new IllegalStateException("Refusing to save a note that was only partially read");
+        RichDocument nextDocument=RichDocument.read(n.body),previousDocument=null;
+        if(nextDocument!=null)try(Cursor c=db.query("notes",new String[]{"body"},"id=?",new String[]{n.id},null,null,null,"1")) {
+            if(c.moveToFirst())previousDocument=RichDocument.read(c.getString(0));
+        }
         // Who wrote what, worked out before the row is replaced, from what it said until now: see Writers.
         String body=n.body==null?"":n.body;
         Writers runs=n.writers!=null&&n.writers.length()==body.length()?n.writers:null;
@@ -1768,6 +1784,10 @@ final class NoteStore extends SQLiteOpenHelper implements Home.Shelf {
         }
         if(db.insertWithOnConflict("notes",null,v,SQLiteDatabase.CONFLICT_REPLACE)<0)throw new IllegalStateException("Could not save the note");
         if(runs!=null)keepWriters(db,n.id,body,runs);
+        if(previousDocument!=null)for(String old:previousDocument.heads.values())if(!nextDocument.heads.containsValue(old)) {
+            db.delete("files","id=? AND note=?",new String[]{old,n.id});
+            db.delete("reached","id=?",new String[]{old});
+        }
     }
 
     // ---- who wrote what, on this device only ---------------------------------------------------------------------
@@ -3155,12 +3175,14 @@ final class NoteStore extends SQLiteOpenHelper implements Home.Shelf {
     }
 
     /** What was written in most recently, newest first. Notes: a shelf is not a thing you write on. */
-    List<Branch> lately(int most) {
+    List<Branch> lately(int most) {return recent(most,null);}
+    List<Branch> documents(String kind){RichDocument.empty(kind);return recent(Integer.MAX_VALUE,kind);}
+    private List<Branch> recent(int most,String kind) {
         List<Branch> recent=new ArrayList<>();
         Tree tree=tree();
         String sql="SELECT n.id,n.title,substr(n.body,1,"+PREVIEW+"),n.colour,n.book FROM notes n"
-            +" WHERE n.deleted=0 AND n.archived=0 ORDER BY n.updated DESC LIMIT "+Math.max(1,most);
-        try(Cursor c=getReadableDatabase().rawQuery(sql,null)) {
+            +" WHERE n.deleted=0 AND n.archived=0"+(kind==null?"":" AND n.body LIKE ?")+" ORDER BY n.updated DESC LIMIT "+Math.max(1,most);
+        try(Cursor c=getReadableDatabase().rawQuery(sql,kind==null?null:new String[]{RichDocument.PREFIX+kind+"\n%"})) {
             while(c.moveToNext()) {
                 Note page=new Note();
                 page.title=c.getString(1)==null?"":c.getString(1);
@@ -5916,6 +5938,17 @@ final class NoteStore extends SQLiteOpenHelper implements Home.Shelf {
         JSONObject root=new JSONObject(input);
         if(!root.getString("app").equals("mininotes.v1")||root.getInt("version")!=1)throw new JSONException("Unsupported backup");
         JSONArray a=root.getJSONArray("notes");if(a.length()>1000)throw new JSONException("Maximum 1,000 notes per import");
+        // Validate every document before moving any attachment from the import landing area.
+        Set<String> documentFiles=new HashSet<>();
+        for(int i=0;i<a.length();i++){
+            JSONObject n=a.getJSONObject(i);String body=n.getString("body");RichDocument document=RichDocument.read(body);
+            if(RichDocument.marked(body)&&document==null)throw new JSONException("Invalid document backup");
+            if(document==null)continue;
+            Set<String> listed=new HashSet<>();JSONArray fs=n.optJSONArray("files");
+            for(int f=0;fs!=null&&f<fs.length();f++)listed.add(fs.getJSONObject(f).optString("id"));
+            for(String id:document.heads.values())if(!listed.contains(id)||!landingFor(id).isFile()||!documentFiles.add(id))
+                throw new JSONException("Document backup is missing an editable file or reuses one across documents");
+        }
         // Collections at every depth, from a backup written since they nested; else a 0.1 backup's collections and
         // books, each book under its collection.
         JSONArray things=root.optJSONArray("things");
@@ -5945,7 +5978,11 @@ final class NoteStore extends SQLiteOpenHelper implements Home.Shelf {
             if(!icon.isEmpty()||!image.isEmpty())looks.add(new String[]{n.id,icon,image});
             // A file is only a file of the note if its bytes came with the backup: a row pointing at
             // nothing would be a name you can tap and never open.
-            files(o.optJSONArray("files"),n.id,Branch.Kind.PAGE,n.updated,replacing,arriving);
+            RichDocument document=RichDocument.read(n.body);
+            if(RichDocument.marked(n.body)&&document==null)throw new JSONException("Invalid document backup");
+            if(document!=null)for(String id:document.heads.values())if(!landingFor(id).isFile())throw new JSONException("Document backup is missing its editable file");
+            Map<String,String> mapped=files(o.optJSONArray("files"),n.id,Branch.Kind.PAGE,n.updated,replacing,arriving);
+            if(document!=null)try{n.body=document.remap(mapped).text();}catch(IllegalArgumentException missing){throw new JSONException(missing.getMessage());}
         }
         // And the files kept with a collection, which stay with it: a collection is not copied by an addition.
         for(int i=0;things!=null&&i<things.length();i++) {
@@ -6002,7 +6039,8 @@ final class NoteStore extends SQLiteOpenHelper implements Home.Shelf {
      * The files a backup lists for one thing, kept only where their bytes came with it: a row pointing at nothing
      * would be a name you can tap and never open. An addition gives each a new id, as it does the notes.
      */
-    private void files(JSONArray kept,String with,Branch.Kind kind,long updated,boolean replacing,List<Held> arriving) throws JSONException {
+    private Map<String,String> files(JSONArray kept,String with,Branch.Kind kind,long updated,boolean replacing,List<Held> arriving) throws JSONException {
+        Map<String,String> mapped=new HashMap<>();
         for(int f=0;kept!=null&&f<kept.length();f++) {
             JSONObject file=kept.getJSONObject(f);
             String came=Attachment.idOf(Attachment.entry(file.optString("id")));
@@ -6010,8 +6048,9 @@ final class NoteStore extends SQLiteOpenHelper implements Home.Shelf {
             String id=replacing?came:UUID.randomUUID().toString();
             Held own=new Held(id,with,Attachment.named(file.optString("name")),
                 Attachment.kind(file.optString("kind")),landingFor(came).length(),file.optLong("added",updated),kind);
-            if(landingFor(came).renameTo(fileFor(own.id)))arriving.add(own);
+            if(landingFor(came).renameTo(fileFor(own.id))){arriving.add(own);mapped.put(came,own.id);}
         }
+        return mapped;
     }
 
     /**

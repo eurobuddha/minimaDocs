@@ -107,5 +107,7 @@ jobs:
             The pad works on its own, and nothing else has to be installed to
             share between phones: it is its own Maxima node. See the README.
 
-            This is an Android development preview. Office and image edits are
-            saved as explicit copies; realtime shared editing is not implemented.
+            Docs, Sheets and layered Images save on this phone and share saved
+            updates through Maxima. Concurrent versions are kept for review.
+            Parlons contacts connect through its existing approval screen.
+            See the README for compatibility tests and current limits.

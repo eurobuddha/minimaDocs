@@ -115,7 +115,51 @@ public final class MainActivity extends Activity {
         if(editor!=null&&editor.isShowing())return;
         save();quiet();editor=new EditorPane(this,kind,file);editor.show();
     }
-    void editorSaved(String id){editor=null;open(id);filesChanged(NoteStore.Branch.Kind.PAGE,id);toast("Editable copy saved. Open its file to continue editing.");}
+    private static final int IMPORT_DOCUMENT=92;
+    private String importingKind="";
+    void documentLibrary(String kind) {
+        background.submit(()->store.documents(kind),documents->{
+            LinearLayout body=inside();final AlertDialog[] box={null};
+            body.addView(primary("New "+(kind.equals("xlsx")?"spreadsheet":kind.equals("image")?"image":"document"),()->{box[0].dismiss();editDocument(kind,null);}));
+            body.addView(tapRow("Import a file",()->{box[0].dismiss();importingKind=kind;
+                try{startActivityForResult(new Intent(Intent.ACTION_OPEN_DOCUMENT).addCategory(Intent.CATEGORY_OPENABLE).setType("*/*"),IMPORT_DOCUMENT);}
+                catch(Exception missing){alert("No file picker is available.");}
+            }));
+            if(documents.isEmpty())body.addView(under("Your saved "+(kind.equals("xlsx")?"spreadsheets":kind.equals("image")?"images":"documents")+" appear here."));
+            for(NoteStore.Branch document:documents)body.addView(tapRow(document.name,()->{box[0].dismiss();background.submit(()->store.get(document.id),note->{if(note!=null)openDocument(note);},e->alert(READ_FAILED));}));
+            box[0]=new Box().setTitle(kind.equals("xlsx")?"Sheets":kind.equals("image")?"Images":"Docs").setView(scrolling(body)).setNegativeButton("Close",null).show();
+        },e->alert(READ_FAILED));
+    }
+    private void importDocument(Uri uri) {
+        final String expected=importingKind;
+        background.submit(()->{
+            synchronized(store){
+                if(!PhoneLock.open(this))throw new IllegalStateException("Unlock minimaDocs before importing.");
+                NoteStore.Held file=copyIn(NoteStore.Branch.Kind.COLLECTION,Things.HOME,uri,Enclosure.MOST,"This editor opens files up to 16 MiB.");
+                if(!expected.equals(EditorPane.kindOf(file.name))){store.fileFor(file.id).delete();throw new IllegalArgumentException("Choose a file for this section.");}
+                store.keep(file);return file;
+            }
+        },file->{editDocument(expected,file);toast("Imported original kept on Home. Save your editable document in the editor.");},e->alert(e.getMessage()));
+    }
+    void documentSaved(String id){filesChanged(NoteStore.Branch.Kind.PAGE,id);refresh();}
+    void documentClosed(EditorPane pane){if(editor==pane)editor=null;refresh();}
+    void shareDocument(String id,String name){shareSheet(Sharing.Scope.PAGE,id,name);}
+    private void openDocument(NoteStore.Note note) {
+        RichDocument document=RichDocument.read(note.body);
+        if(document==null){alert("This document uses an unsupported or damaged document record.");return;}
+        background.submit(()->{
+            java.util.List<NoteStore.Held> files=new java.util.ArrayList<>();
+            for(String id:document.heads.values()){NoteStore.Held file=store.file(id);if(file!=null&&file.note.equals(note.id))files.add(file);}
+            return files;
+        },files->{
+            if(files.size()!=document.heads.size()){alert("This shared document is still downloading. Open it again when its files arrive.");return;}
+            if(files.size()==1){editDocument(document.kind,files.get(0));return;}
+            String[] choices=new String[files.size()];
+            for(int i=0;i<choices.length;i++)choices[i]="Version "+(i+1)+" · "+Attachment.size(files.get(i).bytes);
+            new Box().setTitle("Concurrent edits — open a version to review")
+                .setItems(choices,(d,which)->editDocument(document.kind,files.get(which))).setNegativeButton("Cancel",null).show();
+        },e->alert(READ_FAILED));
+    }
     Background background;
     /**
      * A second worker, for anything that waits on the network.
@@ -139,6 +183,7 @@ public final class MainActivity extends Activity {
     /** Built on the worker thread on first use, because pairing identifiers are written to disk. */
     private volatile CoreConnection core;
     private volatile MaximaConnection transport;
+    private ParlonsPane parlons;
     /** This device's own two keys, made on first use and kept sealed. */
     private volatile Keys deviceKeys;
     /** Where this device can be reached, once its own node has said so. Empty until then. */
@@ -1771,6 +1816,7 @@ public final class MainActivity extends Activity {
 
     /** The whole app, most of the time: one ruled page. */
     void write(NoteStore.Note note) {
+        if(RichDocument.marked(note.body)){openDocument(note);return;}
         // Another note: a recording going on is kept with the one it was started in, and a sound playing stops.
         if(active==null||note.id==null||!note.id.equals(active.id)){stopRecording(null);stopPlaying();}
         active=note;shelves=false;carrying=null;saved=edits;failed=false;pageShared=false;
@@ -5365,6 +5411,7 @@ public final class MainActivity extends Activity {
             LinearLayout body=inside();final AlertDialog[] box={null};
             // Two parts: your own devices, by what you call each of them, this one first; then people, by the
             // names they chose. A device moves between them by its switch.
+            body.addView(tapRow("Parlons contacts",()->{if(box[0]!=null)box[0].dismiss();openParlons(null);}));
             List<Object> parts=new ArrayList<>();
             parts.add("My devices");
             for(NoteStore.Contact one:known)if(one.mine)parts.add(one);
@@ -6555,6 +6602,15 @@ public final class MainActivity extends Activity {
      * code, and a way to copy it. Who already has what is a list, and a list is not what you are holding a
      * phone up for - it lives on its own row in the menu.
      */
+    private void openParlons(String invitation) {
+        if(transport==null)transport=new MaximaConnection(this);
+        if(parlons!=null)parlons.close();
+        if(invitation==null){
+            withAddress(()->background.submit(()->keys().line(yourName(),getSharedPreferences("settings",MODE_PRIVATE).getString("address","")),
+                line->{parlons=new ParlonsPane(this,transport,line,said->readPairing(said,false));parlons.show();},e->alert("Could not prepare the invitation.")));
+        }else{parlons=new ParlonsPane(this,transport,invitation,said->readPairing(said,false));parlons.show();}
+    }
+
     private void shareSheet(final Sharing.Scope scope,final String target,final String name) {
         if(scope==null)return;
         final String offer=Sharing.travelling(scope,name);
@@ -6578,6 +6634,7 @@ public final class MainActivity extends Activity {
             final String line=(String)((Object[])ready)[0];
             @SuppressWarnings("unchecked") final List<Sharing.Level> may=(List<Sharing.Level>)((Object[])ready)[1];
             LinearLayout body=inside();
+            body.addView(tapRow("Invite a Parlons contact",()->openParlons(line)));
             body.addView(codeView(line));
             // What this phone is doing while the code is up, which is waiting - and it says when it stops.
             TextView waiting=under("Waiting for them to scan it\u2026");
@@ -8337,26 +8394,36 @@ public final class MainActivity extends Activity {
 
     /** Which received file a copy is being saved of, while the phone's own picker asks where. */
     NoteStore.Loose savingCopy;
+    private byte[] savingExport;
 
     /** Reuse Home's Save As path for a note attachment too. */
     void exportFile(NoteStore.Held file) {
+        savingExport=null;
         savingCopy=new NoteStore.Loose(file.id,"","",file.name,file.kind,file.bytes,"",true,false,0,0);
         try{startActivityForResult(new Intent(Intent.ACTION_CREATE_DOCUMENT).addCategory(Intent.CATEGORY_OPENABLE)
             .setType(file.kind).putExtra(Intent.EXTRA_TITLE,file.name),SAVE_COPY);}
         catch(Exception missing){savingCopy=null;alert("No file app is available to export this file.");}
     }
 
+    void exportBytes(String name,String mime,byte[] bytes) {
+        savingCopy=null;savingExport=bytes;
+        try{startActivityForResult(new Intent(Intent.ACTION_CREATE_DOCUMENT).addCategory(Intent.CATEGORY_OPENABLE)
+            .setType(mime).putExtra(Intent.EXTRA_TITLE,name),SAVE_COPY);}
+        catch(Exception missing){savingExport=null;alert("No file app is available to export this file.");}
+    }
+
     private void saveCopy(final Uri to) {
         final NoteStore.Loose file=savingCopy;savingCopy=null;
-        if(file==null)return;
+        final byte[] bytes=savingExport;savingExport=null;
+        if(file==null&&bytes==null)return;
         background.submit(()->{
             if(!PhoneLock.open(this))throw new IllegalStateException("Unlock the notebook before exporting.");
             try(OutputStream out=getContentResolver().openOutputStream(to,"wt")) {
                 if(out==null)throw new IllegalStateException("No output stream");
-                PhoneLock.copyOut(store.fileFor(file.id),out);
+                if(bytes!=null)out.write(bytes);else PhoneLock.copyOut(store.fileFor(file.id),out);
             }
             return null;
-        },done->toast("Copy saved"),e->alert("Could not save a copy of "+file.name+"."));
+        },done->toast("Copy saved"),e->alert("Could not export "+(file==null?"the file":file.name)+"."));
     }
 
     /**
@@ -8397,8 +8464,9 @@ public final class MainActivity extends Activity {
 
     @Override protected void onActivityResult(int request,int result,Intent data){super.onActivityResult(request,result,data);
         if(request==EditorPane.PICK){if(editor!=null)editor.picked(!lockedOut&&PhoneLock.open(this)&&result==RESULT_OK&&data!=null?data.getData():null);return;}
-        if(request==SAVE_COPY&&(lockedOut||result!=RESULT_OK||data==null)){savingCopy=null;return;}
+        if(request==SAVE_COPY&&(lockedOut||result!=RESULT_OK||data==null||data.getData()==null)){savingCopy=null;savingExport=null;return;}
         if(lockedOut)return;if(result!=RESULT_OK||data==null)return;
+        if(request==IMPORT_DOCUMENT){if(data.getData()!=null)importDocument(data.getData());return;}
         if(request==ATTACH){keepFiles(attachingTo,attachingToId,picked(data),new ArrayList<>());return;}
         if(request==PICTURE){picker().pictured(data.getData());return;}
         if(request==SEND_FILES){chooseDevice(picked(data),new ArrayList<>());return;}
@@ -8548,7 +8616,7 @@ public final class MainActivity extends Activity {
     }
 
     // The process can be killed after these callbacks, so wait a bounded time for queued writes to land.
-    @Override protected void onPause(){if(lockedOut){super.onPause();return;}save();keepVersion();rememberWhere();background.flush(FLUSH_TIMEOUT);super.onPause();}
+    @Override protected void onPause(){if(lockedOut){super.onPause();return;}if(editor!=null)editor.backgrounded();save();keepVersion();rememberWhere();background.flush(FLUSH_TIMEOUT);super.onPause();}
 
     /**
      * Where the app was when it was left: a note being written, or a level of the shelves and the way in to
@@ -8599,7 +8667,7 @@ public final class MainActivity extends Activity {
     private final java.util.function.Consumer<String> filesMoved=note->handler.post(()->{
         if(active!=null&&active.id.equals(note)&&!shelves){showFiles();askWhatIsOwed();}
     });
-    @Override protected void onDestroy(){if(editor!=null)editor.dismiss();handler.removeCallbacksAndMessages(null);if(Post.filesMoved==filesMoved)Post.filesMoved=null;if(lockedOut){super.onDestroy();return;}
+    @Override protected void onDestroy(){if(parlons!=null)parlons.close();if(transport!=null)transport.close();if(editor!=null)editor.dismiss();handler.removeCallbacksAndMessages(null);if(Post.filesMoved==filesMoved)Post.filesMoved=null;if(lockedOut){super.onDestroy();return;}
         background.submit(()->{if(core!=null)core.close();return null;},done->{},e->{});
         network.abandon();chores.abandon();lookout.abandon();background.close();super.onDestroy();}
 
@@ -8614,6 +8682,7 @@ public final class MainActivity extends Activity {
     @Override protected void onResume() {
         super.onResume();
         if(lockedOut)return;
+        if(parlons!=null)parlons.refresh();
         if(sleepSwitch!=null)sleepSaid();
     }
 
@@ -8677,6 +8746,7 @@ public final class MainActivity extends Activity {
 
     /** Writing saved, the notebook closed and its key let go, and the unlock page in its place. */
     private void relockNow() {
+        savingExport=null;
         if(editor!=null&&editor.isShowing()){editor.dismiss();editor=null;}
         handler.removeCallbacks(idleCheck);handler.removeCallbacks(awayRelock);
         save();keepVersion();background.flush(FLUSH_TIMEOUT);
@@ -8916,6 +8986,7 @@ public final class MainActivity extends Activity {
 
     /** Something landed while the pad was on screen. */
     private void heard(Post.Landed landed) {
+        if(editor!=null)editor.remoteChanged();
         if(landed.files){filesNews(landed);return;}
         if(landed.accepted!=null){somebodyAccepted(landed.accepted);return;}
         // Somebody said they have something. Nothing to say about it: the marks say it, once they are

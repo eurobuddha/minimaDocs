@@ -2,21 +2,23 @@ const test=require('node:test'),assert=require('node:assert/strict');
 const fs=require('node:fs'),vm=require('node:vm'),path=require('node:path');
 const source=fs.readFileSync(path.join(__dirname,'../android/app/src/main/assets/workbench/bridge.js'),'utf8');
 function editorHarness(kind='docx',config={}) {
-  const handlers={},frameHandlers={},timers=new Map(),sent=[],saved=[],errors=[];
-  let ready=0,next=0;
+  const handlers={},frameHandlers={},timers=new Map(),sent=[],saved=[],errors=[],exported=[];
+  let ready=0,next=0,changed=0;
   const doc={getElementById:()=>true};
   const api={isLoadFullApi:false,isDocumentLoadComplete:false};
   const child={frames:[{Asc:{editor:api},document:doc}],onCreateNew:async()=>{},postMessage:m=>sent.push(m)};
   const frame={contentWindow:child,addEventListener:(n,f)=>frameHandlers[n]=f};
   const origin='https://editors.minimadocs.local';
   const context={window:{addEventListener:(n,f)=>handlers[n]=f},document:{getElementById:()=>frame},
-    location:{origin},MinimaDocs:{bootstrap:()=>JSON.stringify({kind,...config}),ready:()=>ready++,error:e=>errors.push(e),saved:s=>saved.push(s),used:()=>{}},
+    location:{origin},MinimaDocs:{bootstrap:()=>JSON.stringify({kind,...config}),ready:()=>ready++,error:e=>errors.push(e),saved:s=>saved.push(s),exported:(s,type)=>exported.push({s,type}),used:()=>{},changed:()=>changed++},
     setInterval:(f,ms)=>{timers.set(++next,{f,ms});return next;},clearInterval:id=>timers.delete(id),
+    setTimeout:(f,ms)=>{timers.set(++next,{f,ms});return next;},clearTimeout:id=>timers.delete(id),
     Blob,Uint8Array,TextDecoder,URL,atob,
     FileReader:class {readAsDataURL(blob){blob.arrayBuffer().then(b=>{this.result='data:;base64,'+Buffer.from(b).toString('base64');this.onload();});}}
   };
   vm.runInNewContext(source,context);
-  return {context,api,sent,saved,errors,child,frameHandlers,get ready(){return ready;},
+  return {context,api,sent,saved,errors,exported,child,frameHandlers,get ready(){return ready;},get changed(){return changed;},
+    timeout:()=>{for(const t of [...timers.values()])if(t.ms===180000)t.f();},
     tick:()=>{for(const t of [...timers.values()])if(t.ms===250)t.f();},
     emit:(data,extra={})=>handlers.message({data,origin,source:child,...extra})};
 }
@@ -56,4 +58,29 @@ test('a rejected image project cannot be presented as successfully opened',async
   h.child.FileSave={};h.child.State={do_action:async()=>({status:'aborted'})};
   h.child.FileOpen={load_json:()=>h.child.State.do_action({action_id:'open_json_file'})};
   await h.frameHandlers.load();assert.equal(h.ready,0);assert.match(h.errors[0],/could not be opened/);
+});
+
+test('dirty changes and readonly import reach the native contract',async()=>{
+  const h=editorHarness('docx',{readonly:true,name:'report.docx',base64:Buffer.from('docx').toString('base64')});
+  await h.emit({type:'document:ready'});assert.equal(h.sent[0].payload.readonly,true);
+  await h.emit({type:'document:dirty-changed',payload:{dirty:true}});assert.equal(h.changed,1);
+});
+test('timeout permits retry and stale replies cannot complete the new save',async()=>{
+  const h=editorHarness();await h.context.window.minimaDocsSave();const old=h.sent[0].id;h.timeout();
+  await h.context.window.minimaDocsSave();const now=h.sent[1].id;assert.notEqual(old,now);
+  await h.emit({type:'document:error',id:old,payload:{message:'old failure'}});
+  await h.emit({type:'document:saved',id:old,payload:{file:new Blob(['old'])}});
+  await h.emit({type:'document:saved',id:now,payload:{file:new Blob(['new'])}});
+  assert.deepEqual(h.saved,[Buffer.from('new').toString('base64')]);assert.equal(h.errors.length,1);
+});
+test('simultaneous duplicate replies cross the native save bridge only once',async()=>{
+  const h=editorHarness();await h.context.window.minimaDocsSave();
+  const reply={type:'document:saved',id:h.sent[0].id,payload:{file:new Blob(['once'])}};
+  await Promise.all([h.emit(reply),h.emit(reply)]);assert.equal(h.saved.length,1);
+});
+test('PDF conversion exports bytes without replacing the editable document',async()=>{
+  const h=editorHarness('xlsx');await h.context.window.minimaDocsExport('PDF');
+  assert.equal(h.sent[0].payload.targetExt,'PDF');
+  await h.emit({type:'document:saved',id:h.sent[0].id,payload:{file:new Blob(['%PDF-1.7'])}});
+  assert.equal(h.saved.length,0);assert.equal(h.exported[0].type,'PDF');
 });

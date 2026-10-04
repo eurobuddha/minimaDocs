@@ -149,7 +149,7 @@ final class Keys {
         return maker.generateKey();
     }
 
-    private byte[] seal(byte[] raw) throws GeneralSecurityException, IOException {
+    synchronized byte[] seal(byte[] raw) throws GeneralSecurityException, IOException {
         Cipher cipher=Cipher.getInstance("AES/GCM/NoPadding");
         cipher.init(Cipher.ENCRYPT_MODE,sealer());
         byte[] nonce=cipher.getIV(), body=cipher.doFinal(raw);
@@ -160,7 +160,7 @@ final class Keys {
         return sealed;
     }
 
-    private byte[] unseal(byte[] sealed) throws GeneralSecurityException, IOException {
+    synchronized byte[] unseal(byte[] sealed) throws GeneralSecurityException, IOException {
         if(sealed.length<=NONCE)throw new GeneralSecurityException("This device's key is damaged");
         Cipher cipher=Cipher.getInstance("AES/GCM/NoPadding");
         cipher.init(Cipher.DECRYPT_MODE,sealer(),new GCMParameterSpec(TAG,sealed,0,NONCE));

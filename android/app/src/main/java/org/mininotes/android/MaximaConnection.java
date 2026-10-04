@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-// Mininotes is free software: GNU General Public License, version 3 or later. See LICENSE.
+// minimaDocs is free software: GNU General Public License, version 3 or later. See LICENSE.
 package org.mininotes.android;
 
 import android.content.BroadcastReceiver;
@@ -13,27 +13,14 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.function.Consumer;
 
-/**
- * The other node on this phone: the Maxima transport app, asked for what Minima Core cannot say.
- *
- * <p>Minima Core carries no Maxima at all — its build has no {@code maxima} command and no Maxima
- * service — so it can neither name this device's address nor carry a message to anybody. The transport
- * app can do both, and publishes a broadcast surface shaped like the one Core speaks, so nothing here is
- * a new idea: register, then ask.
- *
- * <p><b>Only a signed app gets in.</b> The surface is guarded by a signature-level permission, and the
- * transport additionally checks that the package a caller claims is signed with the transport's own key.
- * A build of Mininotes signed with another key is refused at the door, silently, as it should be — the
- * refusal is a locked door, not a fault. Until this app is signed into that family the checklist says so
- * rather than leaving somebody to wonder.
- *
- * <p>Read only, as things stand: the address, and whether the transport will answer at all. Sending is
- * the same surface and goes in when there is something to send it to.
- */
+/** Parlons' family-signed IPC: registration, contacts, and document pairing invitations.
+ * Document payloads continue to use this app's embedded node and encrypted Post protocol. */
 final class MaximaConnection implements AutoCloseable {
     static final String TRANSPORT="com.eurobuddha.maxima.app";
     /** The Maxima application string this app owns. Namespaced, so nobody else's traffic is ours. */
-    static final String APPLICATION="mininotes.v1";
+    static final String APPLICATION="com.eurobuddha.minimadocs.invite.v1";
+    static final String PERMISSION=TRANSPORT+".permission.USE_MAXIMA";
+    private static final Map<String,Consumer<Intent>> replies=new HashMap<>();
 
     private static final String REGISTER=TRANSPORT+".REGISTER";
     private static final String IDENTITY=TRANSPORT+".IDENTITY";
@@ -45,30 +32,38 @@ final class MaximaConnection implements AutoCloseable {
     private final Context context;
     private final Handler handler=new Handler(Looper.getMainLooper());
     private final Map<String,Consumer<Intent>> asked=new HashMap<>();
+    private Runnable contactsChanged;
     private boolean closed;
 
     /** Where a reply lands. Exported because the transport addresses it by name, and empty otherwise. */
     public static final class Answers extends BroadcastReceiver {
-        @Override public void onReceive(Context context,Intent intent){/* the live one is registered below */}
+        @Override public void onReceive(Context context,Intent intent){
+            if(intent==null||!RESPONSE.equals(intent.getAction()))return;
+            Consumer<Intent> waiting=replies.remove(intent.getStringExtra(EXTRA_REQUEST_ID));
+            if(waiting!=null)waiting.accept(intent);
+        }
     }
 
     private final BroadcastReceiver hearing=new BroadcastReceiver() {
         @Override public void onReceive(Context context,Intent intent) {
-            String id=intent==null?null:intent.getStringExtra(EXTRA_REQUEST_ID);
-            if(id==null)return;
-            Consumer<Intent> waiting=asked.remove(id);
-            if(waiting!=null)waiting.accept(intent);
+            if(intent!=null&&(TRANSPORT+".EVENT").equals(intent.getAction())
+                    &&"MAXIMACONTACTS".equals(intent.getStringExtra("event"))&&contactsChanged!=null)
+                contactsChanged.run();
         }
     };
 
     MaximaConnection(Context c) {
         context=c.getApplicationContext();
-        IntentFilter what=new IntentFilter(RESPONSE);
+        IntentFilter what=new IntentFilter(TRANSPORT+".EVENT");
         // Exported on purpose: the reply comes from another app, so a receiver that refused outside
         // broadcasts would refuse the only one it exists for. It carries nothing but a request id it
         // must already be waiting on, so a stranger shouting into it is heard and dropped.
-        context.registerReceiver(hearing,what,Context.RECEIVER_EXPORTED);
+        if(android.os.Build.VERSION.SDK_INT>=33)context.registerReceiver(hearing,what,PERMISSION,handler,Context.RECEIVER_EXPORTED);
+        else registerLegacy(what);
     }
+
+    @android.annotation.SuppressLint("UnspecifiedRegisterReceiverFlag")
+    private void registerLegacy(IntentFilter what){context.registerReceiver(hearing,what,PERMISSION,handler);}
 
     /** Whether the transport app is on this phone at all. */
     boolean installed() {
@@ -99,14 +94,14 @@ final class MaximaConnection implements AutoCloseable {
         }
         ask(REGISTER,null,registered->{
             if(registered==null) {
-                failed.accept("The Maxima app did not answer. Mininotes has to be signed with the same key "
+                failed.accept("The Maxima app did not answer. minimaDocs has to be signed with the same key "
                     +"as it before it is allowed to ask.");
                 return;
             }
             if(!registered.getBooleanExtra(EXTRA_ENABLED,false)) {
                 String how=registered.getStringExtra(EXTRA_RESULT);
                 failed.accept(how!=null&&!how.isEmpty()?capital(how)+"."
-                    :"Approve Mininotes in the Maxima app, then ask again.");
+                    :"Approve minimaDocs in the Maxima app, then ask again.");
                 return;
             }
             ask(IDENTITY,null,reply->{
@@ -136,22 +131,65 @@ final class MaximaConnection implements AutoCloseable {
         });
     }
 
-    private void ask(String action,String said,Consumer<Intent> back) {
+    boolean familySigned() {
+        return installed()&&context.getPackageManager().checkSignatures(context.getPackageName(),TRANSPORT)
+            ==android.content.pm.PackageManager.SIGNATURE_MATCH;
+    }
+    void changed(Runnable listener){contactsChanged=listener;}
+    void connect(Runnable done,Consumer<String> failed) {
+        if(!installed()){failed.accept("Install Parlons to use its contacts.");return;}
+        if(!familySigned()){failed.accept("Install minimaDocs and Parlons builds signed with the same family release key.");return;}
+        ask(REGISTER,null,r->{
+            if(r==null){failed.accept("Parlons did not answer. Open it and try again.");return;}
+            if(!r.getBooleanExtra(EXTRA_ENABLED,false)){failed.accept("Approve minimaDocs in Parlons → Settings → Connected apps, then return here.");return;}
+            ask(TRANSPORT+".SUBSCRIBE",i->i.putExtra("application",APPLICATION),reply->{
+                if(!okay(reply,failed))return;
+                context.getSharedPreferences("parlons",Context.MODE_PRIVATE).edit().putBoolean("connected",true).apply();
+                done.run();
+            });
+        });
+    }
+    void contacts(Consumer<java.util.List<ParlonsContact>> done,Consumer<String> failed) {
+        ask(TRANSPORT+".CONTACTS",i->i.putExtra("op","list"),reply->{
+            if(!okay(reply,failed))return;
+            try{done.accept(ParlonsContact.read(reply.getStringExtra("contacts")));}
+            catch(IllegalArgumentException e){failed.accept(e.getMessage());}
+        });
+    }
+    void addContact(String address,Runnable done,Consumer<String> failed) {
+        if(!Pairing.reachable(address)){failed.accept("Enter a complete Parlons contact address.");return;}
+        ask(TRANSPORT+".CONTACTS",i->{i.putExtra("op","add");i.putExtra("to",address);},r->{if(okay(r,failed))done.run();});
+    }
+    void removeContact(ParlonsContact contact,Runnable done,Consumer<String> failed) {
+        ask(TRANSPORT+".CONTACTS",i->{i.putExtra("op","remove");i.putExtra("publickey",contact.key);},r->{if(okay(r,failed))done.run();});
+    }
+    void invite(ParlonsContact contact,String line,Runnable done,Consumer<String> failed) {
+        Pairing.read(line);
+        ask(TRANSPORT+".SEND",i->{i.putExtra("application",APPLICATION);i.putExtra("to",contact.key);
+            i.putExtra("data",line);i.putExtra("reliable",true);},r->{if(okay(r,failed))done.run();});
+    }
+    private boolean okay(Intent reply,Consumer<String> failed) {
+        String error=reply==null?"Parlons did not answer. Open it and try again.":reply.getStringExtra(EXTRA_ERROR);
+        if(error!=null&&!error.isEmpty()){failed.accept(capital(error));return false;}return true;
+    }
+
+    private void ask(String action,Consumer<Intent> extras,Consumer<Intent> back) {
         if(closed){back.accept(null);return;}
         final String id=random();
-        asked.put(id,back);
+        Consumer<Intent> answer=reply->{asked.remove(id);replies.remove(id);back.accept(reply);};
+        asked.put(id,answer);replies.put(id,answer);
         Intent out=new Intent(action).setPackage(TRANSPORT);
         out.putExtra(EXTRA_PACKAGE,context.getPackageName());
         out.putExtra(EXTRA_CLASS,Answers.class.getName());
         out.putExtra(EXTRA_REQUEST_ID,id);
-        if(said!=null)out.putExtra("application",APPLICATION);
+        if(extras!=null)extras.accept(out);
         try{context.sendBroadcast(out);}
-        catch(Exception e){asked.remove(id);back.accept(null);return;}
+        catch(Exception e){asked.remove(id);replies.remove(id);back.accept(null);return;}
         // A door that is locked does not say so. Without an end to the wait, a refused app would sit on
         // a spinner for ever, which is the one answer worse than no.
         handler.postDelayed(()->{
             Consumer<Intent> late=asked.remove(id);
-            if(late!=null)late.accept(null);
+            replies.remove(id);if(late!=null)late.accept(null);
         },6000);
     }
 
@@ -192,6 +230,6 @@ final class MaximaConnection implements AutoCloseable {
         if(closed)return;
         closed=true;
         try{context.unregisterReceiver(hearing);}catch(Exception e){/* never registered, or already gone */}
-        asked.clear();
+        for(String id:asked.keySet())replies.remove(id);asked.clear();handler.removeCallbacksAndMessages(null);
     }
 }

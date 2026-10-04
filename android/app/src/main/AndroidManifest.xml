@@ -78,7 +78,12 @@
             android:foregroundServiceType="remoteMessaging" />
         <!-- Where the transport addresses its replies. Exported because it names this class, and it holds
              nothing: the live listener is registered while a question is outstanding. -->
-        <receiver android:name=".MaximaConnection$Answers" android:exported="true" />
+        <receiver android:name=".MaximaConnection$Answers" android:exported="true"
+            android:permission="com.eurobuddha.maxima.app.permission.USE_MAXIMA" />
+        <receiver android:name=".ParlonsInbox" android:exported="true"
+            android:permission="com.eurobuddha.maxima.app.permission.USE_MAXIMA">
+            <intent-filter><action android:name="com.eurobuddha.maxima.app.DELIVER" /></intent-filter>
+        </receiver>
         <!-- Where Android's installer answers about a build the pad handed it: nearly always "ask them",
              with the screen to show. Not exported: the installer reaches it through an intent this app
              signed itself. -->
