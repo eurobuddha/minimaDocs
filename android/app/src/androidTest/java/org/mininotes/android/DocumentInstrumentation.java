@@ -117,6 +117,12 @@ public final class DocumentInstrumentation extends Instrumentation {
                 check(session.saved.await(240,java.util.concurrent.TimeUnit.SECONDS),kind+" save timeout");check(session.error==null,kind+": "+session.error);
                 check(session.bytes!=null&&session.bytes.length>0,"No saved bytes");
                 artifact("saved."+(kind.equals("image")?"minimadocs-image.json":kind),session.bytes);
+                java.util.concurrent.CountDownLatch painted=new java.util.concurrent.CountDownLatch(1);
+                runOnMainSync(()->activity.web.postVisualStateCallback(1,new android.webkit.WebView.VisualStateCallback(){
+                    @Override public void onComplete(long id){activity.web.postOnAnimation(()->activity.web.postOnAnimation(painted::countDown));}
+                }));
+                check(painted.await(30,java.util.concurrent.TimeUnit.SECONDS),"Editor did not render a frame");
+                waitForIdleSync();
                 android.graphics.Bitmap screen=getUiAutomation().takeScreenshot();
                 if(screen!=null){try(ByteArrayOutputStream out=new ByteArrayOutputStream()){
                     screen.compress(android.graphics.Bitmap.CompressFormat.PNG,100,out);artifact(kind+"-screen.png",out.toByteArray());

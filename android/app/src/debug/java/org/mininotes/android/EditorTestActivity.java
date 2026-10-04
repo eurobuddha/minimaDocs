@@ -16,7 +16,17 @@ public final class EditorTestActivity extends Activity {
     }
     @Override @android.annotation.SuppressLint({"SetJavaScriptEnabled","JavascriptInterface"})
     public void onCreate(Bundle state){
-        super.onCreate(state);web=new WebView(this);setContentView(web);
+        super.onCreate(state);web=new WebView(this);
+        android.widget.FrameLayout stage=new android.widget.FrameLayout(this);stage.addView(web);setContentView(stage);
+        // The same system-bar/keyboard inset handling used by MainActivity.shell().
+        stage.setOnApplyWindowInsetsListener((v,insets)->{
+            int top,bottom;
+            if(android.os.Build.VERSION.SDK_INT>=30){
+                android.graphics.Insets bars=insets.getInsets(android.view.WindowInsets.Type.systemBars());
+                top=bars.top;bottom=Math.max(bars.bottom,insets.getInsets(android.view.WindowInsets.Type.ime()).bottom);
+            }else{top=insets.getSystemWindowInsetTop();bottom=insets.getSystemWindowInsetBottom();}
+            stage.setPadding(0,top,0,bottom);return insets;
+        });stage.requestApplyInsets();
         web.getSettings().setJavaScriptEnabled(true);web.getSettings().setDomStorageEnabled(true);
         web.getSettings().setAllowFileAccess(false);web.getSettings().setAllowContentAccess(false);
         web.setWebViewClient(new EditorAssets(this));web.addJavascriptInterface(new Bridge(),"MinimaDocs");
