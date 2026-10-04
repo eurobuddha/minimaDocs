@@ -91,12 +91,19 @@ On 2026-10-04, the Android emulator opened all three editors. Checks included:
 - A saved DOCX reopened and an edited copy contained the text entered in Android.
 - An XLSX contained the entered `SUM(2,3)` formula and cached result `5`.
 - A brush stroke saved as a miniPaint project layer and reopened visibly intact.
-- 692 Android unit tests, release lint (0 errors) and debug assembly passed.
+- 692 Android unit tests, release lint (0 errors, 28 warnings) and debug assembly passed.
 - 11 JavaScript tests cover the inherited transport and the editor bridge: readiness,
   message origin, duplicate/stale replies, file limits, failed image imports and
   session-only browser storage.
 - The pinned office engine's upstream unit tests and production build passed in
   [GitHub Actions](https://github.com/eurobuddha/minimaDocs/actions/runs/37232525545).
+- Five upstream Chromium compatibility tests passed: DOCX tracked changes and
+  headers/footers, XLSX merged cells, formula results, and a 20,000-row sheet.
+  [Compatibility run](https://github.com/eurobuddha/minimaDocs/actions/runs/37236287727).
+  These test the office engine in Chromium; broader Android import/export checks
+  remain pending because the emulator's shared storage stopped responding.
+- The fork's complete Android CI test, lint and release build passed in
+  [GitHub Actions](https://github.com/eurobuddha/minimaDocs/actions/runs/37235841914).
 
 See [NOTICE](NOTICE) for inherited and added third-party attribution. The bundled
 office engine carries AGPL-3.0 terms and notices, miniPaint is MIT, and the fonts
