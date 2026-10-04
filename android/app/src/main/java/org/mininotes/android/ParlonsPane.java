@@ -32,7 +32,7 @@ final class ParlonsPane {
         dialog=new AlertDialog.Builder(app).setTitle("Parlons contacts").setView(body).setNegativeButton("Close",null).create();
         dialog.setOnDismissListener(d->{closed=true;connection.changed(null);ParlonsInbox.changed=null;});dialog.show();
         dialog.getWindow().setLayout(-1,(int)(app.getResources().getDisplayMetrics().heightPixels*.85));
-        connection.changed(()->refresh());ParlonsInbox.changed=()->app.runOnUiThread(this::loadInvitations);refresh();
+        connection.changed(()->refresh());ParlonsInbox.changed=()->app.runOnUiThread(this::loadInvitations);loadInvitations();refresh();
     }
     void refresh(){
         if(closed||loading)return;loading=true;status.setText("Refreshing Parlons contacts…");
@@ -65,12 +65,8 @@ final class ParlonsPane {
     private void choose(ParlonsContact contact){
         new AlertDialog.Builder(app).setTitle(contact.name).setItems(new String[]{"Send minimaDocs invitation","Copy Parlons address","Remove from Parlons"},(d,which)->{
             if(which==0){
-                if(invitation==null){failed("Open Share on a document to invite this contact.");return;}
-                Pairing.Said offer=Pairing.read(invitation);
-                new AlertDialog.Builder(app).setTitle("Invite "+contact.name+"?")
-                    .setMessage((offer.offer.isEmpty()?"Connect your minimaDocs devices.":offer.offer+"\n"+offer.level.words())+"\n\nThey need minimaDocs linked to Parlons. They choose whether to accept.")
-                    .setNegativeButton("Cancel",null).setPositiveButton("Send invitation",(box,w)->connection.invite(contact,invitation,
-                        ()->status.setText("Invitation queued for "+contact.name),this::failed)).show();
+                if(invitation==null)app.parlonsInvitation(line->confirmInvitation(contact,line));
+                else confirmInvitation(contact,invitation);
             }else if(which==1){
                 android.content.ClipboardManager clipboard=(android.content.ClipboardManager)app.getSystemService(android.content.Context.CLIPBOARD_SERVICE);
                 if(clipboard!=null)clipboard.setPrimaryClip(android.content.ClipData.newPlainText("Parlons address",contact.address));status.setText("Address copied");
@@ -78,6 +74,14 @@ final class ParlonsPane {
                 .setMessage("This removes the contact from Parlons for every linked app. Existing document access is managed in minimaDocs sharing settings.")
                 .setNegativeButton("Cancel",null).setPositiveButton("Remove",(box,w)->connection.removeContact(contact,this::refresh,this::failed)).show();
         }).show();
+    }
+    private void confirmInvitation(ParlonsContact contact,String line){
+        if(closed)return;
+        Pairing.Said offer=Pairing.read(line);
+        new AlertDialog.Builder(app).setTitle("Invite "+contact.name+"?")
+            .setMessage((offer.offer.isEmpty()?"Connect your minimaDocs devices.":offer.offer+"\n"+offer.level.words())+"\n\nThey need minimaDocs linked to Parlons. They choose whether to accept.")
+            .setNegativeButton("Cancel",null).setPositiveButton("Send invitation",(box,w)->connection.invite(contact,line,
+                ()->{if(!closed)status.setText("Invitation queued for "+contact.name);},this::failed)).show();
     }
     private void add(){
         EditText address=new EditText(app);address.setHint("Parlons contact address");address.setSingleLine(true);

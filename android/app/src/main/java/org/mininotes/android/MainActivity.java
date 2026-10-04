@@ -6616,10 +6616,12 @@ public final class MainActivity extends Activity {
     private void openParlons(String invitation) {
         if(transport==null)transport=new MaximaConnection(this);
         if(parlons!=null)parlons.close();
-        if(invitation==null){
-            withAddress(()->background.submit(()->keys().line(yourName(),getSharedPreferences("settings",MODE_PRIVATE).getString("address","")),
-                line->{parlons=new ParlonsPane(this,transport,line,said->readPairing(said,false));parlons.show();},e->alert("Could not prepare the invitation.")));
-        }else{parlons=new ParlonsPane(this,transport,invitation,said->readPairing(said,false));parlons.show();}
+        parlons=new ParlonsPane(this,transport,invitation,said->readPairing(said,false));parlons.show();
+    }
+
+    void parlonsInvitation(java.util.function.Consumer<String> ready) {
+        withAddress(()->background.submit(()->keys().line(yourName(),getSharedPreferences("settings",MODE_PRIVATE).getString("address","")),
+            ready::accept,e->alert("Could not prepare the invitation.")));
     }
 
     private void shareSheet(final Sharing.Scope scope,final String target,final String name) {
