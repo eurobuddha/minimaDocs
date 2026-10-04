@@ -3659,6 +3659,13 @@ public final class MainActivity extends Activity {
      * note two people wrote at once has both sides here rather than one of them quietly gone.
      */
     private void versions(final NoteStore.Branch thing) {
+        background.submit(()->store.get(thing.id),note->{
+            if(note!=null&&RichDocument.marked(note.body))openDocument(note);
+            else textVersions(thing);
+        },e->alert(READ_FAILED));
+    }
+
+    private void textVersions(final NoteStore.Branch thing) {
         final String note=thing.id;
         background.submit(()->store.versions(note),all->{
             LinearLayout body=inside();
@@ -3667,6 +3674,7 @@ public final class MainActivity extends Activity {
                 none.setPadding(0,dp(12),0,dp(4));body.addView(none);
             }
             for(final NoteStore.Version version:all) {
+                if(RichDocument.marked(version.body))continue;
                 LinearLayout entry=column();entry.setPadding(0,dp(12),0,dp(10));
                 entry.setBackgroundResource(touchFeedback());
                 entry.addView(line(when(version.at),READING,INK));
@@ -3704,9 +3712,12 @@ public final class MainActivity extends Activity {
             // A copy this phone may only read says what its owner says; an old version of it is to look at.
             if((Boolean)store.readOnlyHere(note)[0])return false;
             // What it says now is kept first: putting an old version back is another writing, not an undoing.
-            store.keepVersion(note,"");
             NoteStore.Note now=store.get(note);
             if(now==null)return false;
+            // Text history has no attachment bytes and must never rewind a document's causal clock.
+            if(RichDocument.marked(now.body)||RichDocument.marked(version.body))
+                throw new IllegalStateException("Document versions must be reviewed in the editor");
+            store.keepVersion(note,"");
             now.title=version.title;now.body=version.body;
             now.updated=System.currentTimeMillis();now.revision++;
             store.save(now);

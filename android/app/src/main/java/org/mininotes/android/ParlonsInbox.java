@@ -19,7 +19,7 @@ public final class ParlonsInbox extends BroadcastReceiver {
         final String wire=intent.getStringExtra("data"),from=intent.getStringExtra("from");
         if(!ParlonsContact.key(from)||wire==null||wire.length()>Pairing.MOST*8+2)return;
         final PendingResult pending=goAsync();final Context app=context.getApplicationContext();
-        worker.execute(()->{try{keep(app,from,ParlonsContact.invitation(wire));Runnable listener=changed;if(listener!=null)listener.run();}
+        worker.execute(()->{try{if(keep(app,from,ParlonsContact.invitation(wire)))Listening.invitation(app);Runnable listener=changed;if(listener!=null)listener.run();}
             catch(Exception invalid){/* Untrusted or unwritable invitations do not alter the notebook. */}finally{pending.finish();}});
     }
     static final class Invitation {
@@ -30,19 +30,20 @@ public final class ParlonsInbox extends BroadcastReceiver {
         File dir=new File(c.getFilesDir(),"parlons-invitations");
         if(!dir.isDirectory()&&!dir.mkdirs())throw new IOException("Cannot save invitation");return dir;
     }
-    static synchronized void keep(Context c,String from,String line)throws Exception {
+    static synchronized boolean keep(Context c,String from,String line)throws Exception {
         Keys.publicKey(Pairing.read(line).agreement);Keys.publicKey(Pairing.read(line).signing);
         byte[] digest=MessageDigest.getInstance("SHA-256").digest((from+"\n"+line).getBytes(java.nio.charset.StandardCharsets.UTF_8));
         StringBuilder hex=new StringBuilder();for(byte b:digest)hex.append(String.format(java.util.Locale.ROOT,"%02x",b&255));String id=hex.toString();
-        File root=dir(c),target=new File(root,id);if(target.exists())return;
+        File root=dir(c),target=new File(root,id);if(target.exists())return false;
         File[] files=root.listFiles();int count=0;
         if(files!=null)for(File f:files){if(System.currentTimeMillis()-f.lastModified()>WEEK)f.delete();else count++;}
-        if(count>=64)return;
+        if(count>=64)return false;
         byte[] raw=new JSONObject().put("from",from).put("line",line).toString().getBytes(java.nio.charset.StandardCharsets.UTF_8);
         byte[] sealed=Keys.of(c).seal(raw);
         File temp=new File(root,id+".new");
         try(FileOutputStream out=new FileOutputStream(temp)){out.write(sealed);out.getFD().sync();}
         if(!temp.renameTo(target)){temp.delete();throw new IOException("Cannot save invitation");}
+        return true;
     }
     static synchronized List<Invitation> list(Context c)throws Exception {
         List<Invitation> out=new ArrayList<>();if(!PhoneLock.open(c))return out;

@@ -214,6 +214,11 @@ public final class Listening extends Service {
      */
     private static void say(Context app,int id,String title,String text,String note){say(app,id,title,text,note,false);}
 
+    static void invitation(Context app) {
+        say(app,"parlons-invitation".hashCode(),"minimaDocs invitation",
+            "Open Parlons contacts in minimaDocs to review it.","");
+    }
+
     /** @param received whether tapping it opens Received files rather than a note */
     private static void say(Context app,int id,String title,String text,String note,boolean received) {
         channels(app);

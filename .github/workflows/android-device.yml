@@ -21,14 +21,14 @@ jobs:
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: '17'
+          java-version: '21'
       - uses: gradle/actions/setup-gradle@v4
       - name: Build minimaDocs and test runner
         working-directory: android
         run: ./gradlew :app:assembleDebug :app:assembleDebugAndroidTest
       - name: Build the existing Parlons app
         working-directory: android/build/parlons
-        run: ./gradlew :app:assembleDebug
+        run: ./gradlew :app:assembleDebug "-Dorg.gradle.java.home=$JAVA_HOME"
       - name: Enable emulator acceleration
         run: |
           echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules

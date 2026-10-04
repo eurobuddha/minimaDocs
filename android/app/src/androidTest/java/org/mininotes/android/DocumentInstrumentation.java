@@ -77,7 +77,8 @@ public final class DocumentInstrumentation extends Instrumentation {
             NoteStore.unlock(null);
             Context inbox=isolated("parlons-inbox");Keys keys=Keys.of(inbox);
             String line=keys.line("Friend","Mx12345678@host:9001");String from="0x"+String.join("",Collections.nCopies(32,"ab"));
-            ParlonsInbox.keep(inbox,from,line);ParlonsInbox.keep(inbox,from,line);
+            check(ParlonsInbox.keep(inbox,from,line),"new invitation did not notify");
+            check(!ParlonsInbox.keep(inbox,from,line),"duplicate invitation notified again");
             List<ParlonsInbox.Invitation> invitations=ParlonsInbox.list(inbox);
             check(invitations.size()==1,"invitation duplicate was kept");check(line.equals(invitations.get(0).line),"invitation did not reopen");
             byte[] sealed=Files.readAllBytes(new File(inbox.getFilesDir(),"parlons-invitations/"+invitations.get(0).id).toPath());
@@ -89,7 +90,8 @@ public final class DocumentInstrumentation extends Instrumentation {
             finish(-1,result);
         }catch(Throwable failure){result.putString("stream","FAIL: "+failure+"\n"+android.util.Log.getStackTraceString(failure));finish(1,result);}
         finally{NoteStore.unlock(old);}
-    }    private void parlons()throws Exception {
+    }
+    private void parlons()throws Exception {
         java.util.concurrent.CountDownLatch latch=new java.util.concurrent.CountDownLatch(1);
         String[] error={null};MaximaConnection[] client={null};
         runOnMainSync(()->{client[0]=new MaximaConnection(getTargetContext());
