@@ -3,7 +3,7 @@ on:
   workflow_dispatch:
   push:
     branches: [minimadocs]
-    paths: ['.github/workflows/android-device.yml', 'scripts/android-device-check.py', 'android/app/src/androidTest/**', 'android/app/src/debug/**']
+    paths: ['.github/workflows/android-device.yml', 'scripts/android-device-check.py', 'android/app/src/**']
 permissions:
   contents: read
 jobs:
@@ -44,3 +44,10 @@ jobs:
           disk-size: 8G
           disable-animations: true
           script: python3 scripts/android-device-check.py
+      - name: Device editor results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-editor-results
+          path: android/build/device-checks/*
+          if-no-files-found: ignore

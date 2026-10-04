@@ -116,6 +116,11 @@ public final class DocumentInstrumentation extends Instrumentation {
                 runOnMainSync(()->activity.web.evaluateJavascript("minimaDocsSave()",null));
                 check(session.saved.await(240,java.util.concurrent.TimeUnit.SECONDS),kind+" save timeout");check(session.error==null,kind+": "+session.error);
                 check(session.bytes!=null&&session.bytes.length>0,"No saved bytes");
+                artifact("saved."+(kind.equals("image")?"minimadocs-image.json":kind),session.bytes);
+                android.graphics.Bitmap screen=getUiAutomation().takeScreenshot();
+                if(screen!=null){try(ByteArrayOutputStream out=new ByteArrayOutputStream()){
+                    screen.compress(android.graphics.Bitmap.CompressFormat.PNG,100,out);artifact(kind+"-screen.png",out.toByteArray());
+                }finally{screen.recycle();}}
                 if(kind.equals("docx")){
                     String xml=zipText(session.bytes,"word/document.xml");check(xml.contains("Body text: alpha, beta, gamma.")&&xml.contains("Apples")&&xml.contains("w:tbl"),"DOCX content/table lost");
                     check(zipText(session.bytes,"word/header1.xml").contains("minimaDocs header"),"DOCX header lost");
@@ -129,8 +134,14 @@ public final class DocumentInstrumentation extends Instrumentation {
                 check(session.saved.await(240,java.util.concurrent.TimeUnit.SECONDS),kind+" export timeout");check(session.error==null,kind+": "+session.error);
                 check(session.bytes!=null&&session.bytes.length>8,"No exported bytes");
                 check(kind.equals("image")?session.bytes[0]==(byte)137&&session.bytes[1]==80:new String(session.bytes,0,5,java.nio.charset.StandardCharsets.US_ASCII).equals("%PDF-"),"Wrong export format");
+                artifact(kind+(kind.equals("image")?".png":".pdf"),session.bytes);
             }finally{runOnMainSync(activity::finish);waitForIdleSync();}
         }
+    }
+    private void artifact(String name,byte[] bytes)throws IOException {
+        File root=new File(getTargetContext().getCacheDir(),"editor-checks");
+        if(!root.isDirectory()&&!root.mkdirs())throw new IOException("Cannot keep device check output");
+        Files.write(new File(root,name).toPath(),bytes);
     }
     private static String zipText(byte[] bytes,String path)throws Exception {
         try(java.util.zip.ZipInputStream zip=new java.util.zip.ZipInputStream(new ByteArrayInputStream(bytes))){
