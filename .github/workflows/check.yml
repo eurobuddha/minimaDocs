@@ -44,8 +44,17 @@ jobs:
             android/app/build/reports/**
           if-no-files-found: ignore
 
+      - name: Version the APK
+        id: apk
+        shell: bash
+        run: |
+          VERSION=$(sed -n "s/.*versionName '\([^']*\)'.*/\1/p" android/app/build.gradle)
+          mkdir -p out
+          cp android/app/build/outputs/apk/release/app-release-unsigned.apk "out/minimaDocs-$VERSION-unsigned.apk"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
       - name: Unsigned APK
         uses: actions/upload-artifact@v4
         with:
-          name: minimaDocs-unsigned-apk
-          path: android/app/build/outputs/apk/release/*.apk
+          name: minimaDocs-${{ steps.apk.outputs.version }}-unsigned-apk
+          path: out/*.apk
