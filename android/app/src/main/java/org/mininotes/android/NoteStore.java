@@ -4042,6 +4042,7 @@ final class NoteStore extends SQLiteOpenHelper implements Home.Shelf {
                     if(at<0||!tree.live(up.subList(at+1,up.size())))continue;
                 }
                 String body=c.getString(0).trim();
+                if(RichDocument.marked(body))body="[Document — open it to export the file]";
                 String title=c.isNull(1)?"":c.getString(1).trim();
                 if(body.isEmpty()&&title.isEmpty())continue;
                 if(all.length()>0)all.append("\n\n");

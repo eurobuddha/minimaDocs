@@ -145,6 +145,9 @@ public final class MainActivity extends Activity {
     void documentClosed(EditorPane pane){if(editor==pane)editor=null;refresh();}
     void shareDocument(String id,String name){shareSheet(Sharing.Scope.PAGE,id,name);}
     private void openDocument(NoteStore.Note note) {
+        withDocumentFile(note,(kind,file)->editDocument(kind,file));
+    }
+    private void withDocumentFile(NoteStore.Note note,java.util.function.BiConsumer<String,NoteStore.Held> chosen) {
         RichDocument document=RichDocument.read(note.body);
         if(document==null){alert("This document uses an unsupported or damaged document record.");return;}
         background.submit(()->{
@@ -153,11 +156,11 @@ public final class MainActivity extends Activity {
             return files;
         },files->{
             if(files.size()!=document.heads.size()){alert("This shared document is still downloading. Open it again when its files arrive.");return;}
-            if(files.size()==1){editDocument(document.kind,files.get(0));return;}
+            if(files.size()==1){chosen.accept(document.kind,files.get(0));return;}
             String[] choices=new String[files.size()];
             for(int i=0;i<choices.length;i++)choices[i]="Version "+(i+1)+" · "+Attachment.size(files.get(i).bytes);
-            new Box().setTitle("Concurrent edits — open a version to review")
-                .setItems(choices,(d,which)->editDocument(document.kind,files.get(which))).setNegativeButton("Cancel",null).show();
+            new Box().setTitle("Concurrent edits — choose a version")
+                .setItems(choices,(d,which)->chosen.accept(document.kind,files.get(which))).setNegativeButton("Cancel",null).show();
         },e->alert(READ_FAILED));
     }
     Background background;
@@ -2410,6 +2413,21 @@ public final class MainActivity extends Activity {
      * text through that app, which is nothing to do with sharing over Minima, and is their choice.
      */
     private void sendElsewhere(NoteStore.Branch thing) {
+        if(thing.kind==NoteStore.Branch.Kind.PAGE){
+            background.submit(()->store.get(thing.id),note->{
+                if(note!=null&&RichDocument.marked(note.body))withDocumentFile(note,(kind,file)->{
+                    Uri uri=Lending.of(file.id);
+                    Intent send=new Intent(Intent.ACTION_SEND).setType(file.kind).putExtra(Intent.EXTRA_STREAM,uri)
+                        .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+                    send.setClipData(android.content.ClipData.newUri(getContentResolver(),file.name,uri));
+                    try{startActivity(Intent.createChooser(send,"Send "+file.name));}
+                    catch(Exception unavailable){alert("No app is available to receive this document.");}
+                });
+                else sendTextElsewhere(thing);
+            },e->alert(READ_FAILED));
+        }else sendTextElsewhere(thing);
+    }
+    private void sendTextElsewhere(NoteStore.Branch thing) {
         withText(thing,"Nothing to send",text->{
             save();
             Intent send=new Intent(Intent.ACTION_SEND).setType("text/plain").putExtra(Intent.EXTRA_TEXT,text);

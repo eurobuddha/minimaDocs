@@ -13,6 +13,7 @@ The native interface uses Atelier/Salon's Katalog design.
 - Open a document directly from Home or its library. Save updates that same document.
 - DOCX and XLSX import/export preserve the editable Office file. PDF and flattened
   PNG exports use Android's Save As picker. Layered images use `.minimadocs-image.json`.
+  Home's Send to another app action shares the selected document file.
 - Autosave keeps complete snapshots on this phone. Its interval adapts to export
   cost (30–180 seconds, initially 60 seconds), and leaving the app requests a save.
   Recovery reopens the last completed save. Process termination or locking can
@@ -20,6 +21,8 @@ The native interface uses Atelier/Salon's Katalog design.
 - Saved updates share through the existing Maxima file transport. A small causal
   version record keeps concurrent edits as separate versions for review. Choosing
   a version explicitly replaces the versions reviewed. Unseen edits remain separate.
+  Superseded binary snapshots are retired; the Versions action reviews current
+  concurrent versions. Plain-text notes retain their inherited text history.
 - Read-only document access is enforced again when writing storage. A separate
   copy can be edited independently.
 - Files are limited to 16 MiB each. Imported originals remain on Home; Save creates
@@ -36,7 +39,9 @@ You can search, add or remove contacts, and send a minimaDocs pairing/document
 invitation with the selected access level. The recipient links minimaDocs to Parlons
 and reviews the invitation before accepting it. Invitations arriving while the app
 is closed are stored encrypted with the existing Android Keystore key; they expire
-after seven days. Removing a Parlons contact does not revoke existing document access:
+after seven days. A notification announces a new invitation when notifications are
+allowed. Opening contacts does not wait for minimaDocs to connect to a relay.
+Removing a Parlons contact does not revoke existing document access:
 change that in the document's sharing settings.
 
 ### How Maxima fits
@@ -50,7 +55,7 @@ updates are saved document snapshots; simultaneous typing is not merged characte
 by character. Delivery depends on connectivity, relay availability and Android's
 background-execution policy. No document server or cloud Office service is required.
 
-The offline engines make the APK large (about 232 MiB). Automatic update checks
+The offline engines make the APK large (about 211 MiB). Automatic update checks
 remain disabled until a public signed release is available.
 
 ## Reused implementations
@@ -116,16 +121,21 @@ Local checks on 2026-10-05:
   replicas, resolution, read-only refusal, encrypted reopening and locked refusal.
 - Earlier emulator checks opened all three editors, edited a DOCX, calculated
   `SUM(2,3)` in XLSX, and saved/reopened a painted image layer.
-- The pinned office engine passed its upstream unit tests and five Chromium
+- The pinned office engine passed 3,462 upstream tests and five Chromium
   compatibility tests: DOCX tracked changes and headers/footers, XLSX merged cells,
-  formulas and a 20,000-row sheet.
-  [Compatibility run](https://github.com/eurobuddha/minimaDocs/actions/runs/37236287727).
+  formulas and a 20,000-row sheet. All 12 embed regression tests also passed.
+  [Compatibility run](https://github.com/eurobuddha/minimaDocs/actions/runs/37243558898).
 
 The `Android device checks` workflow builds the existing Parlons source and runs
 storage, encrypted invitation recovery, packaged DOCX/XLSX round trips, PDF/PNG
 exports, and real Parlons approval/contacts on a disposable Android emulator.
-Its expanded checks are pending at this commit. The local emulator stopped running;
-this session cannot start a replacement because of macOS process permissions.
+All of these checks passed on Android API 35 against Parlons commit
+`668f3544601f0d226fc067b307519d0b2f522d7b`.
+[Device integration run](https://github.com/eurobuddha/minimaDocs/actions/runs/37244000835).
+Synthetic editor screenshots and round-trip files are retained by subsequent runs.
+Live invitation and document delivery between two independent network devices has
+not been exercised in this change; replica convergence and file receipt are covered
+by the native storage test using the existing receive path.
 
 See [NOTICE](NOTICE) for attribution. Office carries AGPL-3.0 terms, miniPaint is
 MIT, and the fonts use the SIL Open Font License. Engine licenses ship in the APK.
@@ -143,18 +153,25 @@ bounded and encrypted at rest. Debug test activities are absent from release bui
 
 - **Critical — concurrent versions could be discarded by autosave.** Conflict review
   now requires explicit resolution; autosave preserves unseen concurrent branches.
+- **Critical — text history could restore a document record without its file.**
+  Document Versions now opens the editor's current-version chooser. The text
+  restore action refuses document records before making any storage changes.
 - **Major — explicit Parlons replies were dropped.** The manifest receiver now
   dispatches matching requests, with a signature permission on both IPC receivers.
 - **Major — stale export replies could finish a later save.** Unique request IDs,
   conversion guards and timeout checks prevent cross-request callbacks.
 - **Major — copied backups retained old file IDs.** Document records now remap their
   attachment IDs and validate required files before moving them.
+- **Major — Android sharing sent the internal document record as text.** Single
+  documents now share their file through the existing read-only provider. Collection
+  text exports identify documents that need to be exported separately.
 
 ### Verdict
 
-**Device validation pending.** Local unit, lint and signed build checks pass.
-The new device workflow is the remaining validation gate. Autosave recovers completed
-snapshots; it does not promise to recover keystrokes since the last completed save.
+**Approve with suggestions.** Unit, lint, signed assembly, browser compatibility and
+Android device integration checks pass. Before relying on cross-device delivery,
+exercise the live Maxima path with two disposable identities. Autosave recovers
+completed snapshots; it does not recover keystrokes since the last completed save.
 
 ## Upstream Mininotes documentation
 
