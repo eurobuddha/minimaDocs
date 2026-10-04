@@ -1,5 +1,5 @@
 /* Katalog chrome; retain the engine's product logo and About attribution. */
-:root, .theme-white, .theme-classic-light, .theme-gray {
+:root, :root .theme-white, :root .theme-classic-light, :root .theme-gray {
   --toolbar-header-document:#111111;
   --toolbar-header-spreadsheet:#111111;
   --background-toolbar:#F2F1EC;
