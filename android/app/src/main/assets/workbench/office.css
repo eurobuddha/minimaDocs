@@ -1,0 +1,11 @@
+/* Katalog chrome; retain the engine's product logo and About attribution. */
+:root, .theme-white, .theme-classic-light, .theme-gray {
+  --toolbar-header-document:#111111;
+  --toolbar-header-spreadsheet:#111111;
+  --background-toolbar:#F2F1EC;
+  --background-normal:#FCFBF7;
+  --background-secondary:#DEDDD6;
+  --highlight-button-hover:#DEDDD6;
+  --highlight-button-pressed:#E63312;
+}
+button,.btn,.dropdown-menu,.form-control{border-radius:0!important}

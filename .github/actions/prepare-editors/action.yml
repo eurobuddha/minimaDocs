@@ -1,0 +1,28 @@
+name: Prepare offline editors
+description: Build and bundle the pinned office and image engines
+runs:
+  using: composite
+  steps:
+    - uses: actions/checkout@v4
+      with:
+        repository: ranuts/document
+        ref: 9c743826d0152239dc7ad51677535d59679c7ff1
+        path: android/build/office-engine
+    - uses: actions/checkout@v4
+      with:
+        repository: viliusle/miniPaint
+        ref: a79733eb803fc97084ef0ee4faa96b031e69e1c0
+        path: android/build/image-engine
+    - uses: actions/setup-node@v4
+      with:
+        node-version: '24'
+    - shell: bash
+      run: npm install --global pnpm@11.4.0
+    - shell: bash
+      working-directory: android/build/office-engine
+      run: |
+        pnpm install --frozen-lockfile
+        pnpm test
+        pnpm build
+    - shell: bash
+      run: node scripts/prepare-editors.cjs android/build/office-engine android/build/image-engine

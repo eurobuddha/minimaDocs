@@ -1,14 +1,14 @@
 <resources>
     <!-- The light paper, as the app draws it. The phone's own setting decides between this and values-night. -->
     <style name="AppTheme" parent="android:style/Theme.Material.Light.NoActionBar">
-        <item name="android:fontFamily">sans</item>
-        <item name="android:colorAccent">#285646</item>
-        <item name="android:colorBackground">#FBFAF6</item>
-        <item name="android:textColorPrimary">#273A34</item>
-        <item name="android:textColorSecondary">#7C8A84</item>
+        <item name="android:fontFamily">@font/inter</item>
+        <item name="android:colorAccent">#E63312</item>
+        <item name="android:colorBackground">#F2F1EC</item>
+        <item name="android:textColorPrimary">#111111</item>
+        <item name="android:textColorSecondary">#4F4E49</item>
         <item name="android:windowLightStatusBar">true</item>
-        <item name="android:statusBarColor">#FBFAF6</item>
-        <item name="android:navigationBarColor">#FBFAF6</item>
+        <item name="android:statusBarColor">#F2F1EC</item>
+        <item name="android:navigationBarColor">#F2F1EC</item>
         <item name="android:windowLightNavigationBar">true</item>
         <item name="android:windowActionModeOverlay">true</item>
         <!-- Every box the app puts up is written on the same paper as the app itself. -->
@@ -17,24 +17,24 @@
     </style>
 
     <style name="PadBox" parent="android:style/Theme.Material.Light.Dialog.Alert">
-        <item name="android:fontFamily">sans</item>
-        <item name="android:colorAccent">#285646</item>
-        <item name="android:colorBackground">#FCFCFA</item>
+        <item name="android:fontFamily">@font/inter</item>
+        <item name="android:colorAccent">#E63312</item>
+        <item name="android:colorBackground">#FCFBF7</item>
         <item name="android:windowBackground">@drawable/box</item>
-        <item name="android:textColorPrimary">#273A34</item>
-        <item name="android:textColorSecondary">#4A5A53</item>
-        <item name="android:textColorAlertDialogListItem">#273A34</item>
+        <item name="android:textColorPrimary">#111111</item>
+        <item name="android:textColorSecondary">#4F4E49</item>
+        <item name="android:textColorAlertDialogListItem">#111111</item>
         <item name="android:textAppearanceMedium">@style/BoxSaid</item>
         <item name="android:windowTitleStyle">@style/BoxTitle</item>
         <item name="android:buttonBarButtonStyle">@style/BoxButton</item>
     </style>
 
     <style name="BoxTitle" parent="android:style/TextAppearance.Material.DialogWindowTitle">
-        <item name="android:textColor">#273A34</item>
+        <item name="android:textColor">#111111</item>
         <item name="android:textSize">21sp</item>
     </style>
     <style name="BoxSaid" parent="android:style/TextAppearance.Material.Subhead">
-        <item name="android:textColor">#3A4A43</item>
+        <item name="android:textColor">#4F4E49</item>
         <item name="android:textSize">17sp</item>
         <item name="android:lineSpacingMultiplier">1.15</item>
     </style>

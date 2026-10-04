@@ -21,7 +21,7 @@ dependencies {
 // Keep the proven store and wire protocol in one place. Only platform names are
 // adapted; generated files are never edited or committed.
 def portable = ['Arriving','Attachment','Background','Envelope','Feedback','Find','Hello',
-    'Merge','Outbox','Pairing','Parcel','Point','Receipt','Reorder','RevisionClock',
+    'Merge','Outbox','Pairing','Parcel','Point','Receipt','Reorder','RevisionClock','MiniwebUrl','MimeTypes',
     'SchemaMigrations','SyncStatus','SyncMark','Sha3','Sharing','Tint','Update','Vault','Sealed','Courier','Enclosure','Direct','Nearby','Home','Relays','Given','Drop','DropList','Unsent','Persons','Recording','Linking','NoteLine','Waits','Links','Reading','Writers','Things','Carton','Overview','Grid','Layout','Icons','Thumb','Looks']
 def adapted = ['NoteStore','Post','Node']
 def androidSource = file('../android/app/src/main/java/org/mininotes/android')

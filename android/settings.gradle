@@ -1,5 +1,5 @@
 pluginManagement { repositories { google(); mavenCentral(); gradlePluginPortal() } }
 dependencyResolutionManagement { repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS); repositories { google(); mavenCentral() } }
-rootProject.name = 'Mininotes'
+rootProject.name = 'minimaDocs'
 include ':app'
 include ':maxima-core'

@@ -14,3 +14,7 @@ dist/*
 keystore.properties
 windows/.gradle/
 windows/build/
+
+# Local isolated Gradle cache.
+android/.gradle-local/
+android/app/src/main/assets/editors/

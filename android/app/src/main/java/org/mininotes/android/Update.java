@@ -84,10 +84,15 @@ final class Update {
      * both are known from the version alone and nothing has to ask the repository what it published.
      */
     static String asset(String source,String version) {
+        return asset(source,version,"Mininotes");
+    }
+
+    static String asset(String source,String version,String product) {
+        if(product==null||!product.matches("[A-Za-z][A-Za-z0-9]*"))return "";
         String said=read(version);
         if(source==null||source.isEmpty()||said.isEmpty())return "";
         String base=source.endsWith("/")?source.substring(0,source.length()-1):source;
-        return base+"/releases/download/v"+said+"/Mininotes-"+said+".apk";
+        return base+"/releases/download/v"+said+"/"+product+"-"+said+".apk";
     }
 
     /**

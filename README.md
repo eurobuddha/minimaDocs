@@ -1,71 +1,136 @@
 # minimaDocs
 
-A development fork of Mininotes for an office and image-editing workspace over
-the embedded Maxima messaging network.
+Android first office and image workspace, forked from Mininotes with its embedded
+Maxima messaging transport. Repository: [eurobuddha/minimaDocs](https://github.com/eurobuddha/minimaDocs), branch `minimadocs`.
 
-**Current state:** the local fork and upstream history are established. The
-application code below is still Mininotes 0.2.012. The new editors, application
-branding, and Katalog interface have not been implemented. There is no
-minimaDocs release yet. The GitHub fork is
-[eurobuddha/minimaDocs](https://github.com/eurobuddha/minimaDocs).
+## Development preview 0.1.0
 
-## Product scope
+**First-release requirement:** reliable DOCX/XLSX import and export. Basic file
+round trips work; broader format compatibility is an acceptance gate, not yet a
+completed claim.
 
-- **Documents:** a complete Word-style editor, including formatted text,
-  document structure, tables, images, page layout, and file interchange.
-- **Spreadsheets:** workbooks with formulas, formatting, multiple sheets,
-  and file interchange.
-- **Images:** a Photoshop/GIMP-style editing workspace with editable layers
-  and reusable project files.
-- **Sharing:** retain Mininotes' embedded Maxima approach, encrypted delivery,
-  pairing, permissions, acknowledgements, and offline operation.
-- **Design:** reuse Atelier/Salon's Katalog language: paper backgrounds,
-  black rules, vermilion accents, square controls, and offset shadows.
+Home now offers **Docs**, **Sheets** and **Images**. Word processing and spreadsheets
+use the offline ONLYOFFICE engine packaged by `ranuts/document`. Images use miniPaint,
+including editable layers, tools, effects and project files. All editor assets ship
+inside the APK. Atelier/Salon's Katalog components supply the native interface.
 
-These are requirements, not a list of completed features. **Android is the
-first target**, as confirmed by the owner. The product name used for this fork
-is **minimaDocs**.
+**Save a copy** creates a new note with an editable DOCX, XLSX or
+`.minimadocs-image.json` attachment. Open that file to continue editing. Saved files
+use the existing notebook storage, encryption when notebook locking is enabled,
+and attachment sharing path. Individual editor files are limited to 16 MiB.
+Hold an attachment and choose **Export to phone** to write it through Android's
+Save As picker. Import existing files with the notebook's attachment picker or
+Android's Share action, then open the attached document.
 
-## Fork and reuse record
+This is an integration preview, not the finished Google Docs-style product:
 
-Base: `mininotesorg/mininotes` at
-`1aa9929f330f64b4b4f868e47cbb21bc56edb24a`, branch `minimadocs`.
-The `upstream` remote points to the original repository; `origin` points to
-`eurobuddha/minimaDocs`. Copyright and license notices remain in place.
+- Rich content is an attachment to a note; the note itself remains plain text.
+- Saving creates an independent copy. It does not update a shared original.
+- Rich documents have no autosave, crash recovery or concurrent-edit merge yet.
+  Save before closing, locking or leaving the app. Unsaved editor work can be lost
+  if Android kills the process or the notebook locks.
+- PDF/flattened-image export and comprehensive format compatibility remain to be integrated.
+- No end-to-end Maxima transfer test has been performed for these editor files.
+- The complete offline office engine makes the APK large. Older/low-memory phones
+  still need testing. The desktop-style office toolbar also needs more phone work.
+- Automatic app updates are disabled until a signed minimaDocs release exists.
 
-Sources inspected on 2026-10-04:
+The original plain-text merge must never receive serialized Office or image
+projects. Shared editing needs its own version and conflict protocol.
 
-| Source | Reuse assessment |
+## Reused implementations
+
+Base Mininotes commit: `1aa9929f330f64b4b4f868e47cbb21bc56edb24a`.
+The `upstream` remote retains the original repository and history.
+
+| Source | Reuse and adaptations |
 | --- | --- |
-| This repository's `android/maxima-core/`, `Node`, `Post`, `Envelope`, and storage/sharing paths studied in this session | Existing transport and delivery foundation. No transport changes made. |
-| `/Users/eurobuddha/Projects/minima/apks/salon/app/src/main/java/com/eurobuddha/salon/Design.java` | Complete design helper read, with font dependencies and caller examples checked. Use its updated secondary-text contrast. |
-| `/Users/eurobuddha/Projects/minima/mds/statenft-suite/android/app/src/main/java/com/eurobuddha/statenft/Design.java` | Complete Atelier design helper read. Same Katalog family. |
-| Atelier `minidapp/styles.css`, `filtrport/entry.ts`, `filtrport/build.sh`, and `test/filtr.test.js` | CSS and integration inspected in part; regression test read and run successfully. FILTR remains a candidate, pending full editor inspection and layer/project persistence evaluation. |
-| `/Users/eurobuddha/Projects/tools/filtr/package.json` and `LICENSE` | Original engine dependencies and MIT notice inspected. |
+| `android/maxima-core/`, `NoteStore`, `Sealed`, attachment sharing | Existing node, storage, encryption and transport. Editor copies use the existing file transaction and sharing calls. |
+| Salon `app/src/main/java/com/eurobuddha/salon/Design.java` and its fonts | Katalog helper reused in `Design.java`; Android resource font loading replaces the AndroidX call. |
+| Atelier `android/app/src/main/java/com/eurobuddha/statenft/Design.java`, `FILTRActivity.java`, FILTR integration and tests | Inspected design and editor integration. FILTR was not selected as the layered project engine. |
+| PocketWeb `AppServer.java`, `MiniwebUrl.java`, `MimeTypes.java`, `MiniwebUrlTest.java` | Asset-only HTTPS WebView pattern, URL validation, MIME types and tests. Editor routing serves bundled assets and blocks external requests. |
+| [ranuts/document](https://github.com/ranuts/document/tree/9c743826d0152239dc7ad51677535d59679c7ff1) | Pinned `9c743826d0152239dc7ad51677535d59679c7ff1`. Existing embed API, editor readiness flags and DOCX/XLSX conversion. ONLYOFFICE logos and About retained. |
+| [miniPaint](https://github.com/viliusle/miniPaint/tree/a79733eb803fc97084ef0ee4faa96b031e69e1c0) | Pinned `a79733eb803fc97084ef0ee4faa96b031e69e1c0`. Existing `FileSave.export_as_json`, `FileOpen.load_json`, image import actions and undo engine. |
 
-No office engine was found in the searched sibling manifests under
-`Projects/minima/mds`, `Projects/minima/desktop`, `Projects/web`, and
-`Projects/tools`. `miniFS/minima-docs-src` is a documentation website.
+Local sibling sources inspected live under `/Users/eurobuddha/Projects/minima/`:
+`apks/salon`, `apks/pocketweb`, and `mds/statenft-suite`. No compatible office engine
+was found in the searched sibling projects. The chosen upstream integration code,
+its dependencies, callers and available tests were inspected; the entire vendor
+engine has not been audited.
 
-[ONLYOFFICE Desktop Editors](https://github.com/ONLYOFFICE/DesktopEditors)
-is an office-suite candidate. [Univer](https://github.com/dream-num/univer)
-is an embeddable candidate; its published feature matrix places several
-required capabilities, including import/export and collaboration, in Pro.
-[miniPaint](https://github.com/viliusle/miniPaint) is a layered image-editor
-candidate. Their project documentation was inspected; their implementations
-have not been downloaded or evaluated, and none has been selected.
+## Build the Android preview
 
-## Integration constraint
+Use JDK 17 or 21, Android SDK 37, Node 24 and pnpm 11.4.0.
+The reusable CI action `.github/actions/prepare-editors/action.yml` checks out,
+tests and builds the exact editor revisions before packaging Android.
 
-The existing note merge operates on plain-text lines. It must not receive
-serialized rich documents, spreadsheets, or image projects as though they were
-plain notes. Editor selection must establish format-aware persistence and
-concurrent-edit behavior before shared editing is enabled. Changes to stored
-formats need migration, recovery, and interoperability tests.
+For a local build, build the pinned `ranuts/document` checkout with
+`pnpm install --frozen-lockfile`, `pnpm test`, and `pnpm build`. Keep its `dist/`,
+`LICENSE` and `NOTICE` together. Then, from this repository:
 
-GitHub access has been verified and the remote fork created. Editor selection
-and integration remain unfinished. No application source has been changed
-and no installer has been produced.
+```sh
+node scripts/prepare-editors.cjs /path/to/office-engine /path/to/miniPaint
+node --test tests/editor-bridge.test.cjs tests/core.test.cjs
+cd android
+./gradlew :app:testDebugUnitTest :app:lintRelease :app:assembleDebug
+```
+
+The preparation script bundles the engines and decompresses the converter WASM
+for Android asset responses. Generated assets are ignored by Git; an APK build
+fails if they have not been prepared. `android/local.properties` supplies the SDK
+path. Distribution copies of installers must include their version, for example
+`minimaDocs-0.1.0-debug.apk`.
+
+Release tags build a **draft** Android release using configured signing secrets.
+They do not publish a Windows build. The inherited Windows source is retained.
+
+## Validation
+
+On 2026-10-04, the Android emulator opened all three editors. Checks included:
+
+- A saved DOCX reopened and an edited copy contained the text entered in Android.
+- An XLSX contained the entered `SUM(2,3)` formula and cached result `5`.
+- A brush stroke saved as a miniPaint project layer and reopened visibly intact.
+- 692 Android unit tests, release lint (0 errors) and debug assembly passed.
+- 11 JavaScript tests cover the inherited transport and the editor bridge: readiness,
+  message origin, duplicate/stale replies, file limits, failed image imports and
+  session-only browser storage.
+- The pinned office engine's upstream unit tests and production build passed in
+  [GitHub Actions](https://github.com/eurobuddha/minimaDocs/actions/runs/37232525545).
+
+See [NOTICE](NOTICE) for inherited and added third-party attribution. The bundled
+office engine carries AGPL-3.0 terms and notices, miniPaint is MIT, and the fonts
+use the SIL Open Font License. Engine licenses ship in the APK.
+
+## Code review
+
+### Summary
+
+The integration reuses encrypted file storage and transaction handling, keeps
+Office/image data outside the plain-text merge, and restricts WebView requests
+to bundled assets. Review fixes include true editor readiness, duplicate save
+callbacks, aborted image imports, locked file-picker returns, locale-independent
+routing, versioned artifacts and a build gate for missing editor assets.
+
+### Findings before a production release
+
+- **Critical — unsaved work has no recovery.** `EditorPane.java` holds edits in
+  WebView memory; `MainActivity.relockNow()` closes it. Add encrypted draft
+  persistence and recovery before relying on autosave-like behaviour.
+- **Major — compatibility acceptance remains incomplete.** The tested DOCX text,
+  XLSX formula and image layer cases are narrow. `scripts/create-office-fixtures.cjs`
+  reuses the engine's fixture builders for richer import cases. Their Android
+  import/export checks were interrupted when the emulator stopped responding,
+  and must be completed alongside real Word/Excel samples.
+- **Major — saved copies are independent documents.** `EditorPane.keepCopy()`
+  creates a new note and attachment. Versioned updates, permissions and conflict
+  handling are required before rich realtime shared editing can be claimed.
+
+### Verdict
+
+**Request changes for a production release.** This branch is a development
+checkpoint; no public release has been published. The items above are explicit
+acceptance gates for the requested product.
 
 ## Upstream Mininotes documentation
 

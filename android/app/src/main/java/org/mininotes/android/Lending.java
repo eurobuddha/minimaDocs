@@ -21,7 +21,7 @@ import java.io.FileNotFoundException;
  * up by something else opens nothing.
  */
 public final class Lending extends ContentProvider {
-    static final String AUTHORITY="org.mininotes.android.files";
+    static final String AUTHORITY="com.eurobuddha.minimadocs.files";
 
     /** The address for one kept file. */
     static Uri of(String id){return Uri.parse("content://"+AUTHORITY+"/"+id);}

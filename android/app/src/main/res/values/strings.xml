@@ -1,4 +1,4 @@
 <resources>
-    <string name="app_name">Mininotes</string>
+    <string name="app_name">minimaDocs</string>
     <string name="save_failed">Not saved · tap to retry</string>
 </resources>

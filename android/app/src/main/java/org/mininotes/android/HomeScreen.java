@@ -147,6 +147,15 @@ final class HomeScreen {
         // A fresh screen has nothing carried on it: a carry that never heard its end must not hold Home still for ever.
         a.dragging=null;a.lifted=null;
         a.root.addView(bar());
+        LinearLayout create=new LinearLayout(a);create.setPadding(a.dp(12),a.dp(8),a.dp(12),a.dp(12));
+        String[] names={"Docs","Sheets","Images"},kinds={"docx","xlsx","image"};
+        for(int i=0;i<names.length;i++) {
+            final String kind=kinds[i];TextView button=Design.chip(a,names[i],false);
+            button.setTextColor(a.INK);button.setBackground(a.edged(a.CARD,Tint.NONE,false));
+            button.setOnClickListener(v->a.editDocument(kind,null));
+            LinearLayout.LayoutParams slot=new LinearLayout.LayoutParams(0,a.dp(48),1);slot.setMargins(a.dp(3),0,a.dp(3),0);create.addView(button,slot);
+        }
+        a.root.addView(create);
         desk=new FrameLayout(a);
         // Home is pages the size of the screen, in every direction, not one grid that scrolls (decision 45): the pager hears
         // the swipes and the pinches, and moves and scales the world of pages under the finger.
@@ -736,7 +745,8 @@ final class HomeScreen {
     private LinearLayout bar() {
         LinearLayout top=a.bar();
         top.addView(new View(a),new LinearLayout.LayoutParams(a.dp(48),a.dp(48)));
-        TextView called=a.label(a.getString(R.string.app_name),MainActivity.READING,a.MUTED);
+        TextView called=a.label(a.getString(R.string.app_name),MainActivity.READING,a.INK);
+        called.setTypeface(Design.sansBold());called.setLetterSpacing(0.04f);
         called.setGravity(Gravity.CENTER);called.setSingleLine(true);called.setEllipsize(TextUtils.TruncateAt.END);
         LinearLayout named=a.column();named.setGravity(Gravity.CENTER);
         named.addView(called,new LinearLayout.LayoutParams(-1,-2));
@@ -1382,11 +1392,7 @@ final class HomeScreen {
     void fileMenu(View anchor,final NoteStore.Branch file) {
         MainActivity.Sheet sheet=a.new Sheet();
         sheet.row("Open",()->openFile(file));
-        sheet.row("Save a copy",()->withHeld(file,held->{
-            a.savingCopy=loose(held);
-            a.startActivityForResult(new Intent(Intent.ACTION_CREATE_DOCUMENT).addCategory(Intent.CATEGORY_OPENABLE)
-                .setType(held.kind).putExtra(Intent.EXTRA_TITLE,held.name),MainActivity.SAVE_COPY);
-        }));
+        sheet.row("Export to phone",()->withHeld(file,a::exportFile));
         sheet.row("Send to a device",()->a.chooseDevice(Collections.singletonList(Lending.of(file.id)),new ArrayList<>()));
         sheet.row("Put in a note",()->withHeld(file,held->a.putInNote(loose(held))));
         sheet.row("Move to…",()->{a.carrying=file;a.browse();});

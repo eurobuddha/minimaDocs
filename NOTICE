@@ -1,6 +1,28 @@
 Mininotes
 Copyright 2026 Mininotes contributors
 
+minimaDocs additions (2026)
+--------------------------
+
+Offline office editor: ranuts/document at
+9c743826d0152239dc7ad51677535d59679c7ff1, derived from ONLYOFFICE,
+AGPL-3.0 with the additional notices in that project's NOTICE. Source:
+https://github.com/ranuts/document/tree/9c743826d0152239dc7ad51677535d59679c7ff1
+The complete license and notice are bundled as editors/OFFICE-LICENSE and
+editors/OFFICE-NOTICE. Product logos and the editor's About pane are retained.
+The Android integration and packaging changes are in this repository.
+
+Layered image editor: miniPaint 4.14.3 by ViliusL and contributors, MIT.
+Source: https://github.com/viliusle/miniPaint/tree/a79733eb803fc97084ef0ee4faa96b031e69e1c0
+Its license is bundled as editors/image/MIT-LICENSE.txt.
+
+Katalog components and fonts reused from eurobuddha's Atelier/Salon projects.
+Asset serving and path validation adapted from eurobuddha's PocketWeb.
+Inter and JetBrains Mono use the SIL Open Font License 1.1; their complete
+license texts ship in assets/licenses/inter.txt and jetbrains-mono.txt.
+
+The inherited Mininotes notices follow unchanged.
+
 Mininotes is free software: you can redistribute it and/or modify it under the
 terms of the GNU General Public License as published by the Free Software
 Foundation, either version 3 of the License, or (at your option) any later

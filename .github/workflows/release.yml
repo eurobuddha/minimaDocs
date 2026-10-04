@@ -1,7 +1,6 @@
 name: Release
 
-# Tag a commit v0.0.20 and this publishes that build. Nothing is published by a
-# push to main: a release is a decision, not a side effect.
+# A version tag builds a signed Android draft release. Branch pushes do not publish.
 on:
   push:
     tags: ['v*']
@@ -12,6 +11,7 @@ permissions:
 
 jobs:
   release:
+    if: startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
     # A secret cannot be read in a step's `if`, so whether one is set is decided
     # once here and asked about by name below.
@@ -19,6 +19,8 @@ jobs:
       SIGNING_KEY: ${{ secrets.KEYSTORE_BASE64 }}
     steps:
       - uses: actions/checkout@v4
+
+      - uses: ./.github/actions/prepare-editors
 
       # Three places name the version and they have to agree before anything is built: the tag, the
       # build's own versionName, and dist/latest.txt, which is the one line every installed pad reads
@@ -50,9 +52,13 @@ jobs:
         id: name
         run: echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
 
-      # Signed if a key is configured, unsigned otherwise. An unsigned APK still
-      # installs; it just cannot be updated over a differently-signed one, which
-      # the release notes say rather than leaving somebody to find out.
+      # A public installer needs the configured release key.
+      - name: Require a release signing key
+        if: env.SIGNING_KEY == ''
+        run: |
+          echo "::error::Configure the release signing secrets before publishing an installer."
+          exit 1
+
       - name: Sign
         id: sign
         if: env.SIGNING_KEY != ''
@@ -80,20 +86,12 @@ jobs:
           SRC="${{ steps.sign.outputs.apk }}"
           if [ -z "$SRC" ]; then
             SRC=android/app/build/outputs/apk/release/app-release-unsigned.apk
-            NAME="Mininotes-${{ steps.name.outputs.version }}-unsigned.apk"
+            NAME="minimaDocs-${{ steps.name.outputs.version }}-unsigned.apk"
           else
-            NAME="Mininotes-${{ steps.name.outputs.version }}.apk"
+            NAME="minimaDocs-${{ steps.name.outputs.version }}.apk"
           fi
           cp "$SRC" "out/$NAME"
           ( cd out && sha256sum "$NAME" > "$NAME.sha256" )
-          # And the same file under a name that never changes, so
-          # releases/latest/download/Mininotes.apk is always the newest build (the owner's ask,
-          # 2026-10-01). The versioned name stays: it is what the app's own update fetches, and
-          # what the website looks for.
-          if [ -n "${{ steps.sign.outputs.apk }}" ]; then
-            cp "$SRC" out/Mininotes.apk
-            ( cd out && sha256sum Mininotes.apk > Mininotes.apk.sha256 )
-          fi
           ls -l out
 
       - name: Publish
@@ -101,6 +99,7 @@ jobs:
         with:
           files: out/*
           generate_release_notes: true
+          draft: true
           body: |
             Install: download the APK, check it with the `.sha256` beside it,
             and open it on the phone.
@@ -108,57 +107,5 @@ jobs:
             The pad works on its own, and nothing else has to be installed to
             share between phones: it is its own Maxima node. See the README.
 
-            Windows: download `Mininotes-Windows-….zip`, check it with the
-            `.sha256` beside it, extract it and open `Mininotes\Mininotes.exe`.
-            A PC already running Mininotes offers the update itself.
-
-  # Every file names its version (Mininotes-0.1.001.apk, Mininotes-Windows-0.1.001.zip), and each has a copy
-  # under a name that never changes (Mininotes.apk, Mininotes-Windows.zip) for a permanent latest link. The
-  # website's mininotes.org/android and /windows find the newest versioned one through GitHub's API and start it.
-  # The Windows build of the same commit, added to the same release once the phone's is published. Every
-  # PC reads dist/latest-windows.txt and then fetches releases/latest/download/Mininotes-Windows-<that>.zip,
-  # so each release has to carry it, and the file and the build have to agree on its version.
-  windows:
-    needs: release
-    runs-on: windows-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: The Windows build and latest-windows.txt agree
-        id: name
-        shell: pwsh
-        run: |
-          $build = (Select-String -Path windows/build.gradle -Pattern "^version = '([^']*)'").Matches[0].Groups[1].Value
-          $said = (Get-Content dist/latest-windows.txt -Raw).Trim()
-          "windows build=$build latest-windows.txt=$said"
-          if ($build -ne $said) { Write-Error "windows/build.gradle says $build but dist/latest-windows.txt says $said"; exit 1 }
-          "version=$build" >> $env:GITHUB_OUTPUT
-
-      - uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: '17'
-
-      - uses: gradle/actions/setup-gradle@v4
-
-      - name: Test and package
-        shell: pwsh
-        run: ./windows/build.ps1 -Package
-
-      - name: Gather
-        shell: pwsh
-        run: |
-          New-Item -ItemType Directory out | Out-Null
-          $name = "Mininotes-Windows-${{ steps.name.outputs.version }}.zip"
-          Copy-Item "dist/latest/$name" out/
-          Copy-Item "dist/latest/$name.sha256" out/
-          # The same zip under a name that never changes: releases/latest/download/Mininotes-Windows.zip.
-          Copy-Item "dist/latest/$name" out/Mininotes-Windows.zip
-          $hash = (Get-FileHash out/Mininotes-Windows.zip -Algorithm SHA256).Hash.ToLowerInvariant()
-          "$hash  Mininotes-Windows.zip" | Set-Content -Encoding ascii out/Mininotes-Windows.zip.sha256
-          Get-ChildItem out
-
-      - name: Publish
-        uses: softprops/action-gh-release@v2
-        with:
-          files: out/*
+            This is an Android development preview. Office and image edits are
+            saved as explicit copies; realtime shared editing is not implemented.

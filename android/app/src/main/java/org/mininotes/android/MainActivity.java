@@ -69,13 +69,13 @@ public final class MainActivity extends Activity {
         // paper     ink       muted     rules     card      accent    warning   menu sheet
         {0xFFFFFFFF,0xFF1E2422,0xFF6E7674,0xFFE8E8E4,0xFFF3F3F0,0xFF1F6B4F,0xFF9C3A2A,0xFFFFFFFF},
         {0xFFFDFCFA,0xFF22302B,0xFF767F7B,0xFFE7E4DC,0xFFF2F1EC,0xFF24614A,0xFF973B2C,0xFFFEFEFD},
-        {0xFFFBFAF6,0xFF273A34,0xFF7C8A84,0xFFE4DFD1,0xFFF2EFE5,0xFF285646,0xFF8C3B2E,0xFFFCFCFA},
+        {0xFFF2F1EC,0xFF111111,0xFF4F4E49,0xFF111111,0xFFFCFBF7,0xFFE63312,0xFFAE260E,0xFFFCFBF7},
         {0xFFF8F4E9,0xFF2A3A33,0xFF7D8880,0xFFDFD7C3,0xFFEEE8D8,0xFF2A5A46,0xFF8A3C2E,0xFFFAF7EF},
         {0xFFF2EBDB,0xFF2C3A32,0xFF7B857C,0xFFD4C9B1,0xFFE7DDC7,0xFF2D5B44,0xFF883D2F,0xFFF6F1E4},
         {0xFFE9E0CA,0xFF2E3A31,0xFF78826F,0xFFC9BC9F,0xFFDDD1B5,0xFF34604A,0xFF8A4030,0xFFEFE8D6},
         {0xFFDACEB3,0xFF2B342B,0xFF6E7865,0xFFB9A989,0xFFCDBD9D,0xFF38614C,0xFF8B4433,0xFFE2D9C3},
         {0xFF4A4A43,0xFFEFECE2,0xFFA9A99D,0xFF5C5C54,0xFF55554E,0xFF8FBCA6,0xFFD98A7A,0xFF55554E},
-        {0xFF262B28,0xFFE6E5DE,0xFF9AA39B,0xFF3B413B,0xFF30352F,0xFF8FBCA6,0xFFD98A7A,0xFF30352F},
+        {0xFF171715,0xFFF2F1EC,0xFFB7B6AE,0xFFDEDDD6,0xFF232320,0xFFFF7458,0xFFFF9A84,0xFF232320},
         {0xFF121413,0xFFE8E8E2,0xFF8D948C,0xFF272B28,0xFF1C1F1D,0xFF93C3A9,0xFFDC8E7E,0xFF1C1F1D},
     };
     /**
@@ -103,14 +103,19 @@ public final class MainActivity extends Activity {
      * Where the source lives, and where a newer build would be announced. Empty until there is a repository:
      * while it is, nothing is fetched and the network is never touched.
      */
-    private static final String SOURCE="https://github.com/mininotesorg/mininotes";
-    /** The one file the update check reads: a line of text holding the newest version's name. */
-    private static final String LATEST=SOURCE.isEmpty()?"":SOURCE.replace("github.com","raw.githubusercontent.com")
-        +"/main/dist/latest.txt";
+    private static final String SOURCE="https://github.com/eurobuddha/minimaDocs";
+    /** Enable the fork's update feed when its first signed release is published. */
+    private static final String LATEST="";
     /** Where a newer build is fetched from by whoever wants it. The app sends them there and no further. */
     private static final String DOWNLOAD=SOURCE.isEmpty()?"":SOURCE+"/releases/latest";
     private static final String TOO_BIG="That file is larger than 25 MB, which is more than a note will keep. Nothing was changed.";
     NoteStore store;
+    private EditorPane editor;
+    void editDocument(String kind,NoteStore.Held file) {
+        if(editor!=null&&editor.isShowing())return;
+        save();quiet();editor=new EditorPane(this,kind,file);editor.show();
+    }
+    void editorSaved(String id){editor=null;open(id);filesChanged(NoteStore.Branch.Kind.PAGE,id);toast("Editable copy saved. Open its file to continue editing.");}
     Background background;
     /**
      * A second worker, for anything that waits on the network.
@@ -341,7 +346,7 @@ public final class MainActivity extends Activity {
         }
     }
 
-    TextView label(String s,int size,int colour){TextView t=new Words(size);t.setText(s);t.setTextColor(colour);return t;}
+    TextView label(String s,int size,int colour){TextView t=new Words(size);t.setTypeface(Design.sans());t.setText(s);t.setTextColor(colour);return t;}
     private TextView line(String s,int size,int colour){TextView t=label(s,size,colour);t.setSingleLine(true);t.setEllipsize(TextUtils.TruncateAt.END);return t;}
     int touchFeedback(){TypedValue v=new TypedValue();getTheme().resolveAttribute(android.R.attr.selectableItemBackground,v,true);return v.resourceId;}
     int borderlessFeedback(){TypedValue v=new TypedValue();getTheme().resolveAttribute(android.R.attr.selectableItemBackgroundBorderless,v,true);return v.resourceId;}
@@ -572,7 +577,7 @@ public final class MainActivity extends Activity {
         android.widget.ImageView mark=new android.widget.ImageView(this);mark.setImageResource(R.drawable.ic_note);
         // Gaps given their height outright: this page fills the screen, and a plain View would take all of it.
         body.addView(mark,new LinearLayout.LayoutParams(dp(56),dp(56)));body.addView(gap(18),new LinearLayout.LayoutParams(-1,dp(18)));
-        TextView title=label("Mininotes is locked",Math.round(READING*1.4f),INK);title.setTypeface(null,android.graphics.Typeface.BOLD);body.addView(title);
+        TextView title=label("minimaDocs is locked",Math.round(READING*1.4f),INK);title.setTypeface(null,android.graphics.Typeface.BOLD);body.addView(title);
         final boolean bio=PhoneLock.bioHere(this),withPassword=PhoneLock.hasPassword(this);
         body.addView(gap(6),new LinearLayout.LayoutParams(-1,dp(6)));
         body.addView(label(LockChoice.unlockLine(way,bio),READING,INK));
@@ -589,7 +594,7 @@ public final class MainActivity extends Activity {
                     byte[] key=null;long began=System.nanoTime();
                     try{key=Vault.open(PhoneLock.kept(this),typed);}catch(Exception wrong){/* said below */}
                     // How long a password takes to check on this phone: the number to watch if the rounds ever rise.
-                    android.util.Log.i("Mininotes/Lock","password checked in "+(System.nanoTime()-began)/1_000_000+" ms");
+                    android.util.Log.i("minimaDocs/Lock","password checked in "+(System.nanoTime()-began)/1_000_000+" ms");
                     final byte[] opened=key;
                     runOnUiThread(()->{
                         if(opened==null){said.setTextColor(WARN);said.setText("That password did not open it.");password.selectAll();return;}
@@ -679,7 +684,7 @@ public final class MainActivity extends Activity {
     private void askPhone(String title,String what,javax.crypto.Cipher cipher,Consumer<javax.crypto.Cipher> allowed,Consumer<String> refused) {
         if(android.os.Build.VERSION.SDK_INT<30){refused.accept("This phone's Android is too old for this.");return;}
         android.hardware.biometrics.BiometricPrompt.Builder asking=new android.hardware.biometrics.BiometricPrompt.Builder(this)
-            .setTitle(title).setSubtitle("Mininotes");
+            .setTitle(title).setSubtitle("minimaDocs");
         if(what!=null)asking.setDescription(what);
         android.hardware.biometrics.BiometricPrompt prompt=asking
             .setAllowedAuthenticators(android.hardware.biometrics.BiometricManager.Authenticators.BIOMETRIC_STRONG
@@ -704,7 +709,7 @@ public final class MainActivity extends Activity {
             // The fingerprints changed or the screen lock went: the hardware key is gone, by design. The page is
             // drawn again on what still opens it, and says why.
             PhoneLock.forgetBio(this);
-            unlockScreen(LockChoice.first(false,withPassword),withPassword?"The phone's unlock no longer opens Mininotes, so it was switched off. Use your password, then switch it on again in Security.":null);
+            unlockScreen(LockChoice.first(false,withPassword),withPassword?"The phone's unlock no longer opens minimaDocs, so it was switched off. Use your password, then switch it on again in Security.":null);
             return;
         }
         askPhone("Unlock your notes",cipher,allowed->{
@@ -1036,14 +1041,14 @@ public final class MainActivity extends Activity {
         TextView state=label(on?"🔒  Locked and encrypted":"Not locked",READING,on?ACCENT:INK);
         state.setTypeface(null,android.graphics.Typeface.BOLD);body.addView(state);
         body.addView(under(LockChoice.means(on,phoneCan,bio,withPassword)));
-        body.addView(switchRow("Lock Mininotes",on,want->{box[0].dismiss();if(want)lockOn();else lockOff();}));
+        body.addView(switchRow("Lock minimaDocs",on,want->{box[0].dismiss();if(want)lockOn();else lockOff();}));
         if(on) {
             TextView ways=label("Ways to open it",QUIET,MUTED);ways.setPadding(0,dp(14),0,dp(2));body.addView(ways);
             if(phone)body.addView(switchRow("Fingerprint or screen lock",bio,want->{
                 box[0].dismiss();
                 if(want)phoneUnlockOn();
                 else if(!LockChoice.canSwitchOffPhone(withPassword))alert(LockChoice.KEEP_ONE);
-                else{PhoneLock.forgetBio(this);toast("Mininotes no longer opens with the phone's unlock");}
+                else{PhoneLock.forgetBio(this);toast("minimaDocs no longer opens with the phone's unlock");}
             }));
             String named=LockChoice.passwordName(bio);
             if(withPassword)body.addView(tapRow(named+": change",()->{box[0].dismiss();changePassword();}));
@@ -1092,7 +1097,7 @@ public final class MainActivity extends Activity {
             TextView instead=tap(other,other,READING,ACCENT,v->{box[0].dismiss();lockOn(way==LockChoice.Way.PHONE?LockChoice.Way.PASSWORD:LockChoice.Way.PHONE);});
             instead.setGravity(Gravity.START);instead.setPadding(0,dp(8),0,dp(8));body.addView(instead);
         }
-        box[0]=new Box().setTitle("Lock Mininotes").setView(scrolling(body)).create();box[0].show();
+        box[0]=new Box().setTitle("Lock minimaDocs").setView(scrolling(body)).create();box[0].show();
     }
 
     /** The key and its words made, aside (the words are slow to seal on purpose). A null password makes a lock without one. */
@@ -1117,7 +1122,7 @@ public final class MainActivity extends Activity {
         javax.crypto.Cipher cipher;
         try{cipher=PhoneLock.bioCipher(this,true);}
         catch(Exception e){PhoneLock.forgetBio(this);alert("This phone cannot keep a key for its own unlock. Nothing was changed; a password can lock it instead.");return;}
-        askPhone("Lock Mininotes with this phone","Mininotes will open with your fingerprint or screen lock.",cipher,allowed->{
+        askPhone("Lock minimaDocs with this phone","minimaDocs will open with your fingerprint or screen lock.",cipher,allowed->{
             try{PhoneLock.keepBio(this,allowed,made.key);}
             catch(Exception e){PhoneLock.forgetBio(this);alert("The phone's unlock could not be set up. Nothing was changed.");return;}
             showWords(made.words,true,false,()->checkWords(made.words,false,()->encryptNow(made)));
@@ -1215,14 +1220,14 @@ public final class MainActivity extends Activity {
         javax.crypto.Cipher cipher;
         try{cipher=PhoneLock.bioCipher(this,true);}
         catch(Exception e){alert("This phone cannot keep a key for its own unlock. Set a screen lock in Android's settings first.");return;}
-        askPhone("Unlock Mininotes with this phone",cipher,allowed->{
-            try{PhoneLock.keepBio(this,allowed,key);toast("Mininotes now unlocks with your fingerprint or screen lock");}
+        askPhone("Unlock minimaDocs with this phone",cipher,allowed->{
+            try{PhoneLock.keepBio(this,allowed,key);toast("minimaDocs now unlocks with your fingerprint or screen lock");}
             catch(Exception e){PhoneLock.forgetBio(this);alert(PhoneLock.hasPassword(this)?"It could not be set up. Your password still works.":"It could not be set up. Your 12 recovery words still open it.");}
         },why->{PhoneLock.forgetBio(this);toast(why.isEmpty()?"Not set up. It can be switched on in Settings, under Security.":why);});
     }
 
     /** Three lines to send with the link: what it is, what it is for, where to get it. */
-    static final String INVITE="I use Mininotes to keep notes and lists with the people close to me: a private paper pad, sealed from phone to phone, nothing to sign up for.\nAndroid: open the link and install the .apk file.\n";
+    static final String INVITE="I use minimaDocs to keep notes and lists with the people close to me: a private paper pad, sealed from phone to phone, nothing to sign up for.\nAndroid: open the link and install the .apk file.\n";
 
     /**
      * Mininotes, handed on: the download page as a code to scan for somebody standing here, and the same
@@ -1243,10 +1248,10 @@ public final class MainActivity extends Activity {
         final AlertDialog[] box={null};
         body.addView(primary("Send the link",()->{
             Intent send=new Intent(Intent.ACTION_SEND).setType("text/plain")
-                .putExtra(Intent.EXTRA_SUBJECT,"Mininotes").putExtra(Intent.EXTRA_TEXT,INVITE+DOWNLOAD);
-            started(Intent.createChooser(send,"Share Mininotes"));
+                .putExtra(Intent.EXTRA_SUBJECT,"minimaDocs").putExtra(Intent.EXTRA_TEXT,INVITE+DOWNLOAD);
+            started(Intent.createChooser(send,"Share minimaDocs"));
         }));
-        box[0]=new Box().setTitle("Share Mininotes").setView(scrolling(body)).create();box[0].show();
+        box[0]=new Box().setTitle("Share minimaDocs").setView(scrolling(body)).create();box[0].show();
     }
 
     /**
@@ -1312,7 +1317,7 @@ public final class MainActivity extends Activity {
     /** A password for a notebook that opens without one: asked of the phone's unlock (or the words) first. */
     private void addPassword() {
         confirmKey("Add a password",null,"to add a password","Continue",key->
-            choosePassword(key,"Add a password","Add password","Adding the password…","Password added. Your fingerprint or screen lock still opens Mininotes too.","The password could not be added. Nothing was changed."));
+            choosePassword(key,"Add a password","Add password","Adding the password…","Password added. Your fingerprint or screen lock still opens minimaDocs too.","The password could not be added. Nothing was changed."));
     }
 
     /** Twice, then sealed beside the words; the words, and so the notebook, stay as they were. */
@@ -1343,7 +1348,7 @@ public final class MainActivity extends Activity {
     private void removePassword() {
         if(!LockChoice.canRemovePassword(PhoneLock.bioHere(this),PhoneLock.hasPassword(this))){alert(LockChoice.KEEP_ONE);return;}
         LinearLayout body=inside();
-        body.addView(label("Mininotes will open with your fingerprint or screen lock, and your 12 recovery words. Backups you export will open only with the words.",READING,INK));
+        body.addView(label("minimaDocs will open with your fingerprint or screen lock, and your 12 recovery words. Backups you export will open only with the words.",READING,INK));
         body.addView(lockWarning(false));
         final AlertDialog[] box={null};
         body.addView(primary("Remove the password",()->{
@@ -1362,7 +1367,7 @@ public final class MainActivity extends Activity {
     }
 
     private void lockOff() {
-        confirmKey("Turn off the lock?","Your notes on this phone will no longer be encrypted, and Mininotes will open by itself.","to turn it off","Turn off the lock",key->{
+        confirmKey("Turn off the lock?","Your notes on this phone will no longer be encrypted, and minimaDocs will open by itself.","to turn it off","Turn off the lock",key->{
             final int job=busy("Turning off the lock…");
             background.submit(()->{PhoneLock.decrypt(this,key);return null;},done->{
                 Listening.rehear(this);busyDone(job,"Lock turned off");recreate();
@@ -1693,6 +1698,7 @@ public final class MainActivity extends Activity {
 
     @Override public void onCreate(Bundle state) {
         super.onCreate(state);
+        Design.load(this);
         PhoneLock.tidy(this);
         // Locked, and not opened since the app started: the password first, and nothing of the notebook before it.
         if(!PhoneLock.open(this)){lockedOut=true;usePaper(paperNow());unlockScreen();return;}
@@ -1744,7 +1750,7 @@ public final class MainActivity extends Activity {
         // frame is drawn. It used to draw a blank page and then swap to the shelves a moment later if the
         // shelves were where you had been, and a page nobody asked for flashing past is the app telling you
         // it did not know where it was.
-        final boolean toShelves=!back.isEmpty()&&(state==null||state.getString("note")==null)
+        final boolean toShelves=(!back.isEmpty()||where==null)&&(state==null||state.getString("note")==null)
             &&(tapped==null||tapped.isEmpty());
         if(toShelves){trail.clear();trail.addAll(back);browse();}
         // A blank page exists before the window takes focus, so the app draws at once rather than after a
@@ -1835,7 +1841,7 @@ public final class MainActivity extends Activity {
         noteWords.setOnClickListener(v->{if(wordsClicked!=null)wordsClicked.run();else if(owedMark!=null)owedMark.performClick();});
         line.addView(noteWords,new LinearLayout.LayoutParams(0,-2,1));
         root.addView(line,new LinearLayout.LayoutParams(-1,-2));
-        page=new Pad(this,LINE);page.setGravity(Gravity.TOP);page.setTextSize(pageSize());page.setTextColor(INK);
+        page=new Pad(this,LINE);page.setTypeface(Design.sans());page.setGravity(Gravity.TOP);page.setTextSize(pageSize());page.setTextColor(INK);
         // A little paper under the last line, and no more: a page that kept a keyboard's worth of it
         // scrolled that emptiness into view as you wrote, and the writing was pushed off the top.
         page.setLineSpacing(dp(6),1f);page.setPadding(0,dp(2),0,dp(24));page.setContentDescription("Note");
@@ -2561,11 +2567,11 @@ public final class MainActivity extends Activity {
     }
 
     private void microphoneRefused() {
-        new Box().setTitle("Mininotes cannot use the microphone")
-            .setMessage("Android has been told not to let Mininotes record. To record into a note, allow the microphone for Mininotes in Android's settings.")
+        new Box().setTitle("minimaDocs cannot use the microphone")
+            .setMessage("Android has been told not to let minimaDocs record. To record into a note, allow the microphone for minimaDocs in Android's settings.")
             .setPositiveButton("Open settings",(d,w)->{
                 try{startActivity(new Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS,Uri.fromParts("package",getPackageName(),null)));}
-                catch(Exception none){alert("Open Android's Settings, then Apps, then Mininotes, then Permissions.");}
+                catch(Exception none){alert("Open Android's Settings, then Apps, then minimaDocs, then Permissions.");}
             }).show();
     }
 
@@ -3182,6 +3188,10 @@ public final class MainActivity extends Activity {
      * all in Settings.
      */
     private void appRows(Sheet sheet,boolean another) {
+        sheet.line();sheet.heading("Create");
+        sheet.row("Word document",()->editDocument("docx",null));
+        sheet.row("Spreadsheet",()->editDocument("xlsx",null));
+        sheet.row("Layered image",()->editDocument("image",null));
         sheet.line();
         sheet.heading("Find");
         sheet.row("Search",this::searching);
@@ -3207,7 +3217,7 @@ public final class MainActivity extends Activity {
         sheet.row("Export backup",()->pick(EXPORT));
         sheet.row("Add from backup",()->pick(IMPORT));
         sheet.line();
-        sheet.heading("Mininotes");
+        sheet.heading("minimaDocs");
         // Files straight to another device, belonging to no note. The ones that came that way are on Home, new until they
         // are opened; what went from here is listed under Sent files, now there is no drop box (decision 20).
         sheet.row("Send files",this::sendFiles);
@@ -3218,7 +3228,7 @@ public final class MainActivity extends Activity {
         sheet.row(PhoneLock.locked(this)?"Settings  ·  🔒":"Settings",this::settings);
         sheet.row("Profile",this::profile);
         sheet.row("Feedback",this::feedback);
-        sheet.row("Share Mininotes",this::shareApp);
+        sheet.row("Share minimaDocs",this::shareApp);
         sheet.row("About",this::about);
     }
 
@@ -4392,7 +4402,7 @@ public final class MainActivity extends Activity {
 
     private GradientDrawable shape(int fill,int stroke,boolean dashed) {
         GradientDrawable shape=new GradientDrawable();
-        shape.setColor(fill==0?Color.TRANSPARENT:fill);shape.setCornerRadius(dp(14));
+        shape.setColor(fill==0?Color.TRANSPARENT:fill);shape.setCornerRadius(0);
         if(stroke!=0){if(dashed)shape.setStroke(dp(1),stroke,dp(7),dp(6));else shape.setStroke(dp(1),stroke);}
         return shape;
     }
@@ -5516,7 +5526,7 @@ public final class MainActivity extends Activity {
             box.setPositiveButton(addressBox?"Copy address":"Copy",(d,w)->{
                     if(addressBox&&said.isEmpty()){alert("There is no address yet to copy.");return;}
                     ClipboardManager board=(ClipboardManager)getSystemService(CLIPBOARD_SERVICE);
-                    if(board!=null)board.setPrimaryClip(ClipData.newPlainText("Mininotes",addressBox?said:line));
+                    if(board!=null)board.setPrimaryClip(ClipData.newPlainText("minimaDocs",addressBox?said:line));
                     toast(addressBox?"Address copied":"Code copied");
                 }).show();
         },e->alert("Could not prepare this device's keys. Nothing was changed."));
@@ -5789,7 +5799,7 @@ public final class MainActivity extends Activity {
                 body.addView(shown);
                 body.addView(tapRow("Copy address",()->{
                     ClipboardManager board=(ClipboardManager)getSystemService(CLIPBOARD_SERVICE);
-                    if(board!=null)board.setPrimaryClip(ClipData.newPlainText("Mininotes",address));
+                    if(board!=null)board.setPrimaryClip(ClipData.newPlainText("minimaDocs",address));
                     toast("Address copied");
                 }));
             }
@@ -5964,7 +5974,7 @@ public final class MainActivity extends Activity {
         super.onRequestPermissionsResult(asked,permissions,answers);
         if(asked==HEARING) {
             if(answers.length>0&&answers[0]==android.content.pm.PackageManager.PERMISSION_GRANTED)startRecording();
-            else alert("Without the microphone Mininotes cannot record. Nothing was changed. Press 🎤 again when you want to allow it.");
+            else alert("Without the microphone minimaDocs cannot record. Nothing was changed. Press 🎤 again when you want to allow it.");
             return;
         }
         if(asked!=Lens.ASKING||!waitingToScan)return;
@@ -5986,14 +5996,14 @@ public final class MainActivity extends Activity {
      */
     private void about() {
         LinearLayout body=inside();
-        body.addView(selectable(label("Mininotes v"+version(),READING,INK)));
+        body.addView(selectable(label("minimaDocs v"+version(),READING,INK)));
         final String newer=newerKnown();
         if(!newer.isEmpty()) {
             TextView out=tap("v"+newer+" is out","Update",READING,ACCENT,v->announce(newer));
             out.setPadding(0,0,0,0);out.setGravity(Gravity.START);body.addView(out);
         }
         body.addView(gap(6));
-        body.addView(selectable(label("Free to use, change and pass on. Not to be sold, or put inside anything sold."
+        body.addView(selectable(label("Android office and image workspace. Source and third-party license notices are available below."
             ,READING,MUTED)));
         body.addView(gap(8));
         // What it does and does not protect, said where somebody would look for it rather than only in a
@@ -6004,6 +6014,11 @@ public final class MainActivity extends Activity {
                 :"Notes on this phone are not encrypted, and neither are backups; Security, in the menu, can lock them with a password."),READING,MUTED)));
         body.addView(gap(14));
         // The icons a note or a collection wears are somebody else's work: named, with their licence, as NOTICE has them.
+        body.addView(label("Built on Mininotes · Katalog design from Atelier / Salon",QUIET,MUTED));
+        body.addView(label("Inter and JetBrains Mono · SIL Open Font License 1.1",QUIET,MUTED));
+        body.addView(tapRow("ONLYOFFICE / ranuts document · AGPL-3.0",()->openAddress("https://github.com/ranuts/document/tree/9c743826d0152239dc7ad51677535d59679c7ff1")));
+        body.addView(tapRow("miniPaint · MIT",()->openAddress("https://github.com/viliusle/miniPaint/tree/a79733eb803fc97084ef0ee4faa96b031e69e1c0")));
+        body.addView(tapRow("License notices",()->openAddress(SOURCE+"/blob/minimadocs/NOTICE")));
         body.addView(label("Icons",READING,MUTED));
         body.addView(selectable(label("Lucide, lucide.dev - ISC licence",READING,INK)));
         body.addView(gap(14));
@@ -6014,7 +6029,7 @@ public final class MainActivity extends Activity {
             link.setPadding(0,0,0,0);link.setGravity(Gravity.START);body.addView(link);
         }
         body.addView(gap(14));
-        body.addView(label("Donate",READING,MUTED));
+        body.addView(label("Support upstream Mininotes",READING,MUTED));
         if(DONATE.isEmpty())body.addView(label("An address will go here.",READING,INK));
         else {
             TextView address=tap(DONATE,"Copy the donation address",READING,INK,v->{
@@ -6072,7 +6087,7 @@ public final class MainActivity extends Activity {
 
     /** Whether a newer build has been published, asked by somebody who tapped for the answer. */
     private void checkForUpdate() {
-        if(LATEST.isEmpty())return;
+        if(LATEST.isEmpty()){alert("This is a minimaDocs development build. Automatic updates will be enabled with the first signed release.");return;}
         final int job=busy("Looking for a newer version\u2026");
         lookout.submit(this::publishedVersion,newest->{
             busyDone(job,null);
@@ -6106,7 +6121,7 @@ public final class MainActivity extends Activity {
             looked(newest);
             if(!Update.newer(newest,version())||heardBefore)return;
             background.submit(()->{kept.edit().putString("update_told",newest).apply();return null;},done->{},e->{});
-            toast("Mininotes v"+newest+" is out. It is in the menu.");
+            toast("minimaDocs v"+newest+" is out. It is in the menu.");
         },e->{});
     }
 
@@ -6130,17 +6145,17 @@ public final class MainActivity extends Activity {
         // The dot before it: green on the newest there is, yellow while a newer one is out, none until the repository has
         // been heard from (or while looking is switched off).
         android.content.SharedPreferences kept=getSharedPreferences("settings",MODE_PRIVATE);
-        Update.Standing standing=kept.getBoolean("update_look",true)?Update.standing(kept.getString("update_latest",""),version()):Update.Standing.UNKNOWN;
+        Update.Standing standing=!LATEST.isEmpty()&&kept.getBoolean("update_look",true)?Update.standing(kept.getString("update_latest",""),version()):Update.Standing.UNKNOWN;
         // Written into the line itself, so it stands just before the words however the line is centred.
         final int dotColour=standing==Update.Standing.UNKNOWN?0:Tint.of(standing==Update.Standing.BEHIND?3:4,darkPaper());
         if(newer.isEmpty()) {
             versionLine.setText(dotted("v"+version(),dotColour));versionLine.setTextColor(MUTED);
-            versionLine.setContentDescription("Mininotes v"+version()+(standing==Update.Standing.LATEST?", the newest there is":"")+". Tap to look for a newer version.");
+            versionLine.setContentDescription("minimaDocs v"+version()+(standing==Update.Standing.LATEST?", the newest there is":"")+". Tap to look for a newer version.");
             versionLine.setOnClickListener(v->checkForUpdate());
         } else {
             versionLine.setText(dotted("v"+version()+"  ·  Update to v"+newer,dotColour));versionLine.setTextColor(ACCENT);
             versionLine.setTypeface(null,android.graphics.Typeface.BOLD);
-            versionLine.setContentDescription("Mininotes v"+newer+" is out. Tap to update.");
+            versionLine.setContentDescription("minimaDocs v"+newer+" is out. Tap to update.");
             versionLine.setOnClickListener(v->announce(newer));
         }
     }
@@ -6156,6 +6171,7 @@ public final class MainActivity extends Activity {
 
     /** The newer build this phone has heard of, or nothing. Asked of what was written down, not of the network. */
     private String newerKnown() {
+        if(LATEST.isEmpty())return "";
         String said=getSharedPreferences("settings",MODE_PRIVATE).getString("update_latest","");
         return Update.newer(said,version())?Update.read(said):"";
     }
@@ -6189,13 +6205,13 @@ public final class MainActivity extends Activity {
         lookout.submit(()->{
             File dir=updates();
             if(!dir.isDirectory()&&!dir.mkdirs())throw new IllegalStateException("Nowhere on this phone to put the file.");
-            final File apk=new File(dir,"Mininotes-"+newest+".apk");
+            final File apk=new File(dir,"minimaDocs-"+newest+".apk");
             String digest,got;
             try {
                 // The checksum first: it is small, and a release without one is not one to fetch from.
-                digest=Update.digest(fetchText(Update.asset(SOURCE,newest)+".sha256"));
+                digest=Update.digest(fetchText(Update.asset(SOURCE,newest,"minimaDocs")+".sha256"));
                 if(digest.isEmpty())throw new IllegalStateException("The release carries no readable checksum, so the file could not be checked. Nothing was installed.");
-                got=fetchFile(Update.asset(SOURCE,newest),apk,job,newest);
+                got=fetchFile(Update.asset(SOURCE,newest,"minimaDocs"),apk,job,newest);
             } catch(java.io.IOException notNow) {
                 apk.delete();
                 throw new IllegalStateException("Could not reach the repository. Nothing was changed.");
@@ -6332,7 +6348,7 @@ public final class MainActivity extends Activity {
 
     /** What the app can say about itself: the version, the phone, the Android on it. Nothing about you. */
     private String aboutThisPhone() {
-        return "Mininotes "+version()+" \u00b7 Android "+android.os.Build.VERSION.RELEASE
+        return "minimaDocs "+version()+" \u00b7 Android "+android.os.Build.VERSION.RELEASE
             +" \u00b7 "+android.os.Build.MODEL;
     }
 
@@ -6509,7 +6525,7 @@ public final class MainActivity extends Activity {
     /** Onto the clipboard, wherever it came from. */
     private void copy(String said) {
         ClipboardManager board=(ClipboardManager)getSystemService(CLIPBOARD_SERVICE);
-        if(board!=null)board.setPrimaryClip(ClipData.newPlainText("Mininotes",said));
+        if(board!=null)board.setPrimaryClip(ClipData.newPlainText("minimaDocs",said));
     }
 
 
@@ -6597,7 +6613,7 @@ public final class MainActivity extends Activity {
                 .setNeutralButton("Add someone",(d,w)->typeAddress(scope,target,name))
                 .setPositiveButton("Copy",(d,w)->{
                     ClipboardManager board=(ClipboardManager)getSystemService(CLIPBOARD_SERVICE);
-                    if(board!=null)board.setPrimaryClip(ClipData.newPlainText("Mininotes",line));
+                    if(board!=null)board.setPrimaryClip(ClipData.newPlainText("minimaDocs",line));
                     toast("Code copied");
                 }).show();
         },e->alert(e instanceof IllegalStateException?e.getMessage():"Could not prepare this device's keys. Nothing was changed."));
@@ -7783,12 +7799,12 @@ public final class MainActivity extends Activity {
                         +"this again."
                     // Said in the words of the thing to go and change, because nothing here can change it.
                     :"This app is not allowed on the network, so it can reach no relay and has no address. "
-                        +"Allow it in Settings \u2192 Apps \u2192 Mininotes \u2192 Permissions.");
+                        +"Allow it in Settings \u2192 Apps \u2192 minimaDocs \u2192 Permissions.");
                 return;
             }
             keepMyAddress(said);
             ticked(address);
-        },e->{android.util.Log.w("Mininotes/Node","could not start",e);
+        },e->{android.util.Log.w("minimaDocs/Node","could not start",e);
               if(address[1]!=null)((TextView)address[1])
                 .setText("The node could not start. Nothing else was changed.");});
     }
@@ -8098,6 +8114,7 @@ public final class MainActivity extends Activity {
         Sheet sheet=new Sheet();
         if(play!=null)sheet.row(file.id.equals(playingId)&&player!=null&&player.isPlaying()?"Pause":"Play",play);
         sheet.row("Open",()->openFile(file));
+        sheet.row("Export to phone",()->exportFile(file));
         sheet.row("Send to a device",()->chooseDevice(java.util.Collections.singletonList(Lending.of(file.id)),new ArrayList<>()));
         sheet.line();
         sheet.row("Remove",()->askDropFile(file));
@@ -8151,6 +8168,8 @@ public final class MainActivity extends Activity {
 
     /** Hands one kept file to whatever app can open it, for as long as that app is open. */
     void openFile(NoteStore.Held file) {
+        String editorKind=EditorPane.kindOf(file.name);
+        if(!editorKind.isEmpty()){editDocument(editorKind,file);return;}
         Uri lent=Lending.of(file.id);
         Intent look=new Intent(Intent.ACTION_VIEW).setDataAndType(lent,file.kind)
             .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION|Intent.FLAG_ACTIVITY_NEW_TASK);
@@ -8319,10 +8338,19 @@ public final class MainActivity extends Activity {
     /** Which received file a copy is being saved of, while the phone's own picker asks where. */
     NoteStore.Loose savingCopy;
 
+    /** Reuse Home's Save As path for a note attachment too. */
+    void exportFile(NoteStore.Held file) {
+        savingCopy=new NoteStore.Loose(file.id,"","",file.name,file.kind,file.bytes,"",true,false,0,0);
+        try{startActivityForResult(new Intent(Intent.ACTION_CREATE_DOCUMENT).addCategory(Intent.CATEGORY_OPENABLE)
+            .setType(file.kind).putExtra(Intent.EXTRA_TITLE,file.name),SAVE_COPY);}
+        catch(Exception missing){savingCopy=null;alert("No file app is available to export this file.");}
+    }
+
     private void saveCopy(final Uri to) {
         final NoteStore.Loose file=savingCopy;savingCopy=null;
         if(file==null)return;
         background.submit(()->{
+            if(!PhoneLock.open(this))throw new IllegalStateException("Unlock the notebook before exporting.");
             try(OutputStream out=getContentResolver().openOutputStream(to,"wt")) {
                 if(out==null)throw new IllegalStateException("No output stream");
                 PhoneLock.copyOut(store.fileFor(file.id),out);
@@ -8367,7 +8395,10 @@ public final class MainActivity extends Activity {
             e->alert(e.getMessage()==null?"Could not put that in the note. Nothing was changed.":e.getMessage()));
     }
 
-    @Override protected void onActivityResult(int request,int result,Intent data){super.onActivityResult(request,result,data);if(lockedOut)return;if(result!=RESULT_OK||data==null)return;
+    @Override protected void onActivityResult(int request,int result,Intent data){super.onActivityResult(request,result,data);
+        if(request==EditorPane.PICK){if(editor!=null)editor.picked(!lockedOut&&PhoneLock.open(this)&&result==RESULT_OK&&data!=null?data.getData():null);return;}
+        if(request==SAVE_COPY&&(lockedOut||result!=RESULT_OK||data==null)){savingCopy=null;return;}
+        if(lockedOut)return;if(result!=RESULT_OK||data==null)return;
         if(request==ATTACH){keepFiles(attachingTo,attachingToId,picked(data),new ArrayList<>());return;}
         if(request==PICTURE){picker().pictured(data.getData());return;}
         if(request==SEND_FILES){chooseDevice(picked(data),new ArrayList<>());return;}
@@ -8503,7 +8534,7 @@ public final class MainActivity extends Activity {
                 byte[] rest=new byte[8192];while(in.read(rest)!=-1){/* drained */}
             }
             if(opening[0]!=null){opening[0].join();if(failed[0]!=null)throw new IllegalArgumentException("That backup could not be opened: "+failed[0].getMessage());}
-            if(text==null)throw new IllegalArgumentException("That zip is not a Mininotes backup.");
+            if(text==null)throw new IllegalArgumentException("That zip is not a minimaDocs backup.");
             return store.importBackup(text,replacing);
         } finally {
             store.sweep();
@@ -8568,7 +8599,7 @@ public final class MainActivity extends Activity {
     private final java.util.function.Consumer<String> filesMoved=note->handler.post(()->{
         if(active!=null&&active.id.equals(note)&&!shelves){showFiles();askWhatIsOwed();}
     });
-    @Override protected void onDestroy(){handler.removeCallbacksAndMessages(null);if(Post.filesMoved==filesMoved)Post.filesMoved=null;if(lockedOut){super.onDestroy();return;}
+    @Override protected void onDestroy(){if(editor!=null)editor.dismiss();handler.removeCallbacksAndMessages(null);if(Post.filesMoved==filesMoved)Post.filesMoved=null;if(lockedOut){super.onDestroy();return;}
         background.submit(()->{if(core!=null)core.close();return null;},done->{},e->{});
         network.abandon();chores.abandon();lookout.abandon();background.close();super.onDestroy();}
 
@@ -8595,7 +8626,7 @@ public final class MainActivity extends Activity {
         boolean on=sleepAllowed();
         if(sleepSwitch.isChecked()!=on){quietSwitch=true;sleepSwitch.setChecked(on);quietSwitch=false;}
         if(sleepSays!=null)sleepSays.setText(on
-            ?"Notes arrive while the phone sleeps. It wakes the phone for a moment every five to nine minutes. To turn this off, choose Mininotes in Android's list and pick Optimise."
+            ?"Notes arrive while the phone sleeps. It wakes the phone for a moment every five to nine minutes. To turn this off, choose minimaDocs in Android's list and pick Optimise."
             :"Android stops the pad listening after the phone has slept a while. Notes sent then can be missed.");
     }
 
@@ -8646,6 +8677,7 @@ public final class MainActivity extends Activity {
 
     /** Writing saved, the notebook closed and its key let go, and the unlock page in its place. */
     private void relockNow() {
+        if(editor!=null&&editor.isShowing()){editor.dismiss();editor=null;}
         handler.removeCallbacks(idleCheck);handler.removeCallbacks(awayRelock);
         save();keepVersion();background.flush(FLUSH_TIMEOUT);
         PhoneLock.relock(this);recreate();
@@ -8785,7 +8817,7 @@ public final class MainActivity extends Activity {
         if(handedBox!=null&&handedBox.isShowing())handedBox.dismiss();
         if(came.empty()) {
             handedDone();
-            alert(came.refused.isEmpty()?"Nothing came that Mininotes can keep.":Given.refusals(came.refused));
+            alert(came.refused.isEmpty()?"Nothing came that minimaDocs can keep.":Given.refusals(came.refused));
             return;
         }
         LinearLayout body=inside();
@@ -8805,7 +8837,7 @@ public final class MainActivity extends Activity {
             for(final Drop.Device one:devices)
                 body.addView(row(one.name,one.under(),()->{box[0].dismiss();handedDone();sendTo(new ArrayList<>(came.files),new ArrayList<>(came.refused),one);}));
         }
-        box[0]=new Box().setTitle("Add to Mininotes").setView(scrolling(body)).create();
+        box[0]=new Box().setTitle("Add to minimaDocs").setView(scrolling(body)).create();
         box[0].setOnCancelListener(d->handedDone());
         handedBox=box[0];
         box[0].show();
@@ -8923,7 +8955,7 @@ public final class MainActivity extends Activity {
             // typing is writing, and only writing is put together with what arrived.
             boolean typed=edits!=saved;
             Arriving.Page said=Arriving.onThePage(kept,page.getText().toString(),stored.body,typed);
-            android.util.Log.i("Mininotes/Page",said.unsaved?"the open note changed elsewhere, and what was typed here is put with it"
+            android.util.Log.i("minimaDocs/Page",said.unsaved?"the open note changed elsewhere, and what was typed here is put with it"
                 :typed?"the open note changed elsewhere, and what was typed here was already in it"
                 :"the open note changed elsewhere, and the page, not typed in, now says what arrived");
             handler.removeCallbacks(autoSave);

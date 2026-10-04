@@ -99,6 +99,13 @@ public class UpdateTest {
         assertEquals("",Update.asset("","0.0.108"));
     }
 
+    @Test public void forkUsesItsOwnVersionedInstaller() {
+        String fork="https://github.com/eurobuddha/minimaDocs";
+        assertEquals(fork+"/releases/download/v0.1.0/minimaDocs-0.1.0.apk",Update.asset(fork,"0.1.0","minimaDocs"));
+        assertEquals("",Update.asset(fork,"0.1.0","../Mininotes"));
+        assertEquals("",Update.asset(fork,"0.1.0",null));
+    }
+
     @Test public void theChecksumIsReadTheWayItIsWritten() {
         String hex="d4f92f4bb64a87a024985ecb9919d2e8697e51a2370f3461d9c9e65cf393e8af";
         assertEquals(hex,Update.digest(hex+"  Mininotes-0.0.108.apk\n"));

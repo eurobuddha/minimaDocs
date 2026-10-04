@@ -49,7 +49,7 @@
     <application android:label="@string/app_name" android:icon="@mipmap/ic_launcher" android:roundIcon="@mipmap/ic_launcher" android:theme="@style/AppTheme" android:allowBackup="false" android:fullBackupContent="false" android:dataExtractionRules="@xml/data_extraction_rules" android:supportsRtl="true">
         <!-- One pad, never two. A second copy of the screen would be a second copy of the page being written
              on, each saving over the other; anything that asks for the pad is handed the one there is. -->
-        <activity android:name=".MainActivity" android:exported="true" android:launchMode="singleTask" android:windowSoftInputMode="stateUnchanged|adjustResize">
+        <activity android:name=".MainActivity" android:exported="true" android:launchMode="singleTask" android:configChanges="orientation|screenSize|keyboardHidden" android:windowSoftInputMode="stateUnchanged|adjustResize">
             <intent-filter><action android:name="android.intent.action.MAIN" /><category android:name="android.intent.category.LAUNCHER" /></intent-filter>
             <!-- A pairing code, read by the phone's own camera rather than by the scanner in here. The code is
                  dressed as a link this answers to, so the camera offers to open it; what it says is still
@@ -70,7 +70,7 @@
             </intent-filter>
         </activity>
         <!-- One kept file, lent to whatever app can open it: never exported, read only, one look at a time. -->
-        <provider android:name=".Lending" android:authorities="org.mininotes.android.files"
+        <provider android:name=".Lending" android:authorities="${applicationId}.files"
             android:exported="false" android:grantUriPermissions="true" />
         <!-- The node kept up while the pad is closed. Text from one device to another is what the type is
              for, and it is the one kind that is not cut off after six hours. -->

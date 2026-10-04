@@ -3,11 +3,11 @@ android {
     namespace 'org.mininotes.android'
     compileSdk 37
     defaultConfig {
-        applicationId 'org.mininotes.android'
+        applicationId 'com.eurobuddha.minimadocs'
         minSdk 28
         targetSdk 35
-        versionCode 2012
-        versionName '0.2.012'
+        versionCode 1
+        versionName '0.1.0'
     }
     compileOptions { sourceCompatibility JavaVersion.VERSION_17; targetCompatibility JavaVersion.VERSION_17 }
 
@@ -55,4 +55,18 @@ dependencies {
     // SQLCipher: the notebook encrypted with its key when the owner sets a password (Profile → Security).
     implementation 'net.zetetic:sqlcipher-android:4.19.0@aar'
     implementation 'androidx.sqlite:sqlite:2.7.1'
+}
+
+// Fail before packaging an APK with empty editor buttons.
+tasks.register('verifyEditorAssets') {
+    doLast {
+        ['editor.html','image/index.html','sdkjs/common/wasm/x2t/x2t.wasm.br','minimadocs-engines.json'].each { asset ->
+            if (!file("src/main/assets/editors/$asset").isFile()) {
+                throw new GradleException('Offline editor assets are missing. Run node scripts/prepare-editors.cjs from the repository root first.')
+            }
+        }
+    }
+}
+tasks.configureEach { task ->
+    if (task.name.startsWith('merge') && task.name.endsWith('Assets')) task.dependsOn('verifyEditorAssets')
 }

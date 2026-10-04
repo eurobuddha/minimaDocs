@@ -2,7 +2,7 @@ name: Check
 
 on:
   push:
-    branches: [main]
+    branches: [main, minimadocs]
   pull_request:
   workflow_dispatch:
 
@@ -15,6 +15,11 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+
+      - uses: ./.github/actions/prepare-editors
+
+      - name: Editor bridge and transport tests
+        run: node --test tests/editor-bridge.test.cjs tests/core.test.cjs
 
       - name: JDK 17
         uses: actions/setup-java@v4
@@ -42,5 +47,5 @@ jobs:
       - name: Unsigned APK
         uses: actions/upload-artifact@v4
         with:
-          name: mininotes-unsigned-apk
+          name: minimaDocs-unsigned-apk
           path: android/app/build/outputs/apk/release/*.apk

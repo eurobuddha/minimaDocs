@@ -1,0 +1,21 @@
+:root,body[class],body {
+  --background:#F2F1EC;--block-background-color:#FCFBF7;
+  --section-background-color:#F2F1EC;--area-background-color:#DEDDD6;
+  --header-background-color:#DEDDD6;--border-color:#111111;
+  --text-color:#111111;--text-color-muted:#4F4E49;
+  --button-background-color:#FCFBF7;--button-background-color-hover:#DEDDD6;
+  --button-background-color-active:#DEDDD6;--button-text-color-active:#AE260E;
+  --button-toggle-background-color:#DEDDD6;--button-toggle-background-color-hover:#DEDDD6;
+  --input-background-color:#FCFBF7;--input-background-color-hover:#F2F1EC;
+  --input-text-color:#111111;--input-border-color:#111111;--input-border-color-active:#E63312;
+  --menu-background-color:#FCFBF7;--menu-text-color:#111111;--menu-icons-filter:none;
+  --menu-dropdown-background-color:#FCFBF7;--menu-dropdown-border-color:#111111;
+  --menu-dropdown-hover-background-color:#DEDDD6;--menu-dropdown-hover-text-color:#111111;
+  --mobile-menu-toggle-filter:none;--background-color-active:#DEDDD6;
+  --background-color-hover:#DEDDD6;--text-color-active:#AE260E;
+}
+body,.block,button,input,select,.dialog{border-radius:0!important}
+.block{box-shadow:2px 2px 0 #111}
+.logo{color:#111!important}
+.main_menu{background:#FCFBF7!important;border-bottom:2px solid #111}
+@media(max-width:600px){.sidebar_right{width:135px!important}.sidebar_left{width:46px!important}.sidebar_left .item{min-height:38px}.submenu .logo{display:none}.attributes{overflow-x:auto}}
