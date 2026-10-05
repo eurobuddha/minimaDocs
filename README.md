@@ -9,6 +9,10 @@ Maxima messaging transport. Repository: [eurobuddha/minimaDocs](https://github.c
 Install `minimaDocs-0.3.1.apk` to update an existing installation while keeping its
 data. The release includes a SHA-256 checksum. Android 9 or newer is required.
 
+Also available through **PandaApps**, **PandaGet**, and the **minimaCore App Store**
+using the shared [PandaApps catalogue](https://github.com/eurobuddha/minima-core-apks).
+The [web store and IPFS mirror](https://ipfs.eurobuddha.com/) carry the same signed APK.
+
 The new workspace has **Files**, **Shared**, **People**, and **Settings**, with
 document previews and direct editing. Word has dedicated phone and wide-screen
 controls, reading-width and print layouts, formatting, tables, comments and
@@ -140,6 +144,14 @@ or the existing untracked `android/keystore.properties` format.
 
 Release tags build a **draft** Android release using configured signing secrets.
 They do not publish a Windows build. The inherited Windows source is retained.
+
+After publishing a signed GitHub release, update the `com.eurobuddha.minimadocs`
+entry in `minima-core-apks/apks.json` with its version, versionCode, asset URL and
+SHA-256. Reuse that repository's `scripts/publish-app.py` and run `./check.py`
+before committing and pushing the catalogue. Refresh the IPFS store with
+`ssh hetzner 'sudo /usr/local/bin/build_ipfs_store.sh'`, then verify the public
+catalogue and mirrored APK against the release hash. The store clients share
+this catalogue; they do not need new builds for an app release.
 
 ## Validation
 
