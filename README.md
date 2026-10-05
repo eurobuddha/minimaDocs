@@ -3,14 +3,24 @@
 Android first office and image workspace, forked from Mininotes with its embedded
 Maxima messaging transport. Repository: [eurobuddha/minimaDocs](https://github.com/eurobuddha/minimaDocs), branch `minimadocs`.
 
-## Android 0.2.0
+## Android 0.3.0
+
+[Download the signed Android APK](https://github.com/eurobuddha/minimaDocs/releases/latest).
+Install `minimaDocs-0.3.0.apk` to update an existing installation while keeping its
+data. The release includes a SHA-256 checksum. Android 9 or newer is required.
+
+The new workspace has **Files**, **Shared**, **People**, and **Settings**, with
+document previews and direct editing. Word has dedicated phone and wide-screen
+controls, reading-width and print layouts, formatting, tables, comments and
+tracked changes. Its controls remain accessible above the Android keyboard.
+The interface and new documents use Manrope; imported documents retain their fonts.
 
 **Docs**, **Sheets**, and **Images** each have a library, New and Import actions.
 Docs and Sheets use the bundled offline ONLYOFFICE engine from `ranuts/document`.
 Images use miniPaint with layers, tools, effects, undo and editable project files.
 The native interface uses Atelier/Salon's Katalog design.
 
-- Open a document directly from Home or its library. Save updates that same document.
+- Open a document directly from Files. Save updates that same document.
 - DOCX and XLSX import/export preserve the editable Office file. PDF and flattened
   PNG exports use Android's Save As picker. Layered images use `.minimadocs-image.json`.
   Home's Send to another app action shares the selected document file.
@@ -30,7 +40,7 @@ The native interface uses Atelier/Salon's Katalog design.
 
 ### Parlons contacts
 
-Open **People and devices → Parlons contacts**, or **Share → Invite a Parlons contact**.
+Open **People**, or open a document and choose **Share → Invite people**.
 Approve minimaDocs once in **Parlons → Settings → Apps using Maxima** (Connected apps).
 Both installed apps must have the same signing certificate, as Parlons requires.
 
@@ -55,8 +65,8 @@ updates are saved document snapshots; simultaneous typing is not merged characte
 by character. Delivery depends on connectivity, relay availability and Android's
 background-execution policy. No document server or cloud Office service is required.
 
-The offline engines make the APK large (about 211 MiB). Automatic update checks
-remain disabled until a public signed release is available.
+The offline engines make the APK large (about 212 MiB). Automatic update checks
+are disabled in 0.3.0; download updates from this repository's Releases page.
 
 ## Reused implementations
 
@@ -114,6 +124,12 @@ They do not publish a Windows build. The inherited Windows source is retained.
 ## Validation
 
 Local checks on 2026-10-05:
+
+- The 0.3.0 release passed both [source checks](https://github.com/eurobuddha/minimaDocs/actions/runs/37302124255)
+  and [Android device checks](https://github.com/eurobuddha/minimaDocs/actions/runs/37302124218).
+  The workspace test opens the new Word controls, saves and reopens Manrope DOCX
+  text and tables, and exports PDF. Manrope embedding in the PDF was also verified.
+- The signed 0.3.0 APK was installed as an update and launched on the Galaxy Z Fold.
 
 - 705 Android unit tests pass, including causal convergence, replay and malformed
   document handling, read-only replicas, and Parlons contact/invitation parsing.
