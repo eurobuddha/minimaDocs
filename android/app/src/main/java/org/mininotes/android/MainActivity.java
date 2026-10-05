@@ -129,7 +129,11 @@ public final class MainActivity extends Activity {
         relaysInto(body);new Box().setTitle("Connection settings").setView(scrolling(body)).setNegativeButton("Done",null).show();
     }
     MaximaConnection parlonsConnection(){if(transport==null)transport=new MaximaConnection(this);return transport;}
-    void acceptParlonsInvitation(String line){readPairing(line,false);}
+    void acceptParlonsInvitation(String line){
+        // PeoplePane has already shown the sender, document and access level for approval.
+        final Pairing.Said offer;try{offer=Pairing.read(line);}catch(IllegalArgumentException e){alert(e.getMessage());return;}
+        background.submit(()->{Keys.publicKey(offer.agreement);Keys.publicKey(offer.signing);return offer;},this::keepPairing,e->alert("The invitation's keys could not be read. Nothing was saved."));
+    }
     void chooseDocumentImport(String kind){
         importingKind=kind;
         try{startActivityForResult(new Intent(Intent.ACTION_OPEN_DOCUMENT).addCategory(Intent.CATEGORY_OPENABLE).setType("*/*"),IMPORT_DOCUMENT);}
@@ -5793,7 +5797,7 @@ public final class MainActivity extends Activity {
             }
             if(said.offer.isEmpty()){
                 busyDone(job,unreached[0]!=null?"Paired. "+said.name+" is told when it is next reachable":"Paired. "+said.name+" is asked to pair back");
-                addressBook();return;
+                if(workspace!=null)workspace.refresh();else addressBook();return;
             }
             if(unreached[0]!=null) {
                 busyDone(job,null);

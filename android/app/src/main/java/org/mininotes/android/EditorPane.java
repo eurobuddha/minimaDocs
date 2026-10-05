@@ -83,9 +83,15 @@ final class EditorPane extends Dialog {
         TextView export=WorkspaceUi.button(app,"Export",false,()->{});export.setOnClickListener(this::menu);actions.addView(export,new LinearLayout.LayoutParams(0,app.dp(44),1));
         TextView more=WorkspaceUi.button(app,"File options",false,()->{});more.setOnClickListener(this::menu);actions.addView(more,new LinearLayout.LayoutParams(0,app.dp(44),1));if(!kind.equals("docx"))root.addView(actions);
         web=new WebView(app);configureWeb();root.addView(web,new LinearLayout.LayoutParams(-1,0,1));
+        // Reuse MainActivity.shell's insets handling: Android 15+ does not resize for the IME.
+        root.setOnApplyWindowInsetsListener((v,insets)->{
+            if(android.os.Build.VERSION.SDK_INT>=30){android.graphics.Insets bars=insets.getInsets(android.view.WindowInsets.Type.systemBars());root.setPadding(bars.left,bars.top,bars.right,Math.max(bars.bottom,insets.getInsets(android.view.WindowInsets.Type.ime()).bottom));}
+            return insets;
+        });
         setContentView(root);setCanceledOnTouchOutside(false);
         Window window=getWindow();
-        if(window!=null){window.setLayout(-1,-1);window.clearFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND);window.setStatusBarColor(Design.PAPER());window.setNavigationBarColor(Design.PAPER());window.getDecorView().setSystemUiVisibility(android.view.View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR|android.view.View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR);window.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE);if(PhoneLock.locked(app))window.addFlags(WindowManager.LayoutParams.FLAG_SECURE);window.setBackgroundDrawable(Design.rect(Design.PAPER()));}
+        if(window!=null){if(android.os.Build.VERSION.SDK_INT>=30)window.setDecorFitsSystemWindows(false);window.setLayout(-1,-1);window.clearFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND);window.setStatusBarColor(Design.PAPER());window.setNavigationBarColor(Design.PAPER());window.getDecorView().setSystemUiVisibility(window.getDecorView().getSystemUiVisibility()|android.view.View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR|android.view.View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR);window.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE);if(PhoneLock.locked(app))window.addFlags(WindowManager.LayoutParams.FLAG_SECURE);window.setBackgroundDrawable(Design.rect(Design.PAPER()));}
+        root.requestApplyInsets();
         storage.submit(()->{
             if(!PhoneLock.open(app))throw new IllegalStateException("Unlock your notebook first.");
             JSONObject config=new JSONObject().put("kind",kind);
@@ -192,8 +198,9 @@ final class EditorPane extends Dialog {
     private final class Bridge {
         @JavascriptInterface public void used(){app.runOnUiThread(()->{app.onUserInteraction();lastEdit=android.os.SystemClock.elapsedRealtime();});}
         @JavascriptInterface public void changed(){app.runOnUiThread(EditorPane.this::changed);}
+        @JavascriptInterface public void toolsOpened(){app.runOnUiThread(()->{if(closed||web==null)return;android.view.inputmethod.InputMethodManager input=(android.view.inputmethod.InputMethodManager)app.getSystemService(android.content.Context.INPUT_METHOD_SERVICE);if(input!=null)input.hideSoftInputFromWindow(web.getWindowToken(),0);});}
         @JavascriptInterface public String bootstrap(){return bootstrap;}
-        @JavascriptInterface public void ready(){app.runOnUiThread(()->{if(closed||ready)return;ready=true;save.setEnabled(!readOnly);status.setText(readOnly?"Read only":viewed.heads.size()>1?"Reviewing a concurrent version · Save to choose it":"Autosave on · Saved versions stay on this phone");bootstrap="{}";timer.postDelayed(autosave,5000);});}
+        @JavascriptInterface public void ready(){app.runOnUiThread(()->{if(closed||ready)return;ready=true;save.setEnabled(!readOnly);status.setText(readOnly?"Read only":viewed.heads.size()>1?"Reviewing a concurrent version · Save to choose it":"Saved on this device · Autosave on");bootstrap="{}";timer.postDelayed(autosave,5000);});}
         @JavascriptInterface public void error(String message){failed(message);}
         @JavascriptInterface public void exported(String base64,String type){app.runOnUiThread(()->{
             if(closed||!saving||!exporting||!("PDF".equals(type)||"PNG".equals(type)))return;

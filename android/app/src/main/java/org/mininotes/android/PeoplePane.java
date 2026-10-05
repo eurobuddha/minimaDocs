@@ -62,7 +62,7 @@ final class PeoplePane {
     }
     private void review(ParlonsInbox.Invitation invitation,String sender){
         Pairing.Said offer=Pairing.read(invitation.line);
-        new android.app.AlertDialog.Builder(app).setTitle(sender+" invited you").setMessage((offer.offer.isEmpty()?"Connect minimaDocs devices":offer.offer)+"\n\n"+offer.level.words()).setNegativeButton("Later",null).setNeutralButton("Dismiss",(d,w)->app.background.submit(()->{ParlonsInbox.dismiss(app,invitation.id);return null;},r->loadInvitations(),e->failed("Could not dismiss invitation."))).setPositiveButton("Review",(d,w)->app.acceptParlonsInvitation(invitation.line)).show();
+        new android.app.AlertDialog.Builder(app).setTitle(sender+" invited you").setMessage((offer.offer.isEmpty()?"Connect minimaDocs devices":offer.offer)+"\n\n"+offer.level.words()).setNegativeButton("Later",null).setNeutralButton("Dismiss",(d,w)->app.background.submit(()->{ParlonsInbox.dismiss(app,invitation.id);return null;},r->loadInvitations(),e->failed("Could not dismiss invitation."))).setPositiveButton("Accept",(d,w)->app.acceptParlonsInvitation(invitation.line)).show();
     }
     private static String initials(String name){String[] words=name.trim().split("\\s+");String first=words.length==0||words[0].isEmpty()?"?":words[0].substring(0,words[0].offsetByCodePoints(0,1));if(words.length>1)first+=words[words.length-1].substring(0,words[words.length-1].offsetByCodePoints(0,1));return first.toUpperCase(Locale.ROOT);}
     void close(){if(closed)return;closed=true;connection.unwatchContacts(contactChange);ParlonsInbox.unwatch(inboxChange);}

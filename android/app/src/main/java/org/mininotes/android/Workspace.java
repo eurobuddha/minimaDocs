@@ -73,7 +73,7 @@ final class Workspace {
             if(!kind.isEmpty()&&!kind.equals(entry.kind)||section.equals("Shared")&&!entry.shared)continue;
             String name=entry.note.heading();if(!name.toLowerCase(Locale.ROOT).contains(needle))continue;shown++;
             if(shown<=2&&entry.kind.equals("docx")){
-                if(previews==null){previews=new LinearLayout(app);list.addView(previews);WorkspaceUi.gap(list,16);}
+                if(previews==null){previews=new LinearLayout(app);previews.setWeightSum(2);list.addView(previews);WorkspaceUi.gap(list,16);}
                 LinearLayout card=WorkspaceUi.column(app),paper=WorkspaceUi.column(app);paper.setPadding(app.dp(14),app.dp(20),app.dp(14),app.dp(14));paper.setBackground(WorkspaceUi.surface(app,Design.WHITE(),Design.SOFT()));
                 TextView title=WorkspaceUi.text(app,name,16,true);title.setMaxLines(3);paper.addView(title);WorkspaceUi.gap(paper,12);
                 TextView text=WorkspaceUi.text(app,entry.preview.isEmpty()?"Word document\nOpen to edit":entry.preview,11,false);text.setLineSpacing(0,1.3f);text.setMaxLines(8);paper.addView(text,new LinearLayout.LayoutParams(-1,0,1));

@@ -18,7 +18,7 @@ final class DocumentPreview {
                 XmlPullParser parser=android.util.Xml.newPullParser();parser.setInput(new StringReader(source));StringBuilder text=new StringBuilder();boolean inText=false;
                 for(int event=parser.next();event!=XmlPullParser.END_DOCUMENT&&text.length()<600;event=parser.next()){
                     String tag=parser.getName();
-                    if(event==XmlPullParser.START_TAG)inText="t".equals(tag)||"w:t".equals(tag);
+                    if(event==XmlPullParser.START_TAG){inText="t".equals(tag)||"w:t".equals(tag);if("br".equals(tag)||"w:br".equals(tag))text.append('\n');else if("tab".equals(tag)||"w:tab".equals(tag))text.append(' ' );}
                     else if(event==XmlPullParser.TEXT&&inText)text.append(parser.getText());
                     else if(event==XmlPullParser.END_TAG){inText=false;if("p".equals(tag)||"w:p".equals(tag))text.append('\n');}
                 }
