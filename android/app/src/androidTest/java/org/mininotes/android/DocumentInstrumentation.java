@@ -35,6 +35,7 @@ public final class DocumentInstrumentation extends Instrumentation {
     @Override public void onStart() {
         Bundle result=new Bundle();byte[] old=NoteStore.key();
         try {
+            if(mode.equals("sharing")){sharing();result.putString("stream","PASS: direct sharing without Parlons, QR and copied invitation permissions, recipient entry, invitation review\n");finish(-1,result);return;}
             if(mode.equals("workspace")){workspace();result.putString("stream","PASS: document workspace, Word controls, Manrope DOCX save and native screenshots\n");finish(-1,result);return;}
             if(mode.equals("editors")){editors();result.putString("stream","PASS: packaged Android DOCX/XLSX imports, round trips, PDF and layered PNG export\n");finish(-1,result);return;}
             if(mode.startsWith("parlons")){parlons();result.putString("stream","PASS: real Parlons registration and contacts IPC\n");finish(-1,result);return;}
@@ -114,6 +115,43 @@ public final class DocumentInstrumentation extends Instrumentation {
     }
     private static Object field(Object object,String name)throws Exception {java.lang.reflect.Field f=object.getClass().getDeclaredField(name);f.setAccessible(true);return f.get(object);}
     private void screen(String name)throws Exception {waitForIdleSync();Thread.sleep(300);android.graphics.Bitmap b=getUiAutomation().takeScreenshot();check(b!=null,"No screenshot");try(ByteArrayOutputStream out=new ByteArrayOutputStream()){b.compress(android.graphics.Bitmap.CompressFormat.PNG,100,out);artifact(name,out.toByteArray());}finally{b.recycle();}}
+    private static android.view.View textView(android.view.View root,String text){
+        if(root instanceof android.widget.TextView&&text.equals(((android.widget.TextView)root).getText().toString()))return root;
+        if(root instanceof android.view.ViewGroup){android.view.ViewGroup group=(android.view.ViewGroup)root;for(int i=0;i<group.getChildCount();i++){android.view.View found=textView(group.getChildAt(i),text);if(found!=null)return found;}}return null;
+    }
+    private void tapText(android.view.View root,String text)throws Exception {
+        long until=System.currentTimeMillis()+120000;boolean[] clicked={false};
+        while(!clicked[0]&&System.currentTimeMillis()<until){runOnMainSync(()->{android.view.View v=textView(root,text);if(v!=null&&v.isShown()&&v.isEnabled())clicked[0]=v.performClick();});if(!clicked[0])Thread.sleep(100);}
+        check(clicked[0],"Missing sharing action: "+text);waitForIdleSync();
+    }
+    private void accessibilityClick(String text)throws Exception {
+        long until=System.currentTimeMillis()+10000;
+        while(System.currentTimeMillis()<until){android.view.accessibility.AccessibilityNodeInfo root=getUiAutomation().getRootInActiveWindow();if(root!=null)for(android.view.accessibility.AccessibilityNodeInfo node:root.findAccessibilityNodeInfosByText(text))if(text.contentEquals(node.getText()==null?"":node.getText())&&node.performAction(android.view.accessibility.AccessibilityNodeInfo.ACTION_CLICK))return;Thread.sleep(100);}
+        throw new AssertionError("Missing dialog action: "+text);
+    }
+    private void sharing()throws Exception {
+        check(android.os.Build.FINGERPRINT.contains("generic")||android.os.Build.MODEL.contains("sdk"),"Sharing fixtures require a disposable emulator");
+        MainActivity app=(MainActivity)startActivitySync(new Intent(getTargetContext(),MainActivity.class).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
+        try{
+            Object before=field(app,"transport");
+            NoteStore.Note note=new NoteStore.Note();note.title="Direct sharing review";note.body="Synthetic sharing fixture";app.store.save(note);
+            app.getSharedPreferences("settings",Context.MODE_PRIVATE).edit().putString("address","MxDIRECTTEST@127.0.0.1:9501").commit();
+            runOnMainSync(()->app.shareDocument(note.id,note.title));DocumentSharingPane pane=(DocumentSharingPane)field(app,"documentSharing");android.view.View root=pane.getWindow().getDecorView();
+            check(textView(root,"Enter recipient")!=null&&textView(root,"Scan recipient QR")!=null&&textView(root,"Parlons contacts")!=null,"Sharing methods missing");screen("sharing-methods-screen.png");
+            tapText(root,"Link or QR code");tapText(root,"Can view");tapText(root,"Create invitation");tapText(root,"Copy invitation");
+            String[] copied={null};runOnMainSync(()->{android.content.ClipboardManager board=(android.content.ClipboardManager)app.getSystemService(Context.CLIPBOARD_SERVICE);copied[0]=board.getPrimaryClip().getItemAt(0).coerceToText(app).toString();});
+            Pairing.Said offer=Pairing.read(Pairing.line(copied[0]));check(offer.level==Sharing.Level.READ&&offer.target.equals(note.id)&&offer.scope.equals("PAGE"),"Copied invitation lost access or document");
+            check(field(app,"transport")==before,"Direct sharing connected to Parlons");
+            android.graphics.Bitmap qr=Qr.of(copied[0],900);int w=qr.getWidth(),h=qr.getHeight();byte[] luminance=new byte[w*h];for(int y=0;y<h;y++)for(int x=0;x<w;x++)luminance[y*w+x]=(byte)(qr.getPixel(x,y)&255);check(copied[0].equals(Qr.inside(luminance,w,h)),"Invitation QR failed round trip");qr.recycle();screen("sharing-qr-screen.png");
+            tapText(root,"Invite people");tapText(root,"Enter recipient");accessibilityClick("Cancel");
+            runOnMainSync(pane::dismiss);runOnMainSync(app::openDirectInvitation);accessibilityClick("Paste invitation");
+            android.view.accessibility.AccessibilityNodeInfo active=getUiAutomation().getRootInActiveWindow();boolean entered=false;
+            for(android.view.accessibility.AccessibilityNodeInfo node:active.findAccessibilityNodeInfosByText("Invitation link or code")){Bundle args=new Bundle();args.putCharSequence(android.view.accessibility.AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE,copied[0]);entered=node.performAction(android.view.accessibility.AccessibilityNodeInfo.ACTION_SET_TEXT,args);if(entered)break;}
+            check(entered,"Invitation input unavailable");accessibilityClick("Review invitation");
+            long until=System.currentTimeMillis()+10000;boolean reviewed=false;while(!reviewed&&System.currentTimeMillis()<until){active=getUiAutomation().getRootInActiveWindow();reviewed=active!=null&&!active.findAccessibilityNodeInfosByText("It will appear in Shared").isEmpty();if(!reviewed)Thread.sleep(100);}
+            check(reviewed,"Direct invitation did not reach acceptance review");screen("sharing-review-screen.png");getUiAutomation().performGlobalAction(android.accessibilityservice.AccessibilityService.GLOBAL_ACTION_BACK);
+        }finally{runOnMainSync(app::finish);waitForIdleSync();}
+    }
     private void workspace()throws Exception {
         check(android.os.Build.FINGERPRINT.contains("generic")||android.os.Build.MODEL.contains("sdk"),"Workspace fixtures require a disposable emulator");
         MainActivity app=(MainActivity)startActivitySync(new Intent(getTargetContext(),MainActivity.class).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));

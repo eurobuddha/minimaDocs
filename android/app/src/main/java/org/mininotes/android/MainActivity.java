@@ -154,6 +154,101 @@ public final class MainActivity extends Activity {
             return line;
         },done::accept,e->failed.accept(e.getMessage())));
     }
+    void copyDirectInvitation(String line){
+        ClipboardManager board=(ClipboardManager)getSystemService(CLIPBOARD_SERVICE);
+        if(board==null){alert("The clipboard is unavailable. Use Share invitation instead.");return;}
+        board.setPrimaryClip(ClipData.newPlainText("minimaDocs invitation",Pairing.docsLink(line)));toast("Invitation copied");
+    }
+    void sendDirectInvitation(String line){
+        try{startActivity(Intent.createChooser(new Intent(Intent.ACTION_SEND).setType("text/plain")
+            .putExtra(Intent.EXTRA_TEXT,Pairing.docsLink(line)),"Share minimaDocs invitation"));}
+        catch(android.content.ActivityNotFoundException missing){alert("No messaging app is available. Copy the invitation instead.");}
+    }
+    void openDirectInvitation(){
+        LinearLayout body=inside();body.addView(WorkspaceUi.note(this,"Accept an invitation from anyone using minimaDocs. Parlons is not required."));WorkspaceUi.gap(body,16);
+        final AlertDialog[] box={null};
+        body.addView(WorkspaceUi.button(this,"Scan QR code",true,()->{box[0].dismiss();scanning(line->readPairing(Pairing.line(line),true),this::pasteDirectInvitation);}));WorkspaceUi.gap(body,10);
+        body.addView(WorkspaceUi.button(this,"Paste invitation",false,()->{box[0].dismiss();pasteDirectInvitation();}));
+        box[0]=new Box().setTitle("Open invitation").setView(body).setNegativeButton("Cancel",null).show();
+    }
+    private void pasteDirectInvitation(){
+        LinearLayout body=inside();body.addView(WorkspaceUi.note(this,"Paste the whole invitation link or code. You can review who sent it and the access offered before accepting."));
+        EditText input=WorkspaceUi.search(this,"Invitation link or code");input.setSingleLine(false);input.setMinLines(3);input.setMaxLines(6);
+        input.setFilters(new InputFilter[]{new InputFilter.LengthFilter(Pairing.MOST*3+Pairing.DOCS_LINK.length())});body.addView(input);
+        final AlertDialog[] box={null};WorkspaceUi.gap(body,12);
+        body.addView(WorkspaceUi.button(this,"Review invitation",true,()->{
+            String line=Pairing.line(input.getText().toString());
+            try{Pairing.read(line);}catch(IllegalArgumentException bad){input.setError("Paste a complete minimaDocs invitation link or code.");return;}
+            box[0].dismiss();readPairing(line,false);
+        }));
+        box[0]=new Box().setTitle("Paste invitation").setView(body).setNegativeButton("Cancel",null).show();
+    }
+    void directContacts(){
+        background.submit(()->{
+            List<String> rows=new ArrayList<>();
+            for(NoteStore.Contact contact:store.addresses())if(contact.paired()){
+                String digits;try{digits=Envelope.code(keys().signing().getPublic(),Keys.publicKey(contact.signing));}catch(Exception bad){digits="Key could not be read";}
+                rows.add(contact.name+"\nVerification code: "+digits);
+            }
+            return rows;
+        },rows->{
+            LinearLayout body=inside();body.addView(WorkspaceUi.note(this,"People paired directly through Maxima. To check an invitation, compare these six digits with the same contact on the other phone."));WorkspaceUi.gap(body,12);
+            body.addView(WorkspaceUi.button(this,"My QR code",true,this::directContactCode));WorkspaceUi.gap(body,16);
+            if(rows.isEmpty())body.addView(WorkspaceUi.note(this,"No paired contacts yet. Share a document invitation, or open one sent to you."));
+            for(String row:rows){body.addView(WorkspaceUi.text(this,row,16,false));WorkspaceUi.gap(body,16);}
+            new Box().setTitle("Maxima contacts").setView(scrolling(body)).setPositiveButton("Open invitation",(d,w)->openDirectInvitation()).setNegativeButton("Close",null).show();
+        },e->alert("Could not read paired contacts."));
+    }
+    private void directContactCode(){
+        parlonsInvitation(line->{
+            if(!Pairing.reachable(Pairing.read(line).address)){alert("Maxima is still connecting. Try again once a relay is available.");return;}
+            LinearLayout body=inside();body.addView(WorkspaceUi.note(this,"Let someone scan this code in Share → Scan recipient QR, or send it to them to paste in Enter recipient."));
+            body.addView(codeView(line));WorkspaceUi.gap(body,12);body.addView(WorkspaceUi.button(this,"Share my code",true,()->sendDirectInvitation(line)));WorkspaceUi.gap(body,8);
+            body.addView(WorkspaceUi.button(this,"Copy my code",false,()->copyDirectInvitation(line)));
+            new Box().setTitle("My Maxima QR code").setView(scrolling(body)).setNegativeButton("Close",null).show();
+        });
+    }
+    void scanDocumentRecipient(String id,String name,Runnable done,Runnable invitation){
+        scanning(line->reviewDocumentRecipient(id,line,done,invitation),()->enterDocumentRecipient(id,name,done,invitation));
+    }
+    void enterDocumentRecipient(String id,String name,Runnable done,Runnable invitation){
+        LinearLayout body=inside();body.addView(WorkspaceUi.note(this,"Enter their minimaDocs pairing code or Maxima address. You will choose access before sharing "+name+"."));WorkspaceUi.gap(body,12);
+        EditText input=WorkspaceUi.search(this,"Recipient code or Maxima address");input.setSingleLine(false);input.setMinLines(3);input.setMaxLines(6);input.setFilters(new InputFilter[]{new InputFilter.LengthFilter(Pairing.MOST*3+Pairing.DOCS_LINK.length())});body.addView(input);WorkspaceUi.gap(body,12);
+        final AlertDialog[] box={null};body.addView(WorkspaceUi.button(this,"Continue",true,()->{
+            String line=Pairing.line(input.getText().toString());
+            if(!Pairing.reachable(line))try{Pairing.read(line);}catch(IllegalArgumentException bad){input.setError("Enter a complete pairing code or Maxima address.");return;}
+            box[0].dismiss();reviewDocumentRecipient(id,line,done,invitation);
+        }));box[0]=new Box().setTitle("Enter recipient").setView(body).setNegativeButton("Cancel",null).show();
+    }
+    private void reviewDocumentRecipient(String id,String text,Runnable done,Runnable invitation){
+        String line=Pairing.line(text);
+        if(Pairing.reachable(line)){
+            background.submit(()->store.address(line),contact->{
+                if(contact!=null&&contact.paired()){shareWithPairedDocument(id,contact,done);return;}
+                new Box().setTitle("Pair with this recipient first").setMessage("Their address alone does not include the keys needed to encrypt your document. Send them an invitation, or ask them for their code under People → Maxima contacts → My QR code.")
+                    .setPositiveButton("Create invitation",(d,w)->invitation.run()).setNegativeButton("Cancel",null).show();
+            },e->alert("Could not read this recipient."));return;
+        }
+        final Pairing.Said recipient;try{Pairing.Said read=Pairing.read(line);recipient=new Pairing.Said(read.name,read.address,read.agreement,read.signing);}catch(IllegalArgumentException bad){alert("That is not a complete minimaDocs recipient code.");return;}
+        background.submit(()->{Keys.publicKey(recipient.agreement);return Envelope.code(keys().signing().getPublic(),Keys.publicKey(recipient.signing));},digits->{
+            new Box().setTitle("Pair with "+recipient.name+"?").setMessage("Next, choose what they can do with this document.\n\nVerification code: "+digits+". Compare it under People → Maxima contacts on both phones after pairing.")
+                .setPositiveButton("Pair and continue",(d,w)->keepPairing(recipient,()->background.submit(()->store.address(recipient.address),contact->{if(contact!=null)shareWithPairedDocument(id,contact,done);},e->alert("Could not read the paired recipient."))))
+                .setNegativeButton("Cancel",null).show();
+        },e->alert("That recipient's keys could not be read. Nothing was saved."));
+    }
+    void shareWithPairedDocument(String id,NoteStore.Contact contact,Runnable done){
+        background.submit(()->store.mayGive(Sharing.Scope.PAGE,id),may->{
+            List<Sharing.Level> levels=new ArrayList<>();for(Sharing.Level level:new Sharing.Level[]{Sharing.Level.READ,Sharing.Level.WRITE})if(may.contains(level))levels.add(level);
+            if(levels.isEmpty()){alert("Only the document owner or an administrator can invite people.");return;}
+            String[] labels=new String[levels.size()];for(int i=0;i<labels.length;i++)labels[i]=levels.get(i)==Sharing.Level.READ?"Can view":"Can edit";
+            new Box().setTitle("Share with "+contact.name).setItems(labels,(d,which)->background.submit(()->{
+                NoteStore.Contact current=store.address(contact.address);if(current==null||!current.paired())throw new IllegalStateException("This contact is no longer paired. Send a new invitation.");
+                Sharing.Rule was=null;for(Sharing.Rule rule:store.sharesOn(Sharing.Scope.PAGE,id))if(rule.address.equals(current.address))was=rule;
+                if(was==null||was.level==Sharing.Level.GONE)store.give(Sharing.Scope.PAGE,id,current.address,levels.get(which),current.name);
+                else store.decide(was,levels.get(which),System.currentTimeMillis());return null;
+            },saved->{done.run();sendAfterSharing(Sharing.Scope.PAGE,id);},e->alert(e.getMessage()))).setNegativeButton("Cancel",null).show();
+        },e->alert("Could not read document permissions."));
+    }
     private EditorPane editor;
     void editDocument(String kind,NoteStore.Held file) {
         if(editor!=null&&editor.isShowing())return;
@@ -5707,17 +5802,17 @@ public final class MainActivity extends Activity {
      * and the six digits to check: the same on both phones, under People and devices, means nothing came between them.
      */
     private void pairOrAccept(final Pairing.Said them,String digits) {
-        String pasted=digits.isEmpty()?"":"\n\nPasted, not scanned. To be sure nobody changed it on the way, open People and devices"
-            +" on both phones afterwards: each shows six digits for the other, and they must be the same. Here: "+digits+".";
+        String pasted=digits.isEmpty()?"":"\n\nTo verify the sender, compare the six digits under People → Maxima contacts"
+            +" on both phones after pairing. They must match. Here: "+digits+".";
         if(them.offer.isEmpty()) {
-            new Box().setTitle("Pair with "+them.name+"?").setMessage("It will be able to share notes with this phone."+pasted)
+            new Box().setTitle("Pair with "+them.name+"?").setMessage("They will be able to share documents with this phone."+pasted)
                 .setPositiveButton("Pair",(d,w)->keepPairing(them)).show();
             return;
         }
         new Box().setTitle(them.name+" is sharing with you")
             .setMessage(them.offer+"\n\n"+them.level.words()+": "+them.level.does()
-                +(them.writes?" What you write goes back to them.":" Writing in it stays on this phone.")
-                +"\n\n"+"It will appear on Home when it arrives."+pasted)
+                +(them.writes?" Your saved edits go back to them.":" You can read it and keep a separate editable copy.")
+                +"\n\n"+"It will appear in Shared when it arrives."+pasted)
             .setPositiveButton("Accept",(d,w)->keepPairing(them))
             .show();
     }
@@ -5734,7 +5829,7 @@ public final class MainActivity extends Activity {
      * Wi-Fi: said so, with the one way to reach them offered there and then - helpers, switched on, and the pairing
      * finished (the owner, 2026-10-02: "make sure we can share with everybody"). Not now, and it is kept, and told again.
      */
-    private void helpersFor(final Pairing.Said said) {
+    private void helpersFor(final Pairing.Said said,final Runnable paired) {
         new Box().setTitle(said.name+" is on another network")
             .setMessage("This phone sends notes only between your devices, on the same Wi-Fi, so it cannot reach "+said.name
                 +". Helpers can: relays that pass sealed notes on, which they cannot read. Their phone needs them too, if it"
@@ -5742,14 +5837,15 @@ public final class MainActivity extends Activity {
             .setPositiveButton("Use helpers",(d,w)->{
                 final int job=busy("Connecting to your relays\u2026");
                 background.submit(()->{Node.onlyMine(this,false);return null;},
-                    done->{busyDone(job,"Helpers carry notes when needed now");keepPairing(said);},
+                    done->{busyDone(job,"Helpers carry notes when needed now");keepPairing(said,paired);},
                     e->busyDone(job,"That could not be changed"));
             })
             .setNegativeButton("Not now",(d,w)->toast(said.name+" is saved. This phone tells them again each time it is opened."))
             .show();
     }
 
-    private void keepPairing(Pairing.Said said) {
+    private void keepPairing(Pairing.Said said) {keepPairing(said,null);}
+    private void keepPairing(Pairing.Said said,Runnable paired) {
         final int job=busy("Saving "+said.name+"\u2026");
         final String[] unreached={null};
         // A code from another network, while notes go only between the owner's devices: saved, and said plainly.
@@ -5792,11 +5888,12 @@ public final class MainActivity extends Activity {
             background.submit(()->{Listening.settle(this);return null;},settled->askToSaySo(),e->{});
             if(elsewhere[0]) {
                 busyDone(job,null);
-                helpersFor(said);
+                helpersFor(said,paired);
                 return;
             }
             if(said.offer.isEmpty()){
                 busyDone(job,unreached[0]!=null?"Paired. "+said.name+" is told when it is next reachable":"Paired. "+said.name+" is asked to pair back");
+                if(paired!=null){paired.run();return;}
                 if(workspace!=null)workspace.refresh();else addressBook();return;
             }
             if(unreached[0]!=null) {
@@ -6840,12 +6937,12 @@ public final class MainActivity extends Activity {
     }
 
     /** The code itself, drawn from its own size and blown up to the room the box turns out to have. */
-    private View codeView(String line) {
+    View codeView(String line) {
         try {
             ImageView code=new ImageView(this);
             // Dressed as a link, so that a phone's own camera offers to open it here. See Pairing.LINK.
             android.graphics.drawable.BitmapDrawable drawn=
-                new android.graphics.drawable.BitmapDrawable(getResources(),Qr.of(Pairing.link(line),1));
+                new android.graphics.drawable.BitmapDrawable(getResources(),Qr.of(Pairing.docsLink(line),1));
             drawn.setFilterBitmap(false);
             code.setImageDrawable(drawn);
             code.setAdjustViewBounds(true);

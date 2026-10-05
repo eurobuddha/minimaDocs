@@ -28,6 +28,8 @@ final class Workspace {
         app.root.addView(header);app.root.addView(Design.softRule(app));
         content=WorkspaceUi.column(app);content.setPadding(app.dp(22),app.dp(20),app.dp(22),0);app.root.addView(content,new LinearLayout.LayoutParams(-1,0,1));
         if(section.equals("People")){
+            LinearLayout direct=new LinearLayout(app);direct.addView(WorkspaceUi.button(app,"Maxima contacts",false,app::directContacts),new LinearLayout.LayoutParams(0,-2,1));
+            direct.addView(WorkspaceUi.textButton(app,"Open invitation",app::openDirectInvitation),new LinearLayout.LayoutParams(0,-2,1));content.addView(direct);WorkspaceUi.gap(content,16);
             people=new PeoplePane(app,app.parlonsConnection(),null,null);content.addView(people.view(),new LinearLayout.LayoutParams(-1,-1));people.refresh();
         }else if(section.equals("Settings"))settings();else files();
         app.root.addView(Design.softRule(app));LinearLayout nav=new LinearLayout(app);
@@ -45,6 +47,7 @@ final class Workspace {
         String[] values={"","docx","xlsx","image"},names={"All","Docs","Sheets","Images"};
         for(int i=0;i<names.length;i++){final String value=values[i];TextView tab=WorkspaceUi.text(app,names[i],14,kind.equals(value));tab.setGravity(Gravity.CENTER);tab.setOnClickListener(v->{kind=value;show();});tab.setFocusable(true);tab.setSelected(kind.equals(value));LinearLayout slot=WorkspaceUi.column(app);slot.addView(tab,new LinearLayout.LayoutParams(-1,app.dp(46)));View line=new View(app);line.setBackgroundColor(kind.equals(value)?Design.ACCENT():Design.SOFT());slot.addView(line,new LinearLayout.LayoutParams(-1,app.dp(2)));if(kind.equals(value))tab.setTextColor(Design.ACCENT());filters.addView(slot,new LinearLayout.LayoutParams(0,app.dp(48),1));}
         content.addView(filters);WorkspaceUi.gap(content,16);
+        if(section.equals("Shared")){content.addView(WorkspaceUi.button(app,"Open invitation",false,app::openDirectInvitation));WorkspaceUi.gap(content,12);}
         LinearLayout actions=new LinearLayout(app);
         String type=kind.equals("xlsx")?"spreadsheet":kind.equals("image")?"image":"document";
         actions.addView(WorkspaceUi.button(app,"New "+type,true,()->app.editDocument(kind.isEmpty()?"docx":kind,null)),new LinearLayout.LayoutParams(0,app.dp(50),1));
@@ -87,7 +90,7 @@ final class Workspace {
             words.addView(WorkspaceUi.note(app,(entry.shared?"Shared":"On this device")+" · "+(legacy?"Text document":DocumentStore.extension(entry.kind).toUpperCase(Locale.ROOT))));
             row.addView(words,new LinearLayout.LayoutParams(0,-2,1));row.setBackground(Design.ripple(Design.rect(Design.PAPER())));row.setOnClickListener(v->open(entry.note));row.setContentDescription("Open "+name);row.setFocusable(true);list.addView(row);list.addView(Design.softRule(app));
         }
-        if(shown==0){WorkspaceUi.gap(list,36);list.addView(WorkspaceUi.text(app,needle.isEmpty()?(section.equals("Shared")?"Work together.":"Start something new."):"No matching documents",22,true));WorkspaceUi.gap(list,10);list.addView(WorkspaceUi.note(app,needle.isEmpty()?(section.equals("Shared")?"Open a document and choose Share to invite someone from Parlons.":"Create a document or import a file from your phone."):"Try another name or choose All."));}
+        if(shown==0){WorkspaceUi.gap(list,36);list.addView(WorkspaceUi.text(app,needle.isEmpty()?(section.equals("Shared")?"Work together.":"Start something new."):"No matching documents",22,true));WorkspaceUi.gap(list,10);list.addView(WorkspaceUi.note(app,needle.isEmpty()?(section.equals("Shared")?"Open an invitation, or choose Share in a document to invite anyone using minimaDocs.":"Create a document or import a file from your phone."):"Try another name or choose All."));}
         WorkspaceUi.gap(list,24);
     }
     void open(NoteStore.Note note){app.openWorkspaceDocument(note);}

@@ -3,10 +3,10 @@
 Android first office and image workspace, forked from Mininotes with its embedded
 Maxima messaging transport. Repository: [eurobuddha/minimaDocs](https://github.com/eurobuddha/minimaDocs), branch `minimadocs`.
 
-## Android 0.3.0
+## Android 0.3.1
 
 [Download the signed Android APK](https://github.com/eurobuddha/minimaDocs/releases/latest).
-Install `minimaDocs-0.3.0.apk` to update an existing installation while keeping its
+Install `minimaDocs-0.3.1.apk` to update an existing installation while keeping its
 data. The release includes a SHA-256 checksum. Android 9 or newer is required.
 
 The new workspace has **Files**, **Shared**, **People**, and **Settings**, with
@@ -38,9 +38,29 @@ The native interface uses Atelier/Salon's Katalog design.
 - Files are limited to 16 MiB each. Imported originals remain on Home; Save creates
   the editable document. Locked notebooks use existing SQLCipher and file encryption.
 
+### Sharing without Parlons
+
+Open a document and choose **Share**:
+
+- **Link or QR code** creates a document invitation with Can view or Can edit access.
+  Show the QR code, copy the invitation, or send it using Android's share sheet.
+- **Enter recipient** accepts their minimaDocs pairing code or an already-paired
+  recipient's Maxima address. **Scan recipient QR** reads the same code by camera.
+- **Previously paired** lets you share directly with a saved recipient.
+
+To accept an invitation, open **Shared → Open invitation** and scan or paste it.
+Your own contact code and verification digits are under **People → Maxima contacts**.
+A new recipient's bare address does not contain document encryption keys; exchange
+pairing codes or send a document invitation first. Parlons is optional throughout.
+
+The existing MiniNotes pairing format and encrypted Maxima transport are reused.
+New links use `minimadocs://pair/`; existing `mininotes://pair/` links still open.
+An invitation allows its selected access for 15 minutes; later acceptances ask the
+owner for approval. Manage access afterwards under **Share → Access & updates**.
+
 ### Parlons contacts
 
-Open **People**, or open a document and choose **Share → Invite people**.
+Open **People**, or open a document and choose **Share → Parlons contacts**.
 Approve minimaDocs once in **Parlons → Settings → Apps using Maxima** (Connected apps).
 Both installed apps must have the same signing certificate, as Parlons requires.
 
@@ -66,7 +86,7 @@ by character. Delivery depends on connectivity, relay availability and Android's
 background-execution policy. No document server or cloud Office service is required.
 
 The offline engines make the APK large (about 212 MiB). Automatic update checks
-are disabled in 0.3.0; download updates from this repository's Releases page.
+are disabled in 0.3.1; download updates from this repository's Releases page.
 
 ## Reused implementations
 
@@ -124,6 +144,11 @@ They do not publish a Windows build. The inherited Windows source is retained.
 ## Validation
 
 Local checks on 2026-10-05:
+
+- 0.3.1 restores direct sharing in the workspace. The Android sharing regression
+  test creates a read-only invitation without a Parlons connection, checks the
+  copied payload and QR round trip, opens recipient entry, and reviews a pasted
+  invitation. Unit tests retain compatibility with old and new link schemes.
 
 - The 0.3.0 release passed both [source checks](https://github.com/eurobuddha/minimaDocs/actions/runs/37302124255)
   and [Android device checks](https://github.com/eurobuddha/minimaDocs/actions/runs/37302124218).

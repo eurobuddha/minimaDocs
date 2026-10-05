@@ -200,6 +200,7 @@ final class Pairing {
      * inside is unchanged - this is only what it wears on the way.
      */
     static final String LINK="mininotes://pair/";
+    static final String DOCS_LINK="minimadocs://pair/";
 
     private static final char[] HEX="0123456789ABCDEF".toCharArray();
 
@@ -221,9 +222,13 @@ final class Pairing {
         return out.toString();
     }
 
+    /** minimaDocs branding around the unchanged, backwards-compatible pairing payload. */
+    static String docsLink(String line){return DOCS_LINK+link(line).substring(LINK.length());}
+
     /** Whether something scanned, pasted or opened is a code dressed as a link. */
     static boolean isLink(String said) {
-        return said!=null&&said.trim().regionMatches(true,0,LINK,0,LINK.length());
+        return said!=null&&(said.trim().regionMatches(true,0,LINK,0,LINK.length())
+            ||said.trim().regionMatches(true,0,DOCS_LINK,0,DOCS_LINK.length()));
     }
 
     /**
@@ -234,7 +239,7 @@ final class Pairing {
         if(said==null)return "";
         String one=said.trim();
         if(!isLink(one))return one;
-        String dressed=one.substring(LINK.length());
+        String dressed=one.substring(one.regionMatches(true,0,DOCS_LINK,0,DOCS_LINK.length())?DOCS_LINK.length():LINK.length());
         if(dressed.length()>MOST*3)return one;
         java.io.ByteArrayOutputStream out=new java.io.ByteArrayOutputStream(dressed.length());
         for(int at=0;at<dressed.length();at++) {

@@ -59,6 +59,7 @@
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
                 <data android:scheme="mininotes" android:host="pair" />
+                <data android:scheme="minimadocs" android:host="pair" />
             </intent-filter>
             <!-- On the phone's share sheet, under the app's own name and mark: a screenshot, photos, files, a
                  line of text or a link, from any app. Nothing is kept until somebody says where it goes. -->

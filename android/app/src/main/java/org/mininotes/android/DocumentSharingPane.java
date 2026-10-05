@@ -6,7 +6,7 @@ import android.view.Window;
 import android.widget.*;
 import java.util.List;
 
-/** Select a real Parlons contact first, then explicitly grant document access. */
+/** Direct Maxima invitations and Parlons contacts share the same permission and transport paths. */
 final class DocumentSharingPane extends Dialog {
     private final MainActivity app;private final String id,name;private final LinearLayout root,body;
     private PeoplePane people;private Sharing.Level selected=Sharing.Level.WRITE;private boolean closed;
@@ -16,10 +16,64 @@ final class DocumentSharingPane extends Dialog {
         LinearLayout header=new LinearLayout(app);header.setGravity(Gravity.CENTER_VERTICAL);header.addView(WorkspaceUi.text(app,"Sharing",21,true),new LinearLayout.LayoutParams(0,-2,1));header.addView(WorkspaceUi.button(app,"Close",false,this::dismiss));root.addView(header);WorkspaceUi.gap(root,16);
         LinearLayout tabs=new LinearLayout(app);tabs.addView(WorkspaceUi.button(app,"Invite people",false,this::invitePeople),new LinearLayout.LayoutParams(0,app.dp(48),1));tabs.addView(WorkspaceUi.button(app,"Access & updates",false,this::showAccess),new LinearLayout.LayoutParams(0,app.dp(48),1));root.addView(tabs);WorkspaceUi.gap(root,14);
         body=WorkspaceUi.column(app);root.addView(body,new LinearLayout.LayoutParams(-1,0,1));setContentView(root);
-        people=new PeoplePane(app,app.parlonsConnection(),name,this::choose);body.addView(people.view(),new LinearLayout.LayoutParams(-1,-1));
+        invitePeople();
     }
-    @Override public void show(){super.show();getWindow().setLayout(-1,-1);getWindow().setBackgroundDrawable(Design.rect(Design.PAPER()));if(PhoneLock.locked(app))getWindow().addFlags(android.view.WindowManager.LayoutParams.FLAG_SECURE);people.refresh();}
-    private void invitePeople(){accessRequest++;if(people!=null)people.close();body.removeAllViews();people=new PeoplePane(app,app.parlonsConnection(),name,this::choose);body.addView(people.view(),new LinearLayout.LayoutParams(-1,-1));people.refresh();}
+    @Override public void show(){super.show();getWindow().setLayout(-1,-1);getWindow().setBackgroundDrawable(Design.rect(Design.PAPER()));if(PhoneLock.locked(app))getWindow().addFlags(android.view.WindowManager.LayoutParams.FLAG_SECURE);}
+    private LinearLayout page(){
+        if(people!=null){people.close();people=null;}body.removeAllViews();
+        ScrollView scroll=new ScrollView(app);LinearLayout items=WorkspaceUi.column(app);scroll.addView(items);body.addView(scroll,new LinearLayout.LayoutParams(-1,0,1));return items;
+    }
+    private void invitePeople(){
+        final int request=++accessRequest;LinearLayout items=page();
+        items.addView(WorkspaceUi.text(app,"Share with anyone",26,true));WorkspaceUi.gap(items,8);
+        items.addView(WorkspaceUi.note(app,"They need minimaDocs. Parlons is optional."));WorkspaceUi.gap(items,20);
+        items.addView(WorkspaceUi.button(app,"Link or QR code",true,this::directInvitation));WorkspaceUi.gap(items,8);
+        items.addView(WorkspaceUi.note(app,"Send an invitation in any messaging app, or let them scan your screen."));WorkspaceUi.gap(items,24);
+        items.addView(WorkspaceUi.button(app,"Enter recipient",false,()->app.enterDocumentRecipient(id,name,this::showAccess,this::directInvitation)));WorkspaceUi.gap(items,8);
+        items.addView(WorkspaceUi.button(app,"Scan recipient QR",false,()->app.scanDocumentRecipient(id,name,this::showAccess,this::directInvitation)));WorkspaceUi.gap(items,24);
+        items.addView(WorkspaceUi.button(app,"Parlons contacts",false,this::parlonsPeople));WorkspaceUi.gap(items,24);
+        LinearLayout known=WorkspaceUi.column(app);items.addView(known);
+        app.background.submit(()->app.store.addresses(),contacts->{
+            if(closed||request!=accessRequest)return;boolean heading=false;
+            for(NoteStore.Contact contact:contacts)if(contact.paired()){
+                if(!heading){known.addView(WorkspaceUi.text(app,"Previously paired",18,true));WorkspaceUi.gap(known,8);heading=true;}
+                known.addView(WorkspaceUi.button(app,contact.name,false,()->app.shareWithPairedDocument(id,contact,this::showAccess)));WorkspaceUi.gap(known,8);
+            }
+        },e->{if(!closed&&request==accessRequest)known.addView(WorkspaceUi.note(app,"Saved contacts could not be loaded. You can still use an invitation."));});
+    }
+    private void parlonsPeople(){accessRequest++;if(people!=null)people.close();body.removeAllViews();people=new PeoplePane(app,app.parlonsConnection(),name,this::choose);body.addView(people.view(),new LinearLayout.LayoutParams(-1,-1));people.refresh();}
+    private void directInvitation(){
+        final int request=++accessRequest;LinearLayout items=page();items.addView(WorkspaceUi.note(app,"Reading document permissions…"));
+        app.background.submit(()->app.store.mayGive(Sharing.Scope.PAGE,id),levels->{
+            if(closed||request!=accessRequest)return;
+            if(!levels.contains(Sharing.Level.READ)&&!levels.contains(Sharing.Level.WRITE)){items.removeAllViews();items.addView(WorkspaceUi.note(app,"Only the document owner or an administrator can invite people."));return;}
+            if(!levels.contains(selected)||selected==Sharing.Level.ADMIN)selected=levels.contains(Sharing.Level.WRITE)?Sharing.Level.WRITE:Sharing.Level.READ;
+            directAccess(levels);
+        },e->{if(!closed&&request==accessRequest){items.removeAllViews();items.addView(WorkspaceUi.note(app,"Could not read document permissions. Try again."));}});
+    }
+    private void directAccess(List<Sharing.Level> levels){
+        final int request=++accessRequest;LinearLayout items=page();
+        items.addView(WorkspaceUi.text(app,"Link or QR code",26,true));WorkspaceUi.gap(items,8);items.addView(WorkspaceUi.note(app,name));WorkspaceUi.gap(items,16);
+        items.addView(WorkspaceUi.note(app,"Choose what the person you invite can do. They can accept in minimaDocs without Parlons."));WorkspaceUi.gap(items,16);
+        for(Sharing.Level level:new Sharing.Level[]{Sharing.Level.READ,Sharing.Level.WRITE})if(levels.contains(level)){
+            TextView option=WorkspaceUi.button(app,role(level)+(selected==level?" · Selected":""),selected==level,()->{selected=level;directAccess(levels);});items.addView(option);WorkspaceUi.gap(items,8);
+        }
+        WorkspaceUi.gap(items,8);TextView state=WorkspaceUi.note(app,"");items.addView(state);
+        TextView create=WorkspaceUi.button(app,"Create invitation",true,()->{});items.addView(create);
+        LinearLayout result=WorkspaceUi.column(app);items.addView(result);
+        create.setOnClickListener(v->{
+            create.setEnabled(false);state.setText("Preparing your Maxima invitation…");final Sharing.Level level=selected;
+            app.prepareDocumentInvitation(id,name,level,line->{
+                if(closed||request!=accessRequest)return;
+                items.removeAllViews();items.addView(WorkspaceUi.text(app,"Your invitation",26,true));WorkspaceUi.gap(items,8);items.addView(WorkspaceUi.note(app,name+" · "+role(level)));WorkspaceUi.gap(items,16);items.addView(result);
+                LinearLayout actions=new LinearLayout(app);actions.addView(WorkspaceUi.button(app,"Share invitation",true,()->app.sendDirectInvitation(line)),new LinearLayout.LayoutParams(0,-2,1));actions.addView(WorkspaceUi.button(app,"Copy invitation",false,()->app.copyDirectInvitation(line)),new LinearLayout.LayoutParams(0,-2,1));result.addView(actions);WorkspaceUi.gap(result,16);
+                android.view.View qr=app.codeView(line);LinearLayout.LayoutParams square=new LinearLayout.LayoutParams(Math.min(app.dp(320),Math.max(app.dp(200),body.getWidth())), -2);square.gravity=Gravity.CENTER_HORIZONTAL;result.addView(qr,square);WorkspaceUi.gap(result,12);
+                result.addView(WorkspaceUi.note(app,"On their phone: Shared → Open invitation → Scan QR code or Paste invitation.\n\nAnyone with this invitation can join at the selected access level for 15 minutes. After that, you are asked to approve them."));
+                WorkspaceUi.gap(result,12);result.addView(WorkspaceUi.button(app,"Change access",false,()->directAccess(levels)));
+                if(Node.onlyMine(app))result.addView(WorkspaceUi.note(app,"Your connection is limited to the same Wi-Fi. Open Maxima connection settings to enable relays for sharing over the internet."));
+            },why->{if(!closed&&request==accessRequest){state.setText(why);create.setEnabled(true);}});
+        });
+    }
     private static final class Access {
         java.util.List<Sharing.Rule> rules;java.util.List<NoteStore.Contact> contacts;java.util.Map<String,Boolean> reaches;java.util.Set<String> change=new java.util.HashSet<>();boolean owner;Sharing.Level level;int pending;RichDocument document;
     }
@@ -50,11 +104,12 @@ final class DocumentSharingPane extends Dialog {
         if(level==Sharing.Level.GONE)new android.app.AlertDialog.Builder(app).setTitle("Remove access for "+contact.name+"?").setMessage("They will stop receiving updates. Copies already received stay on their device.").setNegativeButton("Cancel",null).setPositiveButton("Remove access",(box,w)->change.run()).show();else change.run();
     }).setNegativeButton("Cancel",null).show();}
     private void choose(ParlonsContact contact){
-        app.background.submit(()->app.store.mayGive(Sharing.Scope.PAGE,id),levels->{if(closed)return;if(levels.isEmpty()){app.alert("Only the document owner or an administrator can invite people.");return;}if(!levels.contains(selected))selected=levels.get(0);access(contact,levels);},e->app.alert("Could not read document permissions."));
+        final int request=++accessRequest;
+        app.background.submit(()->app.store.mayGive(Sharing.Scope.PAGE,id),levels->{if(closed||request!=accessRequest)return;if(!levels.contains(Sharing.Level.READ)&&!levels.contains(Sharing.Level.WRITE)){app.alert("Only the document owner or an administrator can invite people.");return;}if(!levels.contains(selected)||selected==Sharing.Level.ADMIN)selected=levels.contains(Sharing.Level.WRITE)?Sharing.Level.WRITE:Sharing.Level.READ;access(contact,levels);},e->{if(!closed&&request==accessRequest)app.alert("Could not read document permissions.");});
     }
     private void access(ParlonsContact contact,List<Sharing.Level> levels){
         accessRequest++;
-        people.close();body.removeAllViews();body.addView(WorkspaceUi.note(app,name));WorkspaceUi.gap(body,24);body.addView(WorkspaceUi.text(app,"Share with "+contact.name,26,true));WorkspaceUi.gap(body,24);
+        if(people!=null)people.close();body.removeAllViews();body.addView(WorkspaceUi.note(app,name));WorkspaceUi.gap(body,24);body.addView(WorkspaceUi.text(app,"Share with "+contact.name,26,true));WorkspaceUi.gap(body,24);
         for(Sharing.Level level:levels){if(level==Sharing.Level.ADMIN)continue;String label=level==Sharing.Level.READ?"Can view":"Can edit";
             LinearLayout option=WorkspaceUi.column(app);option.setPadding(app.dp(16),app.dp(16),app.dp(16),app.dp(16));option.setBackground(WorkspaceUi.surface(app,selected==level?0xFFFBE8E1:Design.CARD(),selected==level?Design.ACCENT():Design.SOFT()));option.addView(WorkspaceUi.text(app,label,17,true));option.addView(WorkspaceUi.note(app,level==Sharing.Level.READ?"Read and download":"Change this document"));option.setOnClickListener(v->{selected=level;access(contact,levels);});option.setFocusable(true);option.setContentDescription(label+(selected==level?", selected":""));body.addView(option);WorkspaceUi.gap(body,12);
         }

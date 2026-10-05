@@ -177,6 +177,21 @@ public class PairingTest {
         assertTrue(back.writes);
     }
 
+    @Test public void minimaDocsLinksPreserveTheOriginalPairingPayload() {
+        String original=offered(),link=Pairing.docsLink(original);
+        assertTrue(link.startsWith("minimadocs://pair/"));
+        assertTrue(Pairing.isLink(link));
+        assertEquals(original,Pairing.line(link));
+        assertEquals(original,Pairing.line("MINIMADOCS://PAIR/"+link.substring(Pairing.DOCS_LINK.length())));
+        assertEquals(Pairing.read(Pairing.line(Pairing.link(original))).target,Pairing.read(Pairing.line(link)).target);
+    }
+
+    @Test public void damagedMinimaDocsLinksAreRefused() {
+        for(String bad:new String[]{Pairing.docsLink(offered())+"%",Pairing.docsLink(offered())+"%zz"}){
+            try{Pairing.read(Pairing.line(bad));fail("Read a damaged minimaDocs link");}catch(IllegalArgumentException expected){}
+        }
+    }
+
     @Test public void theLinkHoldsNothingALinkCannotOrThatSomethingMightTidy() {
         String dressed=Pairing.link(offered()).substring(Pairing.LINK.length());
         for(char no:new char[]{' ','|','#','+','/','?','\'','"','<','>'})
