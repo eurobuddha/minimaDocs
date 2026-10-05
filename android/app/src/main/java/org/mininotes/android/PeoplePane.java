@@ -12,8 +12,10 @@ final class PeoplePane {
     private final LinearLayout root,rows,connectionActions;private final TextView status;private final EditText search;
     private List<ParlonsContact> contacts=new ArrayList<>();private List<ParlonsInbox.Invitation> invitations=new ArrayList<>();
     private boolean loading,closed;
+    private final Runnable contactChange=this::refresh;
+    private final Runnable inboxChange;
     PeoplePane(MainActivity app,MaximaConnection connection,String document,Consumer<ParlonsContact> choose){
-        this.app=app;this.connection=connection;this.choose=choose;root=WorkspaceUi.column(app);
+        this.app=app;inboxChange=()->app.runOnUiThread(this::loadInvitations);this.connection=connection;this.choose=choose;root=WorkspaceUi.column(app);
         root.addView(WorkspaceUi.text(app,choose==null?"Your people":"Share with people",28,true));WorkspaceUi.gap(root,8);
         if(document!=null){root.addView(WorkspaceUi.note(app,document));WorkspaceUi.gap(root,8);}
         status=WorkspaceUi.note(app,"Connecting to Parlons…");status.setAccessibilityLiveRegion(android.view.View.ACCESSIBILITY_LIVE_REGION_POLITE);root.addView(status);WorkspaceUi.gap(root,16);
@@ -21,7 +23,7 @@ final class PeoplePane {
         connectionActions=WorkspaceUi.column(app);root.addView(connectionActions);
         ScrollView scroll=new ScrollView(app);rows=WorkspaceUi.column(app);scroll.addView(rows);root.addView(scroll,new LinearLayout.LayoutParams(-1,0,1));
         LinearLayout foot=new LinearLayout(app);foot.addView(WorkspaceUi.button(app,"Open Parlons",false,this::openParlons),new LinearLayout.LayoutParams(0,app.dp(48),1));foot.addView(WorkspaceUi.button(app,"Refresh",false,this::refresh),new LinearLayout.LayoutParams(0,app.dp(48),1));root.addView(foot);
-        connection.changed(this::refresh);ParlonsInbox.changed=()->app.runOnUiThread(this::loadInvitations);
+        connection.watchContacts(contactChange);ParlonsInbox.watch(inboxChange);
     }
     LinearLayout view(){return root;}
     void refresh(){if(closed||loading)return;loading=true;status.setText("Refreshing Parlons contacts…");
@@ -46,5 +48,5 @@ final class PeoplePane {
         }
     }
     private static String initials(String name){String[] words=name.trim().split("\\s+");String first=words.length==0||words[0].isEmpty()?"?":words[0].substring(0,words[0].offsetByCodePoints(0,1));if(words.length>1)first+=words[words.length-1].substring(0,words[words.length-1].offsetByCodePoints(0,1));return first.toUpperCase(Locale.ROOT);}
-    void close(){if(closed)return;closed=true;connection.changed(null);ParlonsInbox.changed=null;}
+    void close(){if(closed)return;closed=true;connection.unwatchContacts(contactChange);ParlonsInbox.unwatch(inboxChange);}
 }

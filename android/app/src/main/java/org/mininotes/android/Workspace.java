@@ -12,9 +12,10 @@ final class Workspace {
     private LinearLayout content,list;
     private PeoplePane people;
     private int generation;
+    private boolean closed;
     private List<Entry> entries=new ArrayList<>();
     private static final class Entry {
-        final NoteStore.Note note;final String kind;final boolean shared;
+        final NoteStore.Note note;final String kind;final boolean shared;String preview="";
         Entry(NoteStore.Note n,String k,boolean s){note=n;kind=k;shared=s;}
     }
     Workspace(MainActivity app){this.app=app;}
@@ -42,7 +43,7 @@ final class Workspace {
         WorkspaceUi.gap(content,22);content.addView(WorkspaceUi.text(app,section.equals("Shared")?"Shared with people":"Your documents",28,true));WorkspaceUi.gap(content,12);
         LinearLayout filters=new LinearLayout(app);
         String[] values={"","docx","xlsx","image"},names={"All","Docs","Sheets","Images"};
-        for(int i=0;i<names.length;i++){final String value=values[i];TextView tab=WorkspaceUi.button(app,names[i],false,()->{kind=value;show();});if(kind.equals(value)){tab.setTextColor(Design.ACCENT());tab.setBackgroundColor(0x0DE63312);}filters.addView(tab,new LinearLayout.LayoutParams(0,app.dp(48),1));}
+        for(int i=0;i<names.length;i++){final String value=values[i];TextView tab=WorkspaceUi.text(app,names[i],14,kind.equals(value));tab.setGravity(Gravity.CENTER);tab.setOnClickListener(v->{kind=value;show();});tab.setFocusable(true);tab.setSelected(kind.equals(value));LinearLayout slot=WorkspaceUi.column(app);slot.addView(tab,new LinearLayout.LayoutParams(-1,app.dp(46)));View line=new View(app);line.setBackgroundColor(kind.equals(value)?Design.ACCENT():Design.SOFT());slot.addView(line,new LinearLayout.LayoutParams(-1,app.dp(2)));if(kind.equals(value))tab.setTextColor(Design.ACCENT());filters.addView(slot,new LinearLayout.LayoutParams(0,app.dp(48),1));}
         content.addView(filters);WorkspaceUi.gap(content,16);
         LinearLayout actions=new LinearLayout(app);
         String type=kind.equals("xlsx")?"spreadsheet":kind.equals("image")?"image":"document";
@@ -51,22 +52,34 @@ final class Workspace {
         ScrollView scroll=new ScrollView(app);list=WorkspaceUi.column(app);scroll.addView(list);content.addView(scroll,new LinearLayout.LayoutParams(-1,0,1));refresh();
     }
     void refresh(){
+        if(closed)return;
         if(people!=null){people.refresh();return;}if(list==null||section.equals("Settings"))return;
         final int token=generation;
         app.background.submit(()->{
             List<Entry> result=new ArrayList<>();
             for(NoteStore.Branch b:app.store.lately(500)){
                 NoteStore.Note n=app.store.get(b.id);if(n==null)continue;
-                RichDocument d=RichDocument.read(n.body);result.add(new Entry(n,d==null?"docx":d.kind,app.store.sharedAtAll(NoteStore.Branch.Kind.PAGE,n.id)));
+                RichDocument d=RichDocument.read(n.body);Entry entry=new Entry(n,d==null?"docx":d.kind,app.store.sharedAtAll(NoteStore.Branch.Kind.PAGE,n.id));
+                if(d==null)entry.preview=n.body==null?"":n.body.substring(0,Math.min(600,n.body.length()));
+                else if(result.size()<4&&d.kind.equals("docx")&&d.heads.size()==1){NoteStore.Held file=app.store.file(d.heads.values().iterator().next());if(file!=null)try{entry.preview=DocumentPreview.text(app.store.bytesOf(file));}catch(Exception unavailable){}}
+                result.add(entry);
             }
             return result;
         },found->{if(token!=generation)return;entries=found;render();},e->{if(token==generation){list.removeAllViews();list.addView(WorkspaceUi.note(app,"Could not read your documents. Try again."));list.addView(WorkspaceUi.button(app,"Retry",false,this::refresh));}});
     }
     private void render(){
-        if(list==null)return;list.removeAllViews();String needle=query.trim().toLowerCase(Locale.ROOT);int shown=0;
+        if(list==null)return;list.removeAllViews();String needle=query.trim().toLowerCase(Locale.ROOT);int shown=0;LinearLayout previews=null;
         for(Entry entry:entries){
             if(!kind.isEmpty()&&!kind.equals(entry.kind)||section.equals("Shared")&&!entry.shared)continue;
             String name=entry.note.heading();if(!name.toLowerCase(Locale.ROOT).contains(needle))continue;shown++;
+            if(shown<=2&&entry.kind.equals("docx")){
+                if(previews==null){previews=new LinearLayout(app);list.addView(previews);WorkspaceUi.gap(list,16);}
+                LinearLayout card=WorkspaceUi.column(app),paper=WorkspaceUi.column(app);paper.setPadding(app.dp(14),app.dp(20),app.dp(14),app.dp(14));paper.setBackground(WorkspaceUi.surface(app,Design.WHITE(),Design.SOFT()));
+                TextView title=WorkspaceUi.text(app,name,16,true);title.setMaxLines(3);paper.addView(title);WorkspaceUi.gap(paper,12);
+                TextView text=WorkspaceUi.text(app,entry.preview.isEmpty()?"Word document\nOpen to edit":entry.preview,11,false);text.setLineSpacing(0,1.3f);text.setMaxLines(8);paper.addView(text,new LinearLayout.LayoutParams(-1,0,1));
+                card.addView(paper,new LinearLayout.LayoutParams(-1,app.dp(210)));WorkspaceUi.gap(card,10);TextView label=WorkspaceUi.text(app,name,14,true);label.setMaxLines(2);card.addView(label);card.addView(WorkspaceUi.note(app,entry.shared?"Shared document":"On this device"));
+                card.setOnClickListener(v->open(entry.note));card.setFocusable(true);card.setContentDescription("Open "+name);LinearLayout.LayoutParams place=new LinearLayout.LayoutParams(0,-2,1);place.setMargins(0,0,app.dp(10),0);previews.addView(card,place);continue;
+            }
             LinearLayout row=new LinearLayout(app);row.setGravity(Gravity.CENTER_VERTICAL);row.setPadding(0,app.dp(12),0,app.dp(12));row.setMinimumHeight(app.dp(94));
             TextView mark=WorkspaceUi.text(app,entry.kind.equals("xlsx")?"XLSX":entry.kind.equals("image")?"IMG":"DOCX",11,true);mark.setGravity(Gravity.CENTER);mark.setTextColor(entry.kind.equals("xlsx")?0xFF356653:entry.kind.equals("image")?0xFF745082:0xFF305F91);mark.setBackground(WorkspaceUi.surface(app,Design.WHITE(),Design.SOFT()));row.addView(mark,new LinearLayout.LayoutParams(app.dp(58),app.dp(72)));
             LinearLayout words=WorkspaceUi.column(app);words.setPadding(app.dp(16),0,app.dp(8),0);TextView title=WorkspaceUi.text(app,name,16,true);title.setMaxLines(2);words.addView(title);WorkspaceUi.gap(words,6);
@@ -87,5 +100,5 @@ final class Workspace {
         content.addView(WorkspaceUi.note(app,"minimaDocs "+app.version()+"\nDocuments, spreadsheets and images.\nShared privately through Maxima."));
     }
     boolean back(){if(!section.equals("Files")){section="Files";show();return true;}return false;}
-    void close(){generation++;if(people!=null)people.close();}
+    void close(){closed=true;generation++;if(people!=null)people.close();}
 }

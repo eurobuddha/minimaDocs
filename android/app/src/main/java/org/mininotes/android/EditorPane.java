@@ -74,15 +74,18 @@ final class EditorPane extends Dialog {
         title.setContentDescription("Document title");bar.addView(title,new LinearLayout.LayoutParams(0,-2,1));
         TextView share=WorkspaceUi.button(app,"Share",true,()->{if(!ready||saving){app.toast("Wait for the editor to finish.");return;}if(source==null||dirty){shareAfterSave=true;requestSave();}else app.shareDocument(noteId,title.getText().toString());});bar.addView(share,new LinearLayout.LayoutParams(app.dp(84),app.dp(48)));
         root.addView(bar);root.addView(Design.softRule(app));
-        status=Design.note(app,"Opening editor…");status.setPadding(app.dp(14),app.dp(8),app.dp(14),app.dp(8));status.setAccessibilityLiveRegion(android.view.View.ACCESSIBILITY_LIVE_REGION_POLITE);root.addView(status);
+        status=Design.note(app,"Opening editor…");status.setPadding(app.dp(14),app.dp(8),app.dp(14),app.dp(8));status.setAccessibilityLiveRegion(android.view.View.ACCESSIBILITY_LIVE_REGION_POLITE);
+        LinearLayout statusLine=new LinearLayout(app);statusLine.setGravity(Gravity.CENTER_VERTICAL);statusLine.addView(status,new LinearLayout.LayoutParams(0,-2,1));
+        TextView exportTop=WorkspaceUi.button(app,"Export",false,()->{});exportTop.setOnClickListener(this::exportMenu);statusLine.addView(exportTop,new LinearLayout.LayoutParams(app.dp(76),app.dp(44)));
+        TextView fileTop=WorkspaceUi.button(app,"File",false,()->{});fileTop.setOnClickListener(this::menu);statusLine.addView(fileTop,new LinearLayout.LayoutParams(app.dp(62),app.dp(44)));root.addView(statusLine);
         LinearLayout actions=new LinearLayout(app);actions.setPadding(app.dp(12),0,app.dp(12),app.dp(6));
         save=WorkspaceUi.button(app,"Save",false,this::requestSave);save.setEnabled(false);actions.addView(save,new LinearLayout.LayoutParams(0,app.dp(44),1));
         TextView export=WorkspaceUi.button(app,"Export",false,()->{});export.setOnClickListener(this::menu);actions.addView(export,new LinearLayout.LayoutParams(0,app.dp(44),1));
-        TextView more=WorkspaceUi.button(app,"File options",false,()->{});more.setOnClickListener(this::menu);actions.addView(more,new LinearLayout.LayoutParams(0,app.dp(44),1));root.addView(actions);
+        TextView more=WorkspaceUi.button(app,"File options",false,()->{});more.setOnClickListener(this::menu);actions.addView(more,new LinearLayout.LayoutParams(0,app.dp(44),1));if(!kind.equals("docx"))root.addView(actions);
         web=new WebView(app);configureWeb();root.addView(web,new LinearLayout.LayoutParams(-1,0,1));
         setContentView(root);setCanceledOnTouchOutside(false);
         Window window=getWindow();
-        if(window!=null){window.setLayout(-1,-1);window.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE);if(PhoneLock.locked(app))window.addFlags(WindowManager.LayoutParams.FLAG_SECURE);window.setBackgroundDrawable(Design.rect(Design.PAPER()));}
+        if(window!=null){window.setLayout(-1,-1);window.clearFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND);window.setStatusBarColor(Design.PAPER());window.setNavigationBarColor(Design.PAPER());window.getDecorView().setSystemUiVisibility(android.view.View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR|android.view.View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR);window.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE);if(PhoneLock.locked(app))window.addFlags(WindowManager.LayoutParams.FLAG_SECURE);window.setBackgroundDrawable(Design.rect(Design.PAPER()));}
         storage.submit(()->{
             if(!PhoneLock.open(app))throw new IllegalStateException("Unlock your notebook first.");
             JSONObject config=new JSONObject().put("kind",kind);
@@ -137,6 +140,7 @@ final class EditorPane extends Dialog {
     private void menu(android.view.View anchor) {
         if(!ready||saving){app.toast("Wait for the editor to finish.");return;}
         android.widget.PopupMenu menu=new android.widget.PopupMenu(app,anchor);
+        if(!readOnly)menu.getMenu().add("Save now").setOnMenuItemClickListener(item->{requestSave();return true;});
         menu.getMenu().add("Export to phone").setOnMenuItemClickListener(item->{exportAfterSave=true;if(dirty||source==null)requestSave();else{exportAfterSave=false;app.exportFile(source);}return true;});
         menu.getMenu().add(kind.equals("image")?"Export PNG":"Export PDF").setOnMenuItemClickListener(item->{
             saving=true;exporting=true;save.setEnabled(false);status.setText("Preparing export…");
@@ -146,6 +150,12 @@ final class EditorPane extends Dialog {
         menu.getMenu().add("Share document").setOnMenuItemClickListener(item->{if(source==null||dirty)app.toast("Save the document before sharing.");else app.shareDocument(noteId,title.getText().toString());return true;});
         menu.getMenu().add("Close without saving").setOnMenuItemClickListener(item->{new AlertDialog.Builder(app).setTitle("Discard unsaved edits?").setMessage("The last saved version will remain.").setNegativeButton("Keep editing",null).setPositiveButton("Discard",(d,w)->{if(!saving)dismiss();}).show();return true;});
         menu.show();
+    }
+    private void exportMenu(android.view.View anchor){
+        if(!ready||saving){app.toast("Wait for the editor to finish.");return;}
+        android.widget.PopupMenu menu=new android.widget.PopupMenu(app,anchor);
+        menu.getMenu().add("Export "+(kind.equals("docx")?"Word (.docx)":kind.equals("xlsx")?"Excel (.xlsx)":"layered image")).setOnMenuItemClickListener(item->{exportAfterSave=true;if(dirty||source==null)requestSave();else{exportAfterSave=false;app.exportFile(source);}return true;});
+        menu.getMenu().add(kind.equals("image")?"Export PNG":"Export PDF").setOnMenuItemClickListener(item->{saving=true;exporting=true;save.setEnabled(false);status.setText("Preparing export…");web.evaluateJavascript("minimaDocsExport("+JSONObject.quote(kind.equals("image")?"PNG":"PDF")+")",null);return true;});menu.show();
     }
     @Override public void onBackPressed() {
         if(!ready||readOnly||(!dirty&&!saving)){dismiss();return;}
@@ -163,8 +173,8 @@ final class EditorPane extends Dialog {
         if(!conflictReview){saveCopy();return;}
         new AlertDialog.Builder(app).setTitle("Use this version?")
             .setMessage("This replaces the concurrent versions you opened with the document shown here. Save a separate copy from the menu to keep them all.")
-            .setNegativeButton("Keep reviewing",(d,w)->{closeAfterSave=false;exportAfterSave=false;})
-            .setOnCancelListener(d->{closeAfterSave=false;exportAfterSave=false;})
+            .setNegativeButton("Keep reviewing",(d,w)->{closeAfterSave=false;exportAfterSave=false;shareAfterSave=false;})
+            .setOnCancelListener(d->{closeAfterSave=false;exportAfterSave=false;shareAfterSave=false;})
             .setPositiveButton("Use this version",(d,w)->{conflictReview=false;saveCopy();}).show();
     }
 

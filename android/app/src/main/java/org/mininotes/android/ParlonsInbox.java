@@ -12,6 +12,9 @@ public final class ParlonsInbox extends BroadcastReceiver {
     private static final java.util.concurrent.ExecutorService worker=java.util.concurrent.Executors.newSingleThreadExecutor();
     private static final long WEEK=7L*24*60*60*1000;
     static volatile Runnable changed;
+    private static final java.util.Set<Runnable> listeners=new java.util.concurrent.CopyOnWriteArraySet<>();
+    static void watch(Runnable listener){listeners.add(listener);}
+    static void unwatch(Runnable listener){listeners.remove(listener);}
     @Override public void onReceive(Context context,Intent intent) {
         if(intent==null||!(MaximaConnection.TRANSPORT+".DELIVER").equals(intent.getAction())
                 ||!MaximaConnection.APPLICATION.equals(intent.getStringExtra("application"))
@@ -19,7 +22,7 @@ public final class ParlonsInbox extends BroadcastReceiver {
         final String wire=intent.getStringExtra("data"),from=intent.getStringExtra("from");
         if(!ParlonsContact.key(from)||wire==null||wire.length()>Pairing.MOST*8+2)return;
         final PendingResult pending=goAsync();final Context app=context.getApplicationContext();
-        worker.execute(()->{try{if(keep(app,from,ParlonsContact.invitation(wire)))Listening.invitation(app);Runnable listener=changed;if(listener!=null)listener.run();}
+        worker.execute(()->{try{if(keep(app,from,ParlonsContact.invitation(wire)))Listening.invitation(app);Runnable listener=changed;if(listener!=null)listener.run();for(Runnable action:listeners)action.run();}
             catch(Exception invalid){/* Untrusted or unwritable invitations do not alter the notebook. */}finally{pending.finish();}});
     }
     static final class Invitation {

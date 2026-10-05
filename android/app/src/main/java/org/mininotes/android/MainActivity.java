@@ -113,10 +113,21 @@ public final class MainActivity extends Activity {
     private Workspace workspace;
     void workspaceShell(){
         zoom=1f;usePaper(FIRST_PAPER);shelves=true;active=null;carrying=null;
+        if(trail.isEmpty())trail.add(new Step(NoteStore.Branch.Kind.LIBRARY,Sharing.EVERYTHING,"Files"));
         shell();getWindow().getDecorView().setSystemUiVisibility(View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR|View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR);
     }
-    void workspaceSettings(){settings();}
-    void workspaceNetwork(){profile();}
+    void workspaceSettings(){
+        LinearLayout body=inside();final AlertDialog[] box={null};securityInto(body,box);
+        body.addView(WorkspaceUi.button(this,"Export backup",false,()->pick(EXPORT)));
+        body.addView(WorkspaceUi.button(this,"Import backup",false,()->pick(IMPORT)));
+        box[0]=new Box().setTitle("Security and backups").setView(scrolling(body)).setNegativeButton("Done",null).show();
+    }
+    void workspaceNetwork(){
+        LinearLayout body=inside();body.addView(WorkspaceUi.text(this,"Maxima transport",22,true));
+        body.addView(WorkspaceUi.note(this,"Saved document updates travel through this device's Maxima connection. Parlons supplies your contacts and sends invitations."));
+        body.addView(switchRow("Send saved updates automatically",syncAfter()>=0,on->setSyncAfter(on?3:NoteStore.WHEN_ASKED)));
+        relaysInto(body);new Box().setTitle("Connection settings").setView(scrolling(body)).setNegativeButton("Done",null).show();
+    }
     MaximaConnection parlonsConnection(){if(transport==null)transport=new MaximaConnection(this);return transport;}
     void acceptParlonsInvitation(String line){readPairing(line,false);}
     void chooseDocumentImport(String kind){
@@ -173,7 +184,8 @@ public final class MainActivity extends Activity {
     }
     void documentSaved(String id){filesChanged(NoteStore.Branch.Kind.PAGE,id);refresh();}
     void documentClosed(EditorPane pane){if(editor==pane)editor=null;refresh();}
-    void shareDocument(String id,String name){new DocumentSharingPane(this,id,name).show();}
+    private DocumentSharingPane documentSharing;
+    void shareDocument(String id,String name){if(documentSharing!=null)documentSharing.dismiss();documentSharing=new DocumentSharingPane(this,id,name);documentSharing.show();}
     private void openDocument(NoteStore.Note note) {
         withDocumentFile(note,(kind,file)->editDocument(kind,file));
     }
@@ -1816,7 +1828,6 @@ public final class MainActivity extends Activity {
         if(state==null)handler.post(this::lookQuietly);
         // The icon set, read once off this thread before anything draws a face: opened straight into a note, the note's
         // bar asked for it first, on this thread, and the page came up a beat late while 420 KB of path data was read.
-        background.submit(()->{Icons.all();return null;},done->{},e->{/* drawn as the default until it is read */});
         // Opened from the notification that files came, or that somebody wants to send some: the drop box.
         if(state==null&&getIntent()!=null&&getIntent().getBooleanExtra(Listening.RECEIVED,false))handler.post(this::openDropBox);
         final String id=tapped!=null&&!tapped.isEmpty()?tapped:state!=null?state.getString("note")
@@ -4947,6 +4958,7 @@ public final class MainActivity extends Activity {
      * what tapping away means everywhere else in this app.
      */
     @Override public boolean dispatchTouchEvent(MotionEvent event) {
+        if(workspace!=null)return super.dispatchTouchEvent(event);
         keptNameOnTouchOutside(event);
         // Begun on Home's pages, two fingers are Home's own pinch, which shrinks the pages to see them all; the whole pad's
         // zoom below only ever makes things bigger, and would take the fingers from it.
@@ -7935,7 +7947,7 @@ public final class MainActivity extends Activity {
         Intent i=new Intent(request==EXPORT?Intent.ACTION_CREATE_DOCUMENT:Intent.ACTION_OPEN_DOCUMENT)
             .addCategory(Intent.CATEGORY_OPENABLE);
         if(request==EXPORT) {
-            i.setType("application/zip");i.putExtra(Intent.EXTRA_TITLE,"mininotes-backup.zip");
+            i.setType("application/zip");i.putExtra(Intent.EXTRA_TITLE,"minimaDocs-backup.zip");
         } else {
             // A backup is a zip now; the ones written before files existed are plain text, and still read.
             i.setType("*/*");
@@ -8715,9 +8727,10 @@ public final class MainActivity extends Activity {
     // screen: a note arriving a minute after the pad was put away is written into the same notebook.
     /** Said by the file worker, off this thread, whenever a note's files change here. */
     private final java.util.function.Consumer<String> filesMoved=note->handler.post(()->{
+        if(editor!=null)editor.remoteChanged();if(workspace!=null)workspace.refresh();
         if(active!=null&&active.id.equals(note)&&!shelves){showFiles();askWhatIsOwed();}
     });
-    @Override protected void onDestroy(){if(workspace!=null)workspace.close();if(parlons!=null)parlons.close();if(transport!=null)transport.close();if(editor!=null)editor.dismiss();handler.removeCallbacksAndMessages(null);if(Post.filesMoved==filesMoved)Post.filesMoved=null;if(lockedOut){super.onDestroy();return;}
+    @Override protected void onDestroy(){if(workspace!=null)workspace.close();if(documentSharing!=null)documentSharing.dismiss();if(parlons!=null)parlons.close();if(transport!=null)transport.close();if(editor!=null)editor.dismiss();handler.removeCallbacksAndMessages(null);if(Post.filesMoved==filesMoved)Post.filesMoved=null;if(lockedOut){super.onDestroy();return;}
         background.submit(()->{if(core!=null)core.close();return null;},done->{},e->{});
         network.abandon();chores.abandon();lookout.abandon();background.close();super.onDestroy();}
 

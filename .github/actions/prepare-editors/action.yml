@@ -22,6 +22,9 @@ runs:
       working-directory: android/build/office-engine
       run: |
         pnpm install --frozen-lockfile
+        node ../../../scripts/customize-office.mjs .
+        pnpm exec playwright install --with-deps chromium
+        node bin/font-thumbnails.mjs
         pnpm test
         pnpm build
     - shell: bash

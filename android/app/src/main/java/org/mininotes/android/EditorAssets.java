@@ -35,11 +35,6 @@ final class EditorAssets extends WebViewClient {
         String mime=path.endsWith(".wasm.br")?"application/wasm":MimeTypes.forPath(path);
         try {
             java.io.InputStream input=context.getAssets().open(asset);
-            if(path.endsWith("/AllFonts.js")) {
-                java.io.ByteArrayOutputStream out=new java.io.ByteArrayOutputStream();try(java.io.InputStream in=input){byte[] part=new byte[8192];int n;while((n=in.read(part))!=-1)out.write(part,0,n);}
-                String register="\n;(function(){var f=window.__fonts_files,i=window.__fonts_infos;if(!f||!i||i.some(function(r){return r[0]==='Manrope';}))return;var p=f.length;f.push('manrope-regular','manrope-bold');i.push(['Manrope',p,0,-1,-1,p+1,0,-1,-1]);})();";
-                out.write(register.getBytes(java.nio.charset.StandardCharsets.UTF_8));input=new ByteArrayInputStream(out.toByteArray());
-            }
             if(mime.equals("text/html")) {
                 String html;
                 try(java.io.InputStream in=input){java.io.ByteArrayOutputStream out=new java.io.ByteArrayOutputStream();byte[] part=new byte[8192];int n;while((n=in.read(part))!=-1)out.write(part,0,n);html=out.toString("UTF-8");}

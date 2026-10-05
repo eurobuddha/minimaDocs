@@ -3,7 +3,7 @@ on:
   workflow_dispatch:
   push:
     branches: [minimadocs]
-    paths: ['.github/workflows/android-device.yml', 'scripts/android-device-check.py', 'android/app/src/**']
+    paths: ['.github/workflows/android-device.yml', 'scripts/android-device-check.py', 'scripts/customize-office.mjs', '.github/actions/prepare-editors/action.yml', 'android/app/src/**']
 permissions:
   contents: read
 jobs:
@@ -13,6 +13,16 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/prepare-editors
+      - name: Customized office assets
+        uses: actions/upload-artifact@v4
+        with:
+          name: office-manrope-overrides
+          path: |
+            android/build/office-engine/dist/assets/
+            android/build/office-engine/dist/*.html
+            android/build/office-engine/dist/sdkjs/common/AllFonts.js
+            android/build/office-engine/dist/sdkjs/common/Images/fonts_thumbnail*
+            android/build/office-engine/dist/fonts/manrope-*
       - uses: actions/checkout@v4
         with:
           repository: eurobuddha/maxima

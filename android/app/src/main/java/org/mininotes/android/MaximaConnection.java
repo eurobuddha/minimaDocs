@@ -33,6 +33,7 @@ final class MaximaConnection implements AutoCloseable {
     private final Handler handler=new Handler(Looper.getMainLooper());
     private final Map<String,Consumer<Intent>> asked=new HashMap<>();
     private Runnable contactsChanged;
+    private final java.util.Set<Runnable> contactListeners=new java.util.HashSet<>();
     private boolean closed;
 
     /** Where a reply lands. Exported because the transport addresses it by name, and empty otherwise. */
@@ -47,8 +48,10 @@ final class MaximaConnection implements AutoCloseable {
     private final BroadcastReceiver hearing=new BroadcastReceiver() {
         @Override public void onReceive(Context context,Intent intent) {
             if(intent!=null&&(TRANSPORT+".EVENT").equals(intent.getAction())
-                    &&"MAXIMACONTACTS".equals(intent.getStringExtra("event"))&&contactsChanged!=null)
-                contactsChanged.run();
+                    &&"MAXIMACONTACTS".equals(intent.getStringExtra("event"))) {
+                if(contactsChanged!=null)contactsChanged.run();
+                for(Runnable listener:new java.util.ArrayList<>(contactListeners))listener.run();
+            }
         }
     };
 
@@ -136,6 +139,8 @@ final class MaximaConnection implements AutoCloseable {
             ==android.content.pm.PackageManager.SIGNATURE_MATCH;
     }
     void changed(Runnable listener){contactsChanged=listener;}
+    void watchContacts(Runnable listener){contactListeners.add(listener);}
+    void unwatchContacts(Runnable listener){contactListeners.remove(listener);}
     void connect(Runnable done,Consumer<String> failed) {
         if(!installed()){failed.accept("Install Parlons to use its contacts.");return;}
         if(!familySigned()){failed.accept("Install minimaDocs and Parlons builds signed with the same family release key.");return;}
@@ -228,7 +233,7 @@ final class MaximaConnection implements AutoCloseable {
 
     @Override public void close() {
         if(closed)return;
-        closed=true;
+        closed=true;contactsChanged=null;contactListeners.clear();
         try{context.unregisterReceiver(hearing);}catch(Exception e){/* never registered, or already gone */}
         for(String id:asked.keySet())replies.remove(id);asked.clear();handler.removeCallbacksAndMessages(null);
     }

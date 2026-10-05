@@ -123,12 +123,21 @@ public final class DocumentInstrumentation extends Instrumentation {
             javascript(web,"document.querySelectorAll('.word-tabs button')[1].click();Array.from(document.querySelectorAll('.word-ribbon button')).find(b=>b.textContent==='Table').click();document.querySelector('#word-panel .primary').click();true");
             javascript(web,"document.querySelectorAll('.word-tabs button')[0].click();true");
             screen("workspace-word-screen.png");
+            javascript(web,"Array.from(document.querySelectorAll('.word-mobile button')).find(b=>b.textContent==='Format').click();true");
+            screen("workspace-format-screen.png");
+            javascript(web,"document.querySelector('#word-panel .done').click();document.querySelectorAll('.word-tabs button')[0].click();Array.from(document.querySelectorAll('.word-ribbon button')).find(b=>b.textContent==='Find').click();document.querySelectorAll('#word-panel input')[0].value='proof';document.querySelectorAll('#word-panel input')[1].value='verified';Array.from(document.querySelectorAll('#word-panel button')).find(b=>b.textContent==='Replace all').click();document.querySelector('#word-panel .done').click();true");
+
             // The production bridge accepts a save only after the native save action.
             java.lang.reflect.Method save=pane.getClass().getDeclaredMethod("requestSave");save.setAccessible(true);runOnMainSync(()->{try{save.invoke(pane);}catch(Exception e){throw new RuntimeException(e);}});
             NoteStore.Held source=null;until=System.currentTimeMillis()+240000;
             while(System.currentTimeMillis()<until){source=(NoteStore.Held)field(pane,"source");if(source!=null)break;Thread.sleep(500);}
             check(source!=null,"Native document save failed");byte[] bytes=app.store.bytesOf(source);String xml=zipText(bytes,"word/document.xml");
-            check(xml.contains("Manrope document proof.")&&xml.contains("A second paragraph."),"Text conversion lost content");check(xml.contains("Manrope"),"Default document font is not Manrope");check(xml.contains("w:tbl"),"Toolbar table command did not edit document");artifact("workspace-manrope.docx",bytes);
+            check(xml.contains("Manrope document verified.")&&xml.contains("A second paragraph."),"Text conversion lost content");check(xml.contains("Manrope"),"Default document font is not Manrope");check(xml.contains("w:tbl"),"Toolbar table command did not edit document");artifact("workspace-manrope.docx",bytes);
+            org.json.JSONObject config=new org.json.JSONObject().put("kind","docx").put("name","Manrope.docx").put("base64",android.util.Base64.encodeToString(bytes,android.util.Base64.NO_WRAP));
+            EditorTestActivity.Session session=new EditorTestActivity.Session(config.toString());EditorTestActivity.session=session;
+            EditorTestActivity proof=(EditorTestActivity)startActivitySync(new Intent(getTargetContext(),EditorTestActivity.class).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
+            try{check(session.ready.await(240,java.util.concurrent.TimeUnit.SECONDS),"Manrope reopen timeout");check(session.error==null,session.error);runOnMainSync(()->proof.web.evaluateJavascript("minimaDocsExport('PDF')",null));check(session.saved.await(240,java.util.concurrent.TimeUnit.SECONDS),"Manrope PDF timeout");check(session.error==null,session.error);check(session.bytes!=null&&session.bytes.length>8,"No Manrope PDF");artifact("workspace-manrope.pdf",session.bytes);}finally{runOnMainSync(proof::finish);}
+
         }finally{runOnMainSync(app::finish);waitForIdleSync();}
     }
     private void editors()throws Exception {
