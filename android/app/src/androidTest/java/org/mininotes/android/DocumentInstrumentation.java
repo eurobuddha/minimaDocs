@@ -108,6 +108,10 @@ public final class DocumentInstrumentation extends Instrumentation {
         runOnMainSync(()->web.evaluateJavascript(code,value->{answer[0]=value;latch.countDown();}));
         check(latch.await(15,java.util.concurrent.TimeUnit.SECONDS),"JavaScript inspection timed out");return answer[0];
     }
+    private void painted(android.webkit.WebView web)throws Exception {
+        java.util.concurrent.CountDownLatch done=new java.util.concurrent.CountDownLatch(1);
+        runOnMainSync(()->web.postVisualStateCallback(System.nanoTime(),new android.webkit.WebView.VisualStateCallback(){@Override public void onComplete(long id){web.postOnAnimation(()->web.postOnAnimation(done::countDown));}}));check(done.await(30,java.util.concurrent.TimeUnit.SECONDS),"Editor frame did not render");
+    }
     private static Object field(Object object,String name)throws Exception {java.lang.reflect.Field f=object.getClass().getDeclaredField(name);f.setAccessible(true);return f.get(object);}
     private void screen(String name)throws Exception {waitForIdleSync();android.graphics.Bitmap b=getUiAutomation().takeScreenshot();check(b!=null,"No screenshot");try(ByteArrayOutputStream out=new ByteArrayOutputStream()){b.compress(android.graphics.Bitmap.CompressFormat.PNG,100,out);artifact(name,out.toByteArray());}finally{b.recycle();}}
     private void workspace()throws Exception {
@@ -122,9 +126,9 @@ public final class DocumentInstrumentation extends Instrumentation {
             check("true".equals(javascript(web,"Array.from(document.querySelectorAll('.word-tabs button')).map(b=>b.textContent).join(',')==='Home,Insert,Layout,Review,View'")),"Word sections missing");
             javascript(web,"document.querySelectorAll('.word-tabs button')[1].click();Array.from(document.querySelectorAll('.word-ribbon button')).find(b=>b.textContent==='Table').click();document.querySelector('#word-panel .primary').click();true");
             javascript(web,"document.querySelectorAll('.word-tabs button')[0].click();true");
-            screen("workspace-word-screen.png");
+            painted(web);screen("workspace-word-screen.png");
             javascript(web,"Array.from(document.querySelectorAll('.word-mobile button')).find(b=>b.textContent==='Format').click();true");
-            screen("workspace-format-screen.png");
+            painted(web);screen("workspace-format-screen.png");
             javascript(web,"document.querySelector('#word-panel .done').click();document.querySelectorAll('.word-tabs button')[0].click();Array.from(document.querySelectorAll('.word-ribbon button')).find(b=>b.textContent==='Find').click();document.querySelectorAll('#word-panel input')[0].value='proof';document.querySelectorAll('#word-panel input')[1].value='verified';Array.from(document.querySelectorAll('#word-panel button')).find(b=>b.textContent==='Replace all').click();document.querySelector('#word-panel .done').click();true");
 
             // The production bridge accepts a save only after the native save action.
@@ -133,6 +137,8 @@ public final class DocumentInstrumentation extends Instrumentation {
             while(System.currentTimeMillis()<until){source=(NoteStore.Held)field(pane,"source");if(source!=null)break;Thread.sleep(500);}
             check(source!=null,"Native document save failed");byte[] bytes=app.store.bytesOf(source);String xml=zipText(bytes,"word/document.xml");
             check(xml.contains("Manrope document verified.")&&xml.contains("A second paragraph."),"Text conversion lost content");check(xml.contains("Manrope"),"Default document font is not Manrope");check(xml.contains("w:tbl"),"Toolbar table command did not edit document");artifact("workspace-manrope.docx",bytes);
+            runOnMainSync(()->((EditorPane)pane).dismiss());
+            app.background.flush(15000);waitForIdleSync();Thread.sleep(300);screen("workspace-files-screen.png");
             org.json.JSONObject config=new org.json.JSONObject().put("kind","docx").put("name","Manrope.docx").put("base64",android.util.Base64.encodeToString(bytes,android.util.Base64.NO_WRAP));
             EditorTestActivity.Session session=new EditorTestActivity.Session(config.toString());EditorTestActivity.session=session;
             EditorTestActivity proof=(EditorTestActivity)startActivitySync(new Intent(getTargetContext(),EditorTestActivity.class).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));

@@ -66,11 +66,12 @@ dependencies {
 // Fail before packaging an APK with empty editor buttons.
 tasks.register('verifyEditorAssets') {
     doLast {
-        ['editor.html','image/index.html','sdkjs/common/wasm/x2t/x2t.wasm.br','minimadocs-engines.json'].each { asset ->
+        ['editor.html','image/index.html','sdkjs/common/wasm/x2t/x2t.wasm.br','minimadocs-engines.json','fonts/manrope-regular','fonts/manrope-bold'].each { asset ->
             if (!file("src/main/assets/editors/$asset").isFile()) {
                 throw new GradleException('Offline editor assets are missing. Run node scripts/prepare-editors.cjs from the repository root first.')
             }
         }
+        if (!file('src/main/assets/editors/sdkjs/common/AllFonts.js').text.contains('"Manrope"')) throw new GradleException('Rebuild the office engine with scripts/customize-office.mjs to register Manrope.')
     }
 }
 tasks.configureEach { task ->

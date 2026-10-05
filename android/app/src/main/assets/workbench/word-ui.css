@@ -17,3 +17,7 @@ html.word-workbench,html.word-workbench body{display:flex;flex-direction:column;
 @media(max-width:600px){#word-tools{order:2;border-top:1px solid var(--rule)}.word-workbench #editor{order:1}#word-status{order:3}.word-tabs,.word-ribbon{display:none}.word-mobile{display:flex;align-items:center;justify-content:space-evenly}.word-mobile button{padding:8px 10px;border:0;background:transparent;min-height:48px}#word-panel{bottom:0;max-height:80%}}
 
 .word-return{position:fixed;right:12px;top:12px;z-index:10000;background:var(--accent)!important;color:white!important}
+
+.word-modes{order:0;display:flex;justify-content:center;gap:4px;padding:6px;background:var(--paper)}.word-modes button{border:0;background:transparent;min-height:36px;padding:6px 20px;font-size:12px}.word-modes button[aria-pressed=true]{background:#fbe8e1;color:#a32610}
+
+.comment-card{border-top:1px solid var(--rule);padding:16px 0;margin-top:16px}.comment-card button{font-size:12px;margin:4px 4px 0 0}

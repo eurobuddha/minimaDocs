@@ -21,6 +21,7 @@ final class WorkspaceUi {
         v.setBackground(Design.ripple(surface(c,primary?Design.ACCENT():Design.CARD(),primary?0:Design.SOFT())));
         v.setOnClickListener(w->action.run());v.setContentDescription(value);v.setFocusable(true);return v;
     }
+    static TextView textButton(Context c,String value,Runnable action){TextView v=button(c,value,false,action);v.setBackground(Design.ripple(Design.rect(Design.PAPER())));return v;}
     static void gap(LinearLayout parent,int dp){View v=new View(parent.getContext());parent.addView(v,new LinearLayout.LayoutParams(1,Design.dp(parent.getContext(),dp)));}
     static EditText search(Context c,String hint){EditText v=new EditText(c);v.setSingleLine(true);v.setTextSize(15);v.setTypeface(Design.sans());v.setTextColor(Design.INK());v.setHintTextColor(Design.DIM());v.setHint(hint);v.setContentDescription(hint);v.setPadding(Design.dp(c,16),0,Design.dp(c,16),0);v.setMinHeight(Design.dp(c,52));v.setBackground(surface(c,Design.WHITE(),Design.SOFT()));return v;}
     static void watch(EditText edit,Runnable changed){edit.addTextChangedListener(new android.text.TextWatcher(){public void beforeTextChanged(CharSequence s,int a,int c,int f){}public void onTextChanged(CharSequence s,int a,int b,int c){changed.run();}public void afterTextChanged(android.text.Editable e){}});}

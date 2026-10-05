@@ -23,6 +23,7 @@ final class PeoplePane {
         connectionActions=WorkspaceUi.column(app);root.addView(connectionActions);
         ScrollView scroll=new ScrollView(app);rows=WorkspaceUi.column(app);scroll.addView(rows);root.addView(scroll,new LinearLayout.LayoutParams(-1,0,1));
         LinearLayout foot=new LinearLayout(app);foot.addView(WorkspaceUi.button(app,"Open Parlons",false,this::openParlons),new LinearLayout.LayoutParams(0,app.dp(48),1));foot.addView(WorkspaceUi.button(app,"Refresh",false,this::refresh),new LinearLayout.LayoutParams(0,app.dp(48),1));root.addView(foot);
+        if(choose==null){WorkspaceUi.gap(root,8);root.addView(WorkspaceUi.button(app,"Add a Parlons contact",false,this::add));}
         connection.watchContacts(contactChange);ParlonsInbox.watch(inboxChange);
     }
     LinearLayout view(){return root;}
@@ -39,13 +40,29 @@ final class PeoplePane {
             LinearLayout row=new LinearLayout(app);row.setGravity(Gravity.CENTER_VERTICAL);row.setPadding(0,app.dp(12),0,app.dp(12));
             TextView initials=WorkspaceUi.text(app,initials(contact.name),17,true);initials.setGravity(Gravity.CENTER);initials.setTextColor(Design.WHITE());initials.setBackground(WorkspaceUi.surface(app,0xFF526B68,0));row.addView(initials,new LinearLayout.LayoutParams(app.dp(48),app.dp(48)));
             LinearLayout words=WorkspaceUi.column(app);words.setPadding(app.dp(14),0,0,0);words.addView(WorkspaceUi.text(app,contact.name,16,true));words.addView(WorkspaceUi.note(app,"From Parlons"));row.addView(words,new LinearLayout.LayoutParams(0,-2,1));
-            row.setBackground(Design.ripple(Design.rect(Design.PAPER())));row.setFocusable(true);row.setContentDescription(contact.name+", Parlons contact");row.setOnClickListener(v->{if(choose!=null)choose.accept(contact);else new android.app.AlertDialog.Builder(app).setTitle(contact.name).setMessage("Choose Share in a document to invite "+contact.name+". Contact details are managed in Parlons.").setPositiveButton("Open Parlons",(d,w)->openParlons()).setNegativeButton("Close",null).show();});rows.addView(row);rows.addView(Design.softRule(app));
+            row.setBackground(Design.ripple(Design.rect(Design.PAPER())));row.setFocusable(true);row.setContentDescription(contact.name+", Parlons contact");row.setOnClickListener(v->{if(choose!=null)choose.accept(contact);else manage(contact);});rows.addView(row);rows.addView(Design.softRule(app));
         }
         if(shown==0&&!loading){WorkspaceUi.gap(rows,18);rows.addView(WorkspaceUi.note(app,query.isEmpty()?"Your Parlons contacts will appear here once access is approved.":"No matching contacts."));}
         if(choose==null&&!invitations.isEmpty()){WorkspaceUi.gap(rows,24);rows.addView(WorkspaceUi.text(app,"Invitations",21,true));
             for(ParlonsInbox.Invitation invite:invitations){String name="Parlons contact";for(ParlonsContact c:contacts)if(c.key.equalsIgnoreCase(invite.from))name=c.name;
-                final String sender=name;WorkspaceUi.gap(rows,8);rows.addView(WorkspaceUi.button(app,"Review invitation from "+sender,false,()->app.acceptParlonsInvitation(invite.line)));}
+                final String sender=name;WorkspaceUi.gap(rows,8);rows.addView(WorkspaceUi.button(app,"Review invitation from "+sender,false,()->review(invite,sender)));}
         }
+    }
+    // Keep the existing ParlonsPane contact operations and permission checks.
+    private void add(){
+        EditText address=WorkspaceUi.search(app,"Parlons contact address");
+        android.app.AlertDialog dialog=new android.app.AlertDialog.Builder(app).setTitle("Add contact to Parlons").setView(address).setNegativeButton("Cancel",null).setPositiveButton("Add",null).create();dialog.show();
+        dialog.getButton(android.app.AlertDialog.BUTTON_POSITIVE).setOnClickListener(v->connection.connect(()->connection.addContact(address.getText().toString().trim(),()->{dialog.dismiss();refresh();app.toast("Introduction sent. The contact appears when they answer.");},why->address.setError(why)),why->address.setError(why)));
+    }
+    private void manage(ParlonsContact contact){
+        new android.app.AlertDialog.Builder(app).setTitle(contact.name).setItems(new String[]{"Open Parlons","Copy Parlons address","Remove from Parlons"},(d,which)->{
+            if(which==0)openParlons();else if(which==1){android.content.ClipboardManager clipboard=(android.content.ClipboardManager)app.getSystemService(android.content.Context.CLIPBOARD_SERVICE);if(clipboard!=null)clipboard.setPrimaryClip(android.content.ClipData.newPlainText("Parlons address",contact.address));status.setText("Address copied");}
+            else new android.app.AlertDialog.Builder(app).setTitle("Remove "+contact.name+" from Parlons?").setMessage("This removes the contact from Parlons for every linked app. Existing document access is managed separately under Share → Access & updates.").setNegativeButton("Cancel",null).setPositiveButton("Remove",(box,w)->connection.removeContact(contact,this::refresh,this::failed)).show();
+        }).setNegativeButton("Close",null).show();
+    }
+    private void review(ParlonsInbox.Invitation invitation,String sender){
+        Pairing.Said offer=Pairing.read(invitation.line);
+        new android.app.AlertDialog.Builder(app).setTitle(sender+" invited you").setMessage((offer.offer.isEmpty()?"Connect minimaDocs devices":offer.offer)+"\n\n"+offer.level.words()).setNegativeButton("Later",null).setNeutralButton("Dismiss",(d,w)->app.background.submit(()->{ParlonsInbox.dismiss(app,invitation.id);return null;},r->loadInvitations(),e->failed("Could not dismiss invitation."))).setPositiveButton("Review",(d,w)->app.acceptParlonsInvitation(invitation.line)).show();
     }
     private static String initials(String name){String[] words=name.trim().split("\\s+");String first=words.length==0||words[0].isEmpty()?"?":words[0].substring(0,words[0].offsetByCodePoints(0,1));if(words.length>1)first+=words[words.length-1].substring(0,words[words.length-1].offsetByCodePoints(0,1));return first.toUpperCase(Locale.ROOT);}
     void close(){if(closed)return;closed=true;connection.unwatchContacts(contactChange);ParlonsInbox.unwatch(inboxChange);}

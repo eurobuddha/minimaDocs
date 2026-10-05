@@ -7,6 +7,7 @@ const imageCommit='a79733eb803fc97084ef0ee4faa96b031e69e1c0';
 if(cp.execFileSync('git',['rev-parse','HEAD'],{cwd:image,encoding:'utf8'}).trim()!==imageCommit)throw Error('Image source revision differs from the reviewed revision');
 const dest=path.join(root,'android/app/src/main/assets/editors');
 if(!fs.existsSync(path.join(office,'dist/editor.html')))throw Error('Build the pinned office engine first; see .github/workflows/office-engine.yml');
+if(!fs.readFileSync(path.join(office,'dist/sdkjs/common/AllFonts.js'),'utf8').includes('"Manrope"'))throw Error('Customize and rebuild the office engine with scripts/customize-office.mjs before packaging.');
 fs.rmSync(dest,{recursive:true,force:true});
 fs.mkdirSync(dest,{recursive:true});
 fs.cpSync(path.join(office,'dist'),dest,{recursive:true});

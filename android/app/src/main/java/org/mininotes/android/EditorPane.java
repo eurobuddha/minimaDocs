@@ -65,7 +65,7 @@ final class EditorPane extends Dialog {
         super.onCreate(state);requestWindowFeature(Window.FEATURE_NO_TITLE);
         LinearLayout root=new LinearLayout(app);root.setOrientation(LinearLayout.VERTICAL);root.setBackgroundColor(Design.PAPER());
         LinearLayout bar=new LinearLayout(app);bar.setGravity(Gravity.CENTER_VERTICAL);bar.setPadding(app.dp(12),app.dp(8),app.dp(12),app.dp(8));
-        TextView back=WorkspaceUi.button(app,"Files",false,this::onBackPressed);bar.addView(back,new LinearLayout.LayoutParams(app.dp(68),app.dp(48)));
+        TextView back=WorkspaceUi.textButton(app,"Files",this::onBackPressed);bar.addView(back,new LinearLayout.LayoutParams(app.dp(68),app.dp(48)));
         title=new EditText(app);title.setSingleLine(true);title.setTypeface(Design.sansBold());title.setTextColor(Design.INK());title.setTextSize(16);
         title.setFilters(new android.text.InputFilter[]{new android.text.InputFilter.LengthFilter(100)});
         title.setText(source==null?(kind.equals("image")?"Untitled image":kind.equals("xlsx")?"Untitled sheet":"Untitled document"):source.name.replaceFirst("(?i)(\\.minimadocs-image\\.json|\\.[^.]+)$",""));
@@ -76,8 +76,8 @@ final class EditorPane extends Dialog {
         root.addView(bar);root.addView(Design.softRule(app));
         status=Design.note(app,"Opening editor…");status.setPadding(app.dp(14),app.dp(8),app.dp(14),app.dp(8));status.setAccessibilityLiveRegion(android.view.View.ACCESSIBILITY_LIVE_REGION_POLITE);
         LinearLayout statusLine=new LinearLayout(app);statusLine.setGravity(Gravity.CENTER_VERTICAL);statusLine.addView(status,new LinearLayout.LayoutParams(0,-2,1));
-        TextView exportTop=WorkspaceUi.button(app,"Export",false,()->{});exportTop.setOnClickListener(this::exportMenu);statusLine.addView(exportTop,new LinearLayout.LayoutParams(app.dp(76),app.dp(44)));
-        TextView fileTop=WorkspaceUi.button(app,"File",false,()->{});fileTop.setOnClickListener(this::menu);statusLine.addView(fileTop,new LinearLayout.LayoutParams(app.dp(62),app.dp(44)));root.addView(statusLine);
+        TextView exportTop=WorkspaceUi.textButton(app,"Export",()->{});exportTop.setOnClickListener(this::exportMenu);statusLine.addView(exportTop,new LinearLayout.LayoutParams(app.dp(76),app.dp(44)));
+        TextView fileTop=WorkspaceUi.textButton(app,"File",()->{});fileTop.setOnClickListener(this::menu);statusLine.addView(fileTop,new LinearLayout.LayoutParams(app.dp(62),app.dp(44)));root.addView(statusLine);
         LinearLayout actions=new LinearLayout(app);actions.setPadding(app.dp(12),0,app.dp(12),app.dp(6));
         save=WorkspaceUi.button(app,"Save",false,this::requestSave);save.setEnabled(false);actions.addView(save,new LinearLayout.LayoutParams(0,app.dp(44),1));
         TextView export=WorkspaceUi.button(app,"Export",false,()->{});export.setOnClickListener(this::menu);actions.addView(export,new LinearLayout.LayoutParams(0,app.dp(44),1));

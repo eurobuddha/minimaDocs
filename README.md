@@ -86,7 +86,10 @@ The reusable CI action `.github/actions/prepare-editors/action.yml` checks out,
 tests and builds the exact editor revisions before packaging Android.
 
 For a local build, build the pinned `ranuts/document` checkout with
-`pnpm install --frozen-lockfile`, `pnpm test`, and `pnpm build`. Keep its `dist/`,
+`pnpm install --frozen-lockfile`. Before testing and building, register the bundled
+Manrope fonts with `node /path/to/minimaDocs/scripts/customize-office.mjs .`,
+install the test browser with `pnpm exec playwright install chromium`, and run
+`node bin/font-thumbnails.mjs`. Then run `pnpm test` and `pnpm build`. Keep its `dist/`,
 `LICENSE` and `NOTICE` together. Then, from this repository:
 
 ```sh
@@ -100,7 +103,7 @@ The preparation script bundles the engines and decompresses the converter WASM
 for Android asset responses. Generated assets are ignored by Git; an APK build
 fails if they have not been prepared. `android/local.properties` supplies the SDK
 path. Distribution copies of installers must include their version, for example
-`minimaDocs-0.2.0-debug.apk`.
+`minimaDocs-0.3.0-debug.apk`.
 
 Local release builds reuse Parlons' `MINIMA_FAMILY_RELEASE_*` Gradle properties,
 or the existing untracked `android/keystore.properties` format.
