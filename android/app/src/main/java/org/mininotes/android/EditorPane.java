@@ -42,6 +42,9 @@ final class EditorPane extends Dialog {
     private volatile String bootstrap="{}";
     private boolean exporting,saving,ready,closed,acceptingSave;
     private ValueCallback<Uri[]> picked;
+    private String seedTitle,seedText;
+    private boolean shareAfterSave;
+    void seed(String name,String text){seedTitle=name;seedText=text==null?"":text;}
 
     EditorPane(MainActivity app,String kind,NoteStore.Held source) {
         super(app);this.app=app;this.kind=kind;this.source=source;
@@ -62,23 +65,28 @@ final class EditorPane extends Dialog {
         super.onCreate(state);requestWindowFeature(Window.FEATURE_NO_TITLE);
         LinearLayout root=new LinearLayout(app);root.setOrientation(LinearLayout.VERTICAL);root.setBackgroundColor(Design.PAPER());
         LinearLayout bar=new LinearLayout(app);bar.setGravity(Gravity.CENTER_VERTICAL);bar.setPadding(app.dp(12),app.dp(8),app.dp(12),app.dp(8));
-        TextView back=Design.inkButton(app,"←");back.setContentDescription("Close editor");back.setOnClickListener(v->onBackPressed());bar.addView(back,new LinearLayout.LayoutParams(app.dp(48),app.dp(48)));
+        TextView back=WorkspaceUi.button(app,"Files",false,this::onBackPressed);bar.addView(back,new LinearLayout.LayoutParams(app.dp(68),app.dp(48)));
         title=new EditText(app);title.setSingleLine(true);title.setTypeface(Design.sansBold());title.setTextColor(Design.INK());title.setTextSize(16);
         title.setFilters(new android.text.InputFilter[]{new android.text.InputFilter.LengthFilter(100)});
         title.setText(source==null?(kind.equals("image")?"Untitled image":kind.equals("xlsx")?"Untitled sheet":"Untitled document"):source.name.replaceFirst("(?i)(\\.minimadocs-image\\.json|\\.[^.]+)$",""));
+        if(seedTitle!=null)title.setText(seedTitle);
+        title.setBackgroundColor(android.graphics.Color.TRANSPARENT);title.setPadding(app.dp(12),0,app.dp(12),0);
         title.setContentDescription("Document title");bar.addView(title,new LinearLayout.LayoutParams(0,-2,1));
-        TextView menu=Design.inkButton(app,"⋮");menu.setContentDescription("Document actions");menu.setOnClickListener(this::menu);bar.addView(menu,new LinearLayout.LayoutParams(app.dp(48),app.dp(48)));
-        root.addView(bar);root.addView(Design.rule(app,1));
+        TextView share=WorkspaceUi.button(app,"Share",true,()->{if(!ready||saving){app.toast("Wait for the editor to finish.");return;}if(source==null||dirty){shareAfterSave=true;requestSave();}else app.shareDocument(noteId,title.getText().toString());});bar.addView(share,new LinearLayout.LayoutParams(app.dp(84),app.dp(48)));
+        root.addView(bar);root.addView(Design.softRule(app));
         status=Design.note(app,"Opening editor…");status.setPadding(app.dp(14),app.dp(8),app.dp(14),app.dp(8));status.setAccessibilityLiveRegion(android.view.View.ACCESSIBILITY_LIVE_REGION_POLITE);root.addView(status);
+        LinearLayout actions=new LinearLayout(app);actions.setPadding(app.dp(12),0,app.dp(12),app.dp(6));
+        save=WorkspaceUi.button(app,"Save",false,this::requestSave);save.setEnabled(false);actions.addView(save,new LinearLayout.LayoutParams(0,app.dp(44),1));
+        TextView export=WorkspaceUi.button(app,"Export",false,()->{});export.setOnClickListener(this::menu);actions.addView(export,new LinearLayout.LayoutParams(0,app.dp(44),1));
+        TextView more=WorkspaceUi.button(app,"File options",false,()->{});more.setOnClickListener(this::menu);actions.addView(more,new LinearLayout.LayoutParams(0,app.dp(44),1));root.addView(actions);
         web=new WebView(app);configureWeb();root.addView(web,new LinearLayout.LayoutParams(-1,0,1));
-        LinearLayout foot=new LinearLayout(app);foot.setPadding(app.dp(12),app.dp(8),app.dp(12),app.dp(10));
-        save=Design.button(app,"Save",true);save.setEnabled(false);save.setOnClickListener(v->requestSave());foot.addView(save,new LinearLayout.LayoutParams(-1,app.dp(50)));root.addView(foot);
         setContentView(root);setCanceledOnTouchOutside(false);
         Window window=getWindow();
         if(window!=null){window.setLayout(-1,-1);window.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE);if(PhoneLock.locked(app))window.addFlags(WindowManager.LayoutParams.FLAG_SECURE);window.setBackgroundDrawable(Design.rect(Design.PAPER()));}
         storage.submit(()->{
             if(!PhoneLock.open(app))throw new IllegalStateException("Unlock your notebook first.");
             JSONObject config=new JSONObject().put("kind",kind);
+            if(seedText!=null)config.put("seedText",seedText);
             if(source!=null) {
                 NoteStore.Held kept=app.store.keptFile(source.id);
                 if(kept==null||kept.bytes>Enclosure.MOST)throw new IllegalStateException("This editor opens files up to 16 MiB.");
@@ -167,7 +175,7 @@ final class EditorPane extends Dialog {
     }
     private void failed(String message){app.runOnUiThread(()->{
         if(closed)return;saving=false;acceptingSave=false;if(!exporting)dirty=true;exporting=false;closeAfterSave=false;exportAfterSave=false;
-        save.setEnabled(ready&&!readOnly);status.setText(message==null?"Could not save. Your previous version is safe.":message);
+        shareAfterSave=false;save.setEnabled(ready&&!readOnly);status.setText(message==null?"Could not save. Your previous version is safe.":message);
         lastSaved=android.os.SystemClock.elapsedRealtime();
     });}
 
@@ -200,6 +208,7 @@ final class EditorPane extends Dialog {
                     interval=Math.min(180_000,Math.max(30_000,(lastSaved-saveStarted)*300));save.setEnabled(!readOnly);
                     status.setText(result.current.heads.size()>1?"Concurrent versions kept · Reopen to review":dirty?"Unsaved changes · Autosave on":"Saved on this phone · Autosave on");
                     if(exportAfterSave){exportAfterSave=false;app.exportFile(source);}
+                    if(shareAfterSave){if(dirty)saveCopy();else{shareAfterSave=false;app.shareDocument(noteId,title.getText().toString());}}
                     if(closeAfterSave){if(dirty)saveCopy();else dismiss();}
                 },e->failed(e.getMessage()));
             });

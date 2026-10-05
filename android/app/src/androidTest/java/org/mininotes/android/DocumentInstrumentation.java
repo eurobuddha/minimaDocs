@@ -35,6 +35,7 @@ public final class DocumentInstrumentation extends Instrumentation {
     @Override public void onStart() {
         Bundle result=new Bundle();byte[] old=NoteStore.key();
         try {
+            if(mode.equals("workspace")){workspace();result.putString("stream","PASS: document workspace, Word controls, Manrope DOCX save and native screenshots\n");finish(-1,result);return;}
             if(mode.equals("editors")){editors();result.putString("stream","PASS: packaged Android DOCX/XLSX imports, round trips, PDF and layered PNG export\n");finish(-1,result);return;}
             if(mode.startsWith("parlons")){parlons();result.putString("stream","PASS: real Parlons registration and contacts IPC\n");finish(-1,result);return;}
             NoteStore.unlock(null);
@@ -101,6 +102,34 @@ public final class DocumentInstrumentation extends Instrumentation {
         boolean completed=latch.await(30,java.util.concurrent.TimeUnit.SECONDS);
         runOnMainSync(()->client[0].close());check(completed,"Parlons IPC timeout");if(mode.equals("parlons-pending"))check(error[0]!=null&&error[0].startsWith("Approve minimaDocs"),"Expected Parlons approval gate: "+error[0]);
         else check(error[0]==null,"Parlons IPC: "+error[0]);
+    }
+    private String javascript(android.webkit.WebView web,String code)throws Exception {
+        java.util.concurrent.CountDownLatch latch=new java.util.concurrent.CountDownLatch(1);String[] answer={null};
+        runOnMainSync(()->web.evaluateJavascript(code,value->{answer[0]=value;latch.countDown();}));
+        check(latch.await(15,java.util.concurrent.TimeUnit.SECONDS),"JavaScript inspection timed out");return answer[0];
+    }
+    private static Object field(Object object,String name)throws Exception {java.lang.reflect.Field f=object.getClass().getDeclaredField(name);f.setAccessible(true);return f.get(object);}
+    private void screen(String name)throws Exception {waitForIdleSync();android.graphics.Bitmap b=getUiAutomation().takeScreenshot();check(b!=null,"No screenshot");try(ByteArrayOutputStream out=new ByteArrayOutputStream()){b.compress(android.graphics.Bitmap.CompressFormat.PNG,100,out);artifact(name,out.toByteArray());}finally{b.recycle();}}
+    private void workspace()throws Exception {
+        check(android.os.Build.FINGERPRINT.contains("generic")||android.os.Build.MODEL.contains("sdk"),"Workspace fixtures require a disposable emulator");
+        MainActivity app=(MainActivity)startActivitySync(new Intent(getTargetContext(),MainActivity.class).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
+        try {
+            check(field(app,"workspace")!=null,"Legacy launcher opened");screen("workspace-screen.png");
+            runOnMainSync(()->{NoteStore.Note text=new NoteStore.Note();text.title="Manrope review";text.body="Manrope document proof.\nA second paragraph.";app.openWorkspaceDocument(text);});
+            Object pane=field(app,"editor");android.webkit.WebView web=(android.webkit.WebView)field(pane,"web");
+            long until=System.currentTimeMillis()+240000;while(System.currentTimeMillis()<until){if("true".equals(javascript(web,"!!document.getElementById('word-tools')")))break;Thread.sleep(500);}
+            check("true".equals(javascript(web,"!!document.getElementById('word-tools')")),"Word toolbar never opened");
+            check("true".equals(javascript(web,"Array.from(document.querySelectorAll('.word-tabs button')).map(b=>b.textContent).join(',')==='Home,Insert,Layout,Review,View'")),"Word sections missing");
+            javascript(web,"document.querySelectorAll('.word-tabs button')[1].click();Array.from(document.querySelectorAll('.word-ribbon button')).find(b=>b.textContent==='Table').click();document.querySelector('#word-panel .primary').click();true");
+            javascript(web,"document.querySelectorAll('.word-tabs button')[0].click();true");
+            screen("workspace-word-screen.png");
+            // The production bridge accepts a save only after the native save action.
+            java.lang.reflect.Method save=pane.getClass().getDeclaredMethod("requestSave");save.setAccessible(true);runOnMainSync(()->{try{save.invoke(pane);}catch(Exception e){throw new RuntimeException(e);}});
+            NoteStore.Held source=null;until=System.currentTimeMillis()+240000;
+            while(System.currentTimeMillis()<until){source=(NoteStore.Held)field(pane,"source");if(source!=null)break;Thread.sleep(500);}
+            check(source!=null,"Native document save failed");byte[] bytes=app.store.bytesOf(source);String xml=zipText(bytes,"word/document.xml");
+            check(xml.contains("Manrope document proof.")&&xml.contains("A second paragraph."),"Text conversion lost content");check(xml.contains("Manrope"),"Default document font is not Manrope");check(xml.contains("w:tbl"),"Toolbar table command did not edit document");artifact("workspace-manrope.docx",bytes);
+        }finally{runOnMainSync(app::finish);waitForIdleSync();}
     }
     private void editors()throws Exception {
         for(String kind:new String[]{"docx","xlsx","image"}) {

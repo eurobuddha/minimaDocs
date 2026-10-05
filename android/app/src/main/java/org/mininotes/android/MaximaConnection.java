@@ -141,7 +141,7 @@ final class MaximaConnection implements AutoCloseable {
         if(!familySigned()){failed.accept("Install minimaDocs and Parlons builds signed with the same family release key.");return;}
         ask(REGISTER,null,r->{
             if(r==null){failed.accept("Parlons did not answer. Open it and try again.");return;}
-            if(!r.getBooleanExtra(EXTRA_ENABLED,false)){failed.accept("Approve minimaDocs in Parlons → Settings → Connected apps, then return here.");return;}
+            if(!r.getBooleanExtra(EXTRA_ENABLED,false)){failed.accept("Approve minimaDocs in Parlons → Settings → Apps using Maxima, then return here.");return;}
             ask(TRANSPORT+".SUBSCRIBE",i->i.putExtra("application",APPLICATION),reply->{
                 if(!okay(reply,failed))return;
                 context.getSharedPreferences("parlons",Context.MODE_PRIVATE).edit().putBoolean("connected",true).apply();

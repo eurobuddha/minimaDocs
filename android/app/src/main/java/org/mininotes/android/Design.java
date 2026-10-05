@@ -29,8 +29,8 @@ public final class Design {
     private Design() {}
 
     public static void load(Context c) {
-        if (sSans == null) { try { sSans = c.getResources().getFont(R.font.inter); } catch (Exception ignored) {} }
-        if (sMono == null) { try { sMono = c.getResources().getFont(R.font.jetbrains_mono); } catch (Exception ignored) {} }
+        if (sSans == null) { try { sSans = c.getResources().getFont(R.font.manrope); } catch (Exception ignored) {} }
+        sMono = sSans;
         try {
             sReducedMotion = Settings.Global.getFloat(c.getContentResolver(),
                     Settings.Global.ANIMATOR_DURATION_SCALE, 1f) == 0f;

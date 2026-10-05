@@ -31,13 +31,19 @@ final class EditorAssets extends WebViewClient {
         if(path.endsWith("/sw.js")||path.endsWith("/document_editor_service_worker.js"))return refused(404,"Not Found");
         if(path.equals("/editor"))path="/editor.html";
         String asset=path.startsWith("/workbench/")?path.substring(1):"editors"+path;
+        if(path.equals("/fonts/manrope-regular")||path.equals("/fonts/manrope-bold"))asset="workbench/fonts/"+path.substring(path.lastIndexOf('/')+1);
         String mime=path.endsWith(".wasm.br")?"application/wasm":MimeTypes.forPath(path);
         try {
             java.io.InputStream input=context.getAssets().open(asset);
+            if(path.endsWith("/AllFonts.js")) {
+                java.io.ByteArrayOutputStream out=new java.io.ByteArrayOutputStream();try(java.io.InputStream in=input){byte[] part=new byte[8192];int n;while((n=in.read(part))!=-1)out.write(part,0,n);}
+                String register="\n;(function(){var f=window.__fonts_files,i=window.__fonts_infos;if(!f||!i||i.some(function(r){return r[0]==='Manrope';}))return;var p=f.length;f.push('manrope-regular','manrope-bold');i.push(['Manrope',p,0,-1,-1,p+1,0,-1,-1]);})();";
+                out.write(register.getBytes(java.nio.charset.StandardCharsets.UTF_8));input=new ByteArrayInputStream(out.toByteArray());
+            }
             if(mime.equals("text/html")) {
                 String html;
                 try(java.io.InputStream in=input){java.io.ByteArrayOutputStream out=new java.io.ByteArrayOutputStream();byte[] part=new byte[8192];int n;while((n=in.read(part))!=-1)out.write(part,0,n);html=out.toString("UTF-8");}
-                html=html.replaceFirst("(?i)<head>","<head><script src=\"/workbench/memory-storage.js\"></script>");
+                html=html.replaceFirst("(?i)<head>","<head><script src=\"/workbench/memory-storage.js\"></script><link rel=\"stylesheet\" href=\"/workbench/typography.css\">");
                 input=new ByteArrayInputStream(html.getBytes(java.nio.charset.StandardCharsets.UTF_8));
             }
             WebResourceResponse answer=new WebResourceResponse(mime,MimeTypes.isText(mime)?"UTF-8":null,input);

@@ -1,7 +1,7 @@
 <resources>
     <!-- The light paper, as the app draws it. The phone's own setting decides between this and values-night. -->
     <style name="AppTheme" parent="android:style/Theme.Material.Light.NoActionBar">
-        <item name="android:fontFamily">@font/inter</item>
+        <item name="android:fontFamily">@font/manrope</item>
         <item name="android:colorAccent">#E63312</item>
         <item name="android:colorBackground">#F2F1EC</item>
         <item name="android:textColorPrimary">#111111</item>
@@ -17,7 +17,7 @@
     </style>
 
     <style name="PadBox" parent="android:style/Theme.Material.Light.Dialog.Alert">
-        <item name="android:fontFamily">@font/inter</item>
+        <item name="android:fontFamily">@font/manrope</item>
         <item name="android:colorAccent">#E63312</item>
         <item name="android:colorBackground">#FCFBF7</item>
         <item name="android:windowBackground">@drawable/box</item>

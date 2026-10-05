@@ -2,6 +2,7 @@
 // Uses ranuts/document's documented embed API and miniPaint's actual project serializer.
 (() => {
   const config=JSON.parse(MinimaDocs.bootstrap());
+  const freshDocument=!config.base64;
   const frame=document.getElementById('editor');
   const observed=new WeakSet();
   function followInput(win) {
@@ -52,7 +53,18 @@
         }
         const api=editor.frames[i].Asc?.editor;
         if(api?.isLoadFullApi&&api.isDocumentLoadComplete) {
-          clearInterval(readyWait);readyWait=null;MinimaDocs.ready();return;
+          clearInterval(readyWait);readyWait=null;
+          if(config.kind==='docx') {
+            if(freshDocument) {
+              api.put_TextPrFontName?.('Manrope');api.put_TextPrFontSize?.(12);
+              if(config.seedText) {
+                const escaped=config.seedText.replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+                api.pluginMethod_PasteHtml('<p style="font-family:Manrope;font-size:12pt">'+escaped.replace(/\r\n|\r|\n/g,'<br>')+'</p>');delete config.seedText;
+              }
+            }
+            window.installWordUi?.(editor.frames[i],config);
+          }
+          MinimaDocs.ready();return;
         }
       }
       if(Date.now()-started>180000){clearInterval(readyWait);readyWait=null;error('The editor did not finish opening. Close it and try again.');}

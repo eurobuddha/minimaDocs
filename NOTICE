@@ -17,6 +17,10 @@ Source: https://github.com/viliusle/miniPaint/tree/a79733eb803fc97084ef0ee4faa96
 Its license is bundled as editors/image/MIT-LICENSE.txt.
 
 Katalog components and fonts reused from eurobuddha's Atelier/Salon projects.
+Manrope fonts reused from eurobuddha's Parlons Android app.
+Copyright 2019 The Manrope Project Authors (https://github.com/sharanda/manrope).
+SIL Open Font License 1.1: android/app/src/main/assets/workbench/fonts/OFL.txt.
+The office font encoding follows ranuts/document bin/font-catalog.mjs.
 Asset serving and path validation adapted from eurobuddha's PocketWeb.
 Inter and JetBrains Mono use the SIL Open Font License 1.1; their complete
 license texts ship in assets/licenses/inter.txt and jetbrains-mono.txt.

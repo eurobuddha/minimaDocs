@@ -110,6 +110,35 @@ public final class MainActivity extends Activity {
     private static final String DOWNLOAD=SOURCE.isEmpty()?"":SOURCE+"/releases/latest";
     private static final String TOO_BIG="That file is larger than 25 MB, which is more than a note will keep. Nothing was changed.";
     NoteStore store;
+    private Workspace workspace;
+    void workspaceShell(){
+        zoom=1f;usePaper(FIRST_PAPER);shelves=true;active=null;carrying=null;
+        shell();getWindow().getDecorView().setSystemUiVisibility(View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR|View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR);
+    }
+    void workspaceSettings(){settings();}
+    void workspaceNetwork(){profile();}
+    MaximaConnection parlonsConnection(){if(transport==null)transport=new MaximaConnection(this);return transport;}
+    void acceptParlonsInvitation(String line){readPairing(line,false);}
+    void chooseDocumentImport(String kind){
+        importingKind=kind;
+        try{startActivityForResult(new Intent(Intent.ACTION_OPEN_DOCUMENT).addCategory(Intent.CATEGORY_OPENABLE).setType("*/*"),IMPORT_DOCUMENT);}
+        catch(Exception missing){alert("No file picker is available.");}
+    }
+    void openWorkspaceDocument(NoteStore.Note note){
+        if(RichDocument.marked(note.body)){openDocument(note);return;}
+        if(editor!=null&&editor.isShowing())return;
+        editor=new EditorPane(this,"docx",null);editor.seed(note.heading(),note.body);editor.show();
+    }
+    void prepareDocumentInvitation(String id,String name,Sharing.Level level,Consumer<String> done,Consumer<String> failed){
+        withAddress(()->background.submit(()->{
+            if(!store.mayGive(Sharing.Scope.PAGE,id).contains(level))throw new IllegalStateException("You cannot grant this access.");
+            String address=getSharedPreferences("settings",MODE_PRIVATE).getString("address","");
+            if(!Pairing.reachable(address))throw new IllegalStateException("Maxima is still connecting. Try again once a relay is available.");
+            String line=keys().line(yourName(),address,Sharing.travelling(Sharing.Scope.PAGE,name),level,Sharing.Scope.PAGE.name(),id);
+            getSharedPreferences("offers",MODE_PRIVATE).edit().putString("PAGE:"+id,System.currentTimeMillis()+":"+level.name()).apply();
+            return line;
+        },done::accept,e->failed.accept(e.getMessage())));
+    }
     private EditorPane editor;
     void editDocument(String kind,NoteStore.Held file) {
         if(editor!=null&&editor.isShowing())return;
@@ -118,6 +147,7 @@ public final class MainActivity extends Activity {
     private static final int IMPORT_DOCUMENT=92;
     private String importingKind="";
     void documentLibrary(String kind) {
+        if(workspace!=null){workspace.library(kind);return;}
         background.submit(()->store.documents(kind),documents->{
             LinearLayout body=inside();final AlertDialog[] box={null};
             body.addView(primary("New "+(kind.equals("xlsx")?"spreadsheet":kind.equals("image")?"image":"document"),()->{box[0].dismiss();editDocument(kind,null);}));
@@ -143,7 +173,7 @@ public final class MainActivity extends Activity {
     }
     void documentSaved(String id){filesChanged(NoteStore.Branch.Kind.PAGE,id);refresh();}
     void documentClosed(EditorPane pane){if(editor==pane)editor=null;refresh();}
-    void shareDocument(String id,String name){shareSheet(Sharing.Scope.PAGE,id,name);}
+    void shareDocument(String id,String name){new DocumentSharingPane(this,id,name).show();}
     private void openDocument(NoteStore.Note note) {
         withDocumentFile(note,(kind,file)->editDocument(kind,file));
     }
@@ -1794,31 +1824,16 @@ public final class MainActivity extends Activity {
         // The size is settled before anything is drawn, so the first frame is the size the last one was
         // rather than the default caught changing.
         textSize=onRung(getSharedPreferences("settings",MODE_PRIVATE).getInt("rung",FIRST_SIZE));
-        // Which screen this is comes out of the same file, on this thread, so it is known before a single
-        // frame is drawn. It used to draw a blank page and then swap to the shelves a moment later if the
-        // shelves were where you had been, and a page nobody asked for flashing past is the app telling you
-        // it did not know where it was.
-        final boolean toShelves=(!back.isEmpty()||where==null)&&(state==null||state.getString("note")==null)
-            &&(tapped==null||tapped.isEmpty());
-        if(toShelves){trail.clear();trail.addAll(back);browse();}
-        // A blank page exists before the window takes focus, so the app draws at once rather than after a
-        // disk read. The stored page is dropped into it a moment later — and because that stored page is
-        // usually one you are coming back to read, it arrives without the keyboard.
-        else write(new NoteStore.Note());
-        background.submit(()->new Opening(textSize,
-                toShelves?null:(id!=null?store.get(id):store.latest()),store.someBook()),
-            opening->{
-                if(toShelves)return;
-                repaint();if(page!=null)page.setTextSize(pageSize());
-                if(opening.note!=null)load(opening.note);
-                else if(active!=null)active.book=opening.book;},
-            e->alert(READ_FAILED));
+        workspace=new Workspace(this);workspace.show();
+        if(tapped!=null&&!tapped.isEmpty())background.submit(()->store.get(tapped),note->{if(note!=null)workspace.open(note);},e->alert(READ_FAILED));
+
     }
 
     // ---- writing -----------------------------------------------------------------------------------------
 
     /** The whole app, most of the time: one ruled page. */
     void write(NoteStore.Note note) {
+        if(workspace!=null){workspace.open(note);return;}
         if(RichDocument.marked(note.body)){openDocument(note);return;}
         // Another note: a recording going on is kept with the one it was started in, and a sound playing stops.
         if(active==null||note.id==null||!note.id.equals(active.id)){stopRecording(null);stopPlaying();}
@@ -2045,6 +2060,7 @@ public final class MainActivity extends Activity {
     }
 
     private void load(NoteStore.Note note) {
+        if(workspace!=null){workspace.open(note);return;}
         if(edits!=saved)return;
         // At its own size before its words, so they are not drawn first at the size of the page they replace.
         active=note;saved=edits;page.setTextSize(pageSize());fill(note);
@@ -2471,6 +2487,7 @@ public final class MainActivity extends Activity {
     }
 
     void browse() {
+        if(workspace!=null){workspace.show();return;}
         stopRecording(null);stopPlaying();
         closeNote();active=null;shelves=true;keyboard(false);shell();
         if(trail.isEmpty())trail.add(new Step(NoteStore.Branch.Kind.LIBRARY,Sharing.EVERYTHING,"Home"));
@@ -4279,6 +4296,7 @@ public final class MainActivity extends Activity {
     }
 
     void refresh() {
+        if(workspace!=null){workspace.refresh();return;}
         // Home reads itself again, and any pop-up and the dock with it, each keeping its place (see HomeScreen.refresh).
         if(home!=null&&home.showing()){home.refresh();return;}
         // Whichever this level is drawn on, a read that comes back for a level you have since left is dropped.
@@ -6417,7 +6435,7 @@ public final class MainActivity extends Activity {
      * Which build this is, read from the package rather than written in the source twice. It goes up with
      * every build that leaves here, so a screen can be matched to the thing that drew it.
      */
-    private String version() {
+    String version() {
         try{return getPackageManager().getPackageInfo(getPackageName(),0).versionName;}
         catch(Exception e){return "unknown";}
     }
@@ -8683,6 +8701,7 @@ public final class MainActivity extends Activity {
     @Override protected void onSaveInstanceState(Bundle state){if(lockedOut){super.onSaveInstanceState(state);return;}save();background.flush(FLUSH_TIMEOUT);if(active!=null)state.putString("note",active.id);super.onSaveInstanceState(state);}
     @Override public void onBackPressed() {
         if(lockedOut){super.onBackPressed();return;}
+        if(workspace!=null){if(!workspace.back())super.onBackPressed();return;}
         // On Home: a menu, then the overview, then a pop-up a level at a time (see HomeScreen.back).
         if(home!=null&&home.back())return;
         if(carrying!=null){carrying=null;browse();return;}
@@ -8698,7 +8717,7 @@ public final class MainActivity extends Activity {
     private final java.util.function.Consumer<String> filesMoved=note->handler.post(()->{
         if(active!=null&&active.id.equals(note)&&!shelves){showFiles();askWhatIsOwed();}
     });
-    @Override protected void onDestroy(){if(parlons!=null)parlons.close();if(transport!=null)transport.close();if(editor!=null)editor.dismiss();handler.removeCallbacksAndMessages(null);if(Post.filesMoved==filesMoved)Post.filesMoved=null;if(lockedOut){super.onDestroy();return;}
+    @Override protected void onDestroy(){if(workspace!=null)workspace.close();if(parlons!=null)parlons.close();if(transport!=null)transport.close();if(editor!=null)editor.dismiss();handler.removeCallbacksAndMessages(null);if(Post.filesMoved==filesMoved)Post.filesMoved=null;if(lockedOut){super.onDestroy();return;}
         background.submit(()->{if(core!=null)core.close();return null;},done->{},e->{});
         network.abandon();chores.abandon();lookout.abandon();background.close();super.onDestroy();}
 
@@ -8714,6 +8733,7 @@ public final class MainActivity extends Activity {
         super.onResume();
         if(lockedOut)return;
         if(parlons!=null)parlons.refresh();
+        if(workspace!=null)workspace.refresh();
         if(sleepSwitch!=null)sleepSaid();
     }
 
