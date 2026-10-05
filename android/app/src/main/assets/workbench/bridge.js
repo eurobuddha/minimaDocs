@@ -56,10 +56,10 @@
           clearInterval(readyWait);readyWait=null;
           if(config.kind==='docx') {
             if(freshDocument) {
-              api.put_TextPrFontName?.('Manrope');api.put_TextPrFontSize?.(12);
+              api.put_TextPrFontName?.('Manrope');api.put_TextPrFontSize?.(12);api.put_PrAlign?.(1);
               if(config.seedText) {
                 const escaped=config.seedText.replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-                api.pluginMethod_PasteHtml('<p style="font-family:Manrope;font-size:12pt">'+escaped.replace(/\r\n|\r|\n/g,'<br>')+'</p>');delete config.seedText;
+                api.pluginMethod_PasteHtml('<p style="font-family:Manrope;font-size:12pt;text-align:left">'+escaped.replace(/\r\n|\r|\n/g,'<br>')+'</p>');delete config.seedText;
               }
             }
             window.installWordUi?.(editor.frames[i],config);

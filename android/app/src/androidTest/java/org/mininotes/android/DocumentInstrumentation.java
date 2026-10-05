@@ -113,7 +113,7 @@ public final class DocumentInstrumentation extends Instrumentation {
         runOnMainSync(()->web.postVisualStateCallback(System.nanoTime(),new android.webkit.WebView.VisualStateCallback(){@Override public void onComplete(long id){web.postOnAnimation(()->web.postOnAnimation(done::countDown));}}));check(done.await(30,java.util.concurrent.TimeUnit.SECONDS),"Editor frame did not render");
     }
     private static Object field(Object object,String name)throws Exception {java.lang.reflect.Field f=object.getClass().getDeclaredField(name);f.setAccessible(true);return f.get(object);}
-    private void screen(String name)throws Exception {waitForIdleSync();android.graphics.Bitmap b=getUiAutomation().takeScreenshot();check(b!=null,"No screenshot");try(ByteArrayOutputStream out=new ByteArrayOutputStream()){b.compress(android.graphics.Bitmap.CompressFormat.PNG,100,out);artifact(name,out.toByteArray());}finally{b.recycle();}}
+    private void screen(String name)throws Exception {waitForIdleSync();Thread.sleep(300);android.graphics.Bitmap b=getUiAutomation().takeScreenshot();check(b!=null,"No screenshot");try(ByteArrayOutputStream out=new ByteArrayOutputStream()){b.compress(android.graphics.Bitmap.CompressFormat.PNG,100,out);artifact(name,out.toByteArray());}finally{b.recycle();}}
     private void workspace()throws Exception {
         check(android.os.Build.FINGERPRINT.contains("generic")||android.os.Build.MODEL.contains("sdk"),"Workspace fixtures require a disposable emulator");
         MainActivity app=(MainActivity)startActivitySync(new Intent(getTargetContext(),MainActivity.class).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));

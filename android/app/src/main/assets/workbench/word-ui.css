@@ -21,3 +21,5 @@ html.word-workbench,html.word-workbench body{display:flex;flex-direction:column;
 .word-modes{order:0;display:flex;justify-content:center;gap:4px;padding:6px;background:var(--paper)}.word-modes button{border:0;background:transparent;min-height:36px;padding:6px 20px;font-size:12px}.word-modes button[aria-pressed=true]{background:#fbe8e1;color:#a32610}
 
 .comment-card{border-top:1px solid var(--rule);padding:16px 0;margin-top:16px}.comment-card button{font-size:12px;margin:4px 4px 0 0}
+
+@media(min-width:601px){.word-modes{display:none}.word-ribbon button,.word-ribbon select{padding:8px}.word-ribbon select[aria-label="Font"]{max-width:140px}.word-ribbon select[aria-label="Paragraph style"]{max-width:120px}}
