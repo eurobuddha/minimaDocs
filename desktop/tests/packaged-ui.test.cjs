@@ -41,6 +41,11 @@ test('signed Mac bundle opens its Keychain workspace and all bundled editors',{t
    console.log('Packaged editor ready:',kind);
   }
   const after=await home.evaluate(()=>docs.call('list'));assert.deepEqual(after.documents,before.documents);
+  await home.waitForFunction(async()=>{const state=await docs.call('list');return state.connection==='Maxima connected';},null,{timeout:90000});
+  const invitation=await home.evaluate(()=>docs.call('invitation',{}));
+  assert.match(invitation.link,/^minimadocs:\/\/pair\//);assert.match(invitation.qr,/^data:image\/png;base64,/);
+  const preview=await home.evaluate(text=>docs.call('preview',{text}),invitation.link);assert.ok(preview.name);assert.ok(preview.code);
+  console.log('Verified packaged Maxima connection and direct QR invitation');
   console.log('Verified real Keychain storage, packaged version',metadata.version);
  }finally{if(instance){await instance.evaluate(({BrowserWindow})=>BrowserWindow.getAllWindows().forEach(w=>w.destroy()));await instance.close();}}
 });

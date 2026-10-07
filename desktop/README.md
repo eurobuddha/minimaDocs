@@ -110,6 +110,10 @@ The original dependency archive remains unchanged.
 - `./gradlew -p ../desktop/backend transportProbe` from `android/` exercises two
   live Maxima nodes exchanging authenticated encrypted messages in both directions.
   That probe is not a complete Mac-to-Android attachment delivery test.
+- `node --test tests/live-sharing.test.cjs` from `desktop/` checks two disposable
+  Mac backends over live relays: QR invitation acceptance, exact DOCX delivery,
+  returned edits and enforcement of a remote Can view permission change. It uses
+  only the repository's synthetic Office fixture, never personal documents.
 
 Development UI tests use isolated fixture directories and an offline synthetic
 key. Packaged builds ignore that test environment switch and always use Keychain.

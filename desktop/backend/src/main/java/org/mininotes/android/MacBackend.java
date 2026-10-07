@@ -154,7 +154,7 @@ public final class MacBackend implements AutoCloseable {
         String title="",scope="";if(!id.isEmpty()){NoteStore.Note n=requireNote(id);title=n.title;scope="PAGE";if(!store.mayGive(Sharing.Scope.PAGE,id).contains(level))throw new IOException("Only the owner or an administrator can invite people.");}
         String line=keys.line(Node.nameHere(context),address(),title.isEmpty()?"":Sharing.travelling(Sharing.Scope.PAGE,title),level,scope,id);
         offers.put(id.isEmpty()?"personal":"PAGE:"+id,new Offer(level,System.currentTimeMillis()+15*60_000));
-        String link=Pairing.link(line);ByteArrayOutputStream out=new ByteArrayOutputStream();javax.imageio.ImageIO.write(DesktopQr.draw(link,480),"png",out);
+        String link=Pairing.docsLink(line);ByteArrayOutputStream out=new ByteArrayOutputStream();javax.imageio.ImageIO.write(DesktopQr.draw(link,480),"png",out);
         return new JSONObject().put("link",link).put("qr","data:image/png;base64,"+Base64.getEncoder().encodeToString(out.toByteArray()));
     }
     private JSONObject preview(String text) throws Exception {
