@@ -16,11 +16,12 @@ Keychain-protected storage and direct Maxima sharing. See the
 limits. Parlons Desktop contacts integration is pending a linked-app interface
 in Parlons Desktop.
 
-## Android 0.3.1
+## Android 0.3.2
 
 [Download the signed Android APK](https://github.com/eurobuddha/minimaDocs/releases/latest).
-Install `minimaDocs-0.3.1.apk` to update an existing installation while keeping its
+Install `minimaDocs-0.3.2.apk` to update an existing installation while keeping its
 data. The release includes a SHA-256 checksum. Android 9 or newer is required.
+Version 0.3.2 discovers Minima Core PandaBear, BlackBear and Pandamonium in the eurobuddha namespace, using normal user-granted permissions.
 
 Also available through **PandaApps**, **PandaGet**, and the **minimaCore App Store**
 using the shared [PandaApps catalogue](https://github.com/eurobuddha/minima-core-apks).
