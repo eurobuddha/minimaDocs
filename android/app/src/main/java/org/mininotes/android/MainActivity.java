@@ -7904,6 +7904,8 @@ public final class MainActivity extends Activity {
     /** Minima Core itself, opened where it stands: the switch that enables this app lives inside it. */
     private void openCore() {
         Intent open=getPackageManager().getLaunchIntentForPackage(CoreConnection.CORE);
+        if(open==null)open=getPackageManager().getLaunchIntentForPackage("com.eurobuddha.minimablock");
+        if(open==null)open=getPackageManager().getLaunchIntentForPackage("com.eurobuddha.pandamonium");
         if(open==null){alert("Minima Core is not installed on this phone.");return;}
         try{startActivity(open);}catch(Exception e){alert("Could not open Minima Core.");}
     }

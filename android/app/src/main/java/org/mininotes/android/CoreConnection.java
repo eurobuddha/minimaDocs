@@ -20,7 +20,7 @@ import java.util.function.Consumer;
  * allowed here — it is added when there is something to send it to, not before.
  */
 final class CoreConnection implements AutoCloseable {
-    static final String CORE="org.minimarex.minimacore";
+    static final String CORE="com.eurobuddha.minimacore";
     private final Context context;
     private final String appId, nodeId;
     /** True only in a build you can attach to: what the Core says about a request is then readable. */
@@ -28,6 +28,8 @@ final class CoreConnection implements AutoCloseable {
     private final Handler handler=new Handler(Looper.getMainLooper());
     private final Map<String,Consumer<String>> requests=new HashMap<>();
     private boolean closed;
+    private String nodePackage;
+    private static final String[] TARGETS = {CORE, "com.eurobuddha.minimablock", "com.eurobuddha.pandamonium"};
     private static String random() {byte[] bytes=new byte[32];new SecureRandom().nextBytes(bytes);StringBuilder b=new StringBuilder("0x");for(byte v:bytes)b.append(String.format("%02x",v&255));return b.toString();}
     CoreConnection(Context c) {
         context=c.getApplicationContext();SharedPreferences prefs=context.getSharedPreferences("core_pairing",Context.MODE_PRIVATE);
@@ -41,7 +43,11 @@ final class CoreConnection implements AutoCloseable {
     // exported by default, which is required for this cross-application API.
     @android.annotation.SuppressLint("UnspecifiedRegisterReceiverFlag")
     private void registerLegacy(IntentFilter filter) { context.registerReceiver(receiver,filter); }
-    boolean installed(){try{context.getPackageManager().getPackageInfo(CORE,0);return true;}catch(Exception e){return false;}}
+    boolean installed(){
+        for(String target:TARGETS)try{context.getPackageManager().getPackageInfo(target,0);return true;}
+        catch(android.content.pm.PackageManager.NameNotFoundException absent){}
+        return false;
+    }
     /** Whether Core will answer this app at all: registered, and the package enabled in Core's own list. */
     void answers(Consumer<Boolean> said) {
         if(!installed()){said.accept(false);return;}
@@ -129,11 +135,37 @@ final class CoreConnection implements AutoCloseable {
         if(closed)return;
         boolean reading=type.equals("CMD")&&("status".equals(command)||"maxima".equals(command));
         if(!type.equals("REGISTER")&&!reading)throw new IllegalArgumentException("Command not allowed");
-        String id=random();Intent i=new Intent(CORE+"."+type).setPackage(CORE);
+        handler.post(() -> {
+            if(closed)return;
+            if(type.equals("REGISTER")){ discover(callback); return; }
+            if(nodePackage==null){callback.accept("No unique Minima Core connection. Keep one core running and retry.");return;}
+            sendRequest(nodePackage,type,command,callback);
+        });
+    }
+    // Same register-only discovery rule as the family SDK: never fan out commands.
+    private void discover(Consumer<String> callback) {
+        nodePackage=null;
+        Map<String,String> replies=new HashMap<>();
+        java.util.List<String> ids=new java.util.ArrayList<>();
+        boolean[] finished={false};
+        for(String target:TARGETS)ids.add(sendRequest(target,"REGISTER",null,reply->{
+            if(!finished[0]&&answered(reply))replies.put(target,reply);
+        }));
+        handler.postDelayed(()->{
+            if(closed)return;
+            finished[0]=true;
+            for(String id:ids)requests.remove(id);
+            if(replies.size()==1){nodePackage=replies.keySet().iterator().next();callback.accept(replies.get(nodePackage));}
+            else callback.accept(replies.isEmpty()?"Core did not reply. Open Core and retry.":"Multiple cores replied. Keep one core running and retry.");
+        },1500);
+    }
+    private String sendRequest(String target,String type,String command,Consumer<String> callback) {
+        String id=random();Intent i=new Intent(CORE+"."+type).setPackage(target);
         i.putExtra(CORE+".PACKAGE_CLASS",context.getPackageName());i.putExtra(CORE+".APP_UID",appId);i.putExtra(CORE+".REGISTER_MINIMAID",nodeId);i.putExtra(CORE+".RESPONSE_ID",id);
         if(command!=null)i.putExtra(CORE+".CMD_ACTION",command);
         requests.put(id,callback);context.sendBroadcast(i);
         handler.postDelayed(()->{Consumer<String> pending=requests.remove(id);if(pending!=null)pending.accept("Core did not reply. Open Core, enable Mininotes, and retry.");},15000);
+        return id;
     }
     private final BroadcastReceiver receiver=new BroadcastReceiver(){@Override public void onReceive(Context c,Intent i){
         if(closed||!((CORE+".RESPONSE").equals(i.getAction()))||!nodeId.equals(i.getStringExtra(CORE+".REGISTER_MINIMAID")))return;

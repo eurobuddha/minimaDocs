@@ -2,7 +2,9 @@
     <!-- The two nodes this phone might have. Core carries the notebook's business; the Maxima transport
          carries the post, because Core's build has no Maxima in it at all. -->
     <queries>
-        <package android:name="org.minimarex.minimacore" />
+        <package android:name="com.eurobuddha.minimacore" />
+        <package android:name="com.eurobuddha.minimablock" />
+        <package android:name="com.eurobuddha.pandamonium" />
         <package android:name="com.eurobuddha.maxima.app" />
         <!-- And the two kinds of address a note can hold, so the phone will admit to having something
              that opens them. Since Android 11 an app is told about nothing it has not asked about. -->
