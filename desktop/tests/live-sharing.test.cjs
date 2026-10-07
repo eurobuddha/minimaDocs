@@ -31,8 +31,15 @@ test('two Mac backends exchange a DOCX and editable updates over live Maxima',{t
   const received=await until(()=>b.call('open',{id:saved.id}),'Recipient did not receive the document');
   assert.equal(received.readonly,false);assert.equal(received.base64,bytes.toString('base64'));
   console.log('Verified QR acceptance and exact DOCX delivery to the second Mac backend');
-  await b.call('save',{session:received.session,title:'Returned synthetic document',base64:received.base64});
+  // Keep a real OOXML file while changing its text, using the same Python ZIP
+  // packaging approach as scripts/create-office-fixtures.cjs.
+  const edit='import io,sys,zipfile\nsrc=zipfile.ZipFile(io.BytesIO(sys.stdin.buffer.read()));out=io.BytesIO()\nwith zipfile.ZipFile(out,"w") as dst:\n for item in src.infolist():\n  data=src.read(item.filename)\n  if item.filename=="word/document.xml":\n   assert b"Body text: alpha, beta, gamma." in data\n   data=data.replace(b"Body text: alpha, beta, gamma.",b"Edited on the second Mac backend.")\n  dst.writestr(item,data)\nsys.stdout.buffer.write(out.getvalue())';
+  const edited=require('node:child_process').execFileSync('python3',['-c',edit],{input:bytes,maxBuffer:16*1024*1024}).toString('base64');
+  await b.call('save',{session:received.session,title:'Returned synthetic document',base64:edited});
   await until(async()=>{const data=await a.call('list');return data.documents.some(d=>d.id===saved.id&&d.title==='Returned synthetic document');},'Edited document did not return');
+  await a.call('release',{session:opened.session});
+  const returned=await until(()=>a.call('open',{id:saved.id}),'Edited DOCX attachment did not return');
+  assert.equal(returned.base64,edited);
   const access=await a.call('access',{id:saved.id});assert.equal(access.people.length,1);assert.equal(access.people[0].level,'WRITE');
   await a.call('manage',{id:saved.id,address:access.people[0].address,level:'READ'});
   await until(async()=>{const data=await b.call('list');return data.documents.some(d=>d.id===saved.id&&d.readonly);},'Read-only permission did not arrive');
