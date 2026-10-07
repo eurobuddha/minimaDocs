@@ -24,6 +24,7 @@
     "appId": "com.eurobuddha.minimadocs.desktop",
     "productName": "minimaDocs",
     "artifactName": "minimaDocs-${version}-mac-${arch}.${ext}",
+    "afterPack": "scripts/sign-java-natives.cjs",
     "files": [
       "main/**",
       "renderer/**",

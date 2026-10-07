@@ -88,6 +88,9 @@ This signs and notarizes the app and DMG, staples their tickets, then checks the
 Developer ID signature, hardened runtime and Gatekeeper assessment. The result
 is `dist/minimaDocs-0.1.0-mac-arm64.dmg`. The version source is `package.json`;
 the backend jar reads that same version. Signing credentials are not in the repo.
+An `afterPack` hook uses electron-builder's selected certificate to sign both Mac
+SQLite libraries inside the packaged JDBC JAR before the outer app is signed.
+The original dependency archive remains unchanged.
 
 ## Architecture and verification
 
