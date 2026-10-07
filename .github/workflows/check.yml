@@ -18,6 +18,14 @@ jobs:
 
       - uses: ./.github/actions/prepare-editors
 
+      - name: Android update pointer matches the build
+        shell: bash
+        run: |
+          set -euo pipefail
+          BUILD=$(sed -n "s/.*versionName '\([^']*\)'.*/\1/p" android/app/build.gradle)
+          SAID=$(tr -d ' \r\n' < dist/latest.txt)
+          [ "$BUILD" = "$SAID" ] || { echo "::error::versionName=$BUILD but dist/latest.txt=$SAID"; exit 1; }
+
       - name: Editor bridge and transport tests
         run: node --test tests/editor-bridge.test.cjs tests/core.test.cjs
 
