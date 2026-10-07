@@ -3,6 +3,15 @@
 Android first office and image workspace, forked from Mininotes with its embedded
 Maxima messaging transport. Repository: [eurobuddha/minimaDocs](https://github.com/eurobuddha/minimaDocs), branch `minimadocs`.
 
+## macOS 0.1.0
+
+The first Mac desktop build supports Apple Silicon and macOS 13 or newer, with
+offline Docs, Sheets and Images, editable DOCX/XLSX files, native import/export,
+Keychain-protected storage and direct Maxima sharing. See the
+[Mac build and usage guide](desktop/README.md) for setup, verification and current
+limits. Parlons Desktop contacts integration is pending a linked-app interface
+in Parlons Desktop.
+
 ## Android 0.3.1
 
 [Download the signed Android APK](https://github.com/eurobuddha/minimaDocs/releases/latest).

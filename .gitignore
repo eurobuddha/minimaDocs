@@ -20,3 +20,7 @@ android/.gradle-local/
 android/app/src/main/assets/editors/
 
 __pycache__/
+desktop/backend/.gradle/
+desktop/backend/build/
+desktop/build/
+desktop/dist/

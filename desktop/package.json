@@ -1,0 +1,99 @@
+{
+  "name": "minimadocs-desktop",
+  "productName": "minimaDocs",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Offline documents, spreadsheets and images with Maxima sharing.",
+  "author": "eurobuddha",
+  "license": "GPL-3.0-or-later",
+  "main": "main/main.cjs",
+  "scripts": {
+    "start": "electron .",
+    "test": "node --test tests/assets.test.cjs",
+    "prepare:mac": "node scripts/prepare-mac.cjs",
+    "dist:mac": "electron-builder --mac --arm64",
+    "dist:mac:signed": "APPLE_KEYCHAIN_PROFILE=minimadesk npm run dist:mac && scripts/notarize-dmg.sh && scripts/verify-mac.sh",
+    "test:ui": "node --test --test-concurrency=1 tests/mac-ui.test.cjs tests/compatibility-ui.test.cjs"
+  },
+  "devDependencies": {
+    "electron": "44.6.0",
+    "electron-builder": "25.1.8",
+    "playwright-core": "1.63.0"
+  },
+  "build": {
+    "appId": "com.eurobuddha.minimadocs.desktop",
+    "productName": "minimaDocs",
+    "artifactName": "minimaDocs-${version}-mac-${arch}.${ext}",
+    "files": [
+      "main/**",
+      "renderer/**",
+      "package.json"
+    ],
+    "extraResources": [
+      {
+        "from": "backend/build/package-input",
+        "to": "backend"
+      },
+      {
+        "from": "build/runtime",
+        "to": "runtime"
+      },
+      {
+        "from": "../android/app/src/main/assets/editors",
+        "to": "editors"
+      },
+      {
+        "from": "../android/app/src/main/assets/workbench",
+        "to": "workbench"
+      },
+      {
+        "from": "../LICENSE",
+        "to": "LICENSE"
+      },
+      {
+        "from": "../NOTICE",
+        "to": "NOTICE"
+      }
+    ],
+    "protocols": [
+      {
+        "name": "minimaDocs invitation",
+        "schemes": [
+          "minimadocs"
+        ]
+      }
+    ],
+    "mac": {
+      "category": "public.app-category.productivity",
+      "icon": "build/icon.png",
+      "identity": "Developer ID Application",
+      "hardenedRuntime": true,
+      "gatekeeperAssess": false,
+      "notarize": true,
+      "entitlements": "entitlements.mac.plist",
+      "entitlementsInherit": "entitlements.mac.plist",
+      "target": [
+        {
+          "target": "dmg",
+          "arch": [
+            "arm64"
+          ]
+        }
+      ],
+      "minimumSystemVersion": "13.0"
+    },
+    "electronDist": "node_modules/electron/dist",
+    "fileAssociations": [
+      {
+        "ext": "docx",
+        "name": "Word document",
+        "role": "Editor"
+      },
+      {
+        "ext": "xlsx",
+        "name": "Excel spreadsheet",
+        "role": "Editor"
+      }
+    ]
+  }
+}

@@ -1,0 +1,99 @@
+plugins { id 'java'; id 'application' }
+version = new groovy.json.JsonSlurper().parse(file('../package.json')).version
+repositories { mavenCentral() }
+java { sourceCompatibility = JavaVersion.VERSION_17; targetCompatibility = JavaVersion.VERSION_17 }
+application { mainClass = 'org.mininotes.android.MacBackend' }
+dependencies {
+ implementation 'io.github.willena:sqlite-jdbc:3.53.4.0'
+ implementation 'org.json:json:20260719'
+ implementation 'com.google.zxing:core:3.5.3'
+ runtimeOnly 'org.slf4j:slf4j-nop:1.7.36'
+ testImplementation 'junit:junit:4.13.2'
+}
+// The Windows shared-source adapter is reused, with the Mac key protection below.
+def portable = ['Arriving','Attachment','Background','Envelope','Feedback','Find','Hello',
+    'Merge','Outbox','Pairing','Parcel','Point','Receipt','Reorder','RevisionClock','MiniwebUrl','MimeTypes',
+    'SchemaMigrations','SyncStatus','SyncMark','Sha3','Sharing','Tint','Update','Vault','Sealed','Courier','Enclosure','Direct','Nearby','Home','Relays','Given','Drop','DropList','Unsent','Persons','Recording','Linking','NoteLine','Waits','Links','Reading','Writers','Things','Carton','Overview','Grid','Layout','Icons','Thumb','Looks','RichDocument','ParlonsContact']
+def adapted = ['NoteStore','Post','Node','DocumentStore']
+def androidSource = file('../../android/app/src/main/java/org/mininotes/android')
+def generated = layout.buildDirectory.dir('generated/sources/shared')
+tasks.register('sharedSources') {
+    inputs.files((portable + adapted).collect { new File(androidSource, it + '.java') })
+    outputs.dir(generated)
+    doLast {
+        def dest = generated.get().dir('org/mininotes/android').asFile
+        dest.mkdirs()
+        (portable + adapted).each { name ->
+            def source = new File(androidSource, name + '.java').getText('UTF-8')
+            if (adapted.contains(name)) {
+                source = source.replace('net.zetetic.database.sqlcipher.', 'org.mininotes.desktop.platform.database.sqlite.')
+                    .replace('android.content.', 'org.mininotes.desktop.platform.content.')
+                    .replace('android.database.', 'org.mininotes.desktop.platform.database.')
+                    .replace('android.util.', 'org.mininotes.desktop.platform.util.')
+                if (name == 'Node') {
+                    source = source.replace('where.checkSelfPermission(android.Manifest.permission.INTERNET)', '0')
+                        .replace('org.mininotes.desktop.platform.content.pm.PackageManager.PERMISSION_GRANTED', '0')
+                        .replace('android.os.Build.MODEL', '"Mac"')
+                    source = source.replace('    private Node(){}', '    private Node(){}\n    static synchronized void retryStart(){if(node==null)tried=false;}')
+                    // The PC, and only the PC, asks its router for a public port (docs/DIRECT.md). Refused
+                    // loudly if the line has moved, rather than building a PC that quietly never asks.
+                    def pc = 'static final boolean A_PC=false;'
+                    if (!source.contains(pc)) throw new org.gradle.api.GradleException('Node.java no longer says ' + pc)
+                    source = source.replace(pc, 'static final boolean A_PC=true;')
+                }
+            }
+            new File(dest, name + '.java').setText(source, 'UTF-8')
+        }
+    }
+}
+
+tasks.register('macPlatform') {
+ inputs.dir('../../windows/src/main/java/org/mininotes/desktop/platform')
+ inputs.file('../../windows/src/main/java/org/mininotes/android/Keys.java')
+ inputs.file('../../windows/src/main/java/org/mininotes/android/DesktopQr.java')
+ outputs.dir(layout.buildDirectory.dir('generated/sources/platform'))
+ doLast {
+  def root = layout.buildDirectory.dir('generated/sources/platform').get().asFile
+  fileTree('../../windows/src/main/java/org/mininotes/desktop/platform').matching { include '**/*.java' }.each { f ->
+   def rel = file('../../windows/src/main/java').toPath().relativize(f.toPath()).toString()
+   def out = new File(root, rel); out.parentFile.mkdirs()
+   def text = f.getText('UTF-8').replace('import com.sun.jna.platform.win32.Crypt32Util;', 'import org.mininotes.android.SecretBox;').replace('Crypt32Util.', 'SecretBox.')
+   if (f.name == 'SharedPreferences.java') text=text.replace('public void apply() {', 'public boolean commit(){apply();return true;}\n        public void apply() {')
+   out.setText(text,'UTF-8')
+  }
+  ['Keys','DesktopQr'].each { name ->
+   def text=file('../../windows/src/main/java/org/mininotes/android/'+name+'.java').getText('UTF-8').replace('import com.sun.jna.platform.win32.Crypt32Util;', '').replace('Crypt32Util.', 'SecretBox.')
+   def out=new File(root,'org/mininotes/android/'+name+'.java');out.parentFile.mkdirs();out.setText(text,'UTF-8')
+  }
+ }
+}
+sourceSets {
+ main {
+  java.srcDir generated
+  java.srcDir layout.buildDirectory.dir('generated/sources/platform')
+  java.srcDir '../../android/maxima-core/src/main/java'
+  resources.srcDir '../../android/maxima-core/src/main/resources'
+  resources.srcDir '../../android/app/src/main/resources'
+ }
+ test {
+  java.srcDir '../../android/app/src/test/java'
+  java.exclude '**/QrTest.java','**/QrReadingTest.java'
+ }
+}
+tasks.named('compileJava') { dependsOn 'sharedSources','macPlatform' }
+tasks.withType(JavaCompile).configureEach { options.encoding = 'UTF-8' }
+test { maxHeapSize='384m'; testLogging { events 'failed'; exceptionFormat 'full' } }
+tasks.register('packageInput', Sync) {
+ dependsOn jar
+ from(tasks.jar); from(configurations.runtimeClasspath)
+ from('../../LICENSE'); from('../../NOTICE'); from('../../windows/THIRD-PARTY.txt')
+ from('../../windows/licenses') { into 'licenses' }
+ from('../../android/maxima-core/NOTICE') { rename { 'MAXIMA-NOTICE.txt' } }
+ into layout.buildDirectory.dir('package-input')
+}
+tasks.register('transportProbe', JavaExec) {
+ dependsOn testClasses
+ classpath=sourceSets.test.runtimeClasspath
+ mainClass='org.mininotes.android.MacTransportProbe'
+ maxHeapSize='192m'
+}

@@ -52,6 +52,7 @@ public final class SQLiteDatabase implements AutoCloseable {
         if(!lock.isHeldByCurrentThread()||transactions.isEmpty())throw new IllegalStateException("No transaction");
         transactions.pop();transactions.push(true);
     }
+    public boolean inTransaction() {return lock.isHeldByCurrentThread()&&!transactions.isEmpty();}
     public void endTransaction() {
         if(!lock.isHeldByCurrentThread()||transactions.isEmpty())throw new IllegalStateException("No transaction");
         try {
