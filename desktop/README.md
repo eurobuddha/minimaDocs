@@ -1,5 +1,7 @@
 # minimaDocs for Mac
 
+[Download the signed, notarized Mac preview](https://github.com/eurobuddha/minimaDocs/releases/tag/mac-v0.1.0).
+
 The first Mac version is **0.1.0**, for **Apple Silicon and macOS 13 or newer**.
 It uses the approved minimaDocs workspace, Manrope, and the same offline editors
 and encrypted Maxima document protocol as Android.

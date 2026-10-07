@@ -5,6 +5,10 @@ Maxima messaging transport. Repository: [eurobuddha/minimaDocs](https://github.c
 
 ## macOS 0.1.0
 
+[Download the Mac preview](https://github.com/eurobuddha/minimaDocs/releases/tag/mac-v0.1.0).
+The versioned DMG is Developer ID signed and Apple notarized; a SHA-256 checksum
+is included with the release. Open it and drag minimaDocs into Applications.
+
 The first Mac desktop build supports Apple Silicon and macOS 13 or newer, with
 offline Docs, Sheets and Images, editable DOCX/XLSX files, native import/export,
 Keychain-protected storage and direct Maxima sharing. See the
