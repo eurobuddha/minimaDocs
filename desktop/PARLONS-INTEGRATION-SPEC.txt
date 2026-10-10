@@ -1,3 +1,7 @@
+PUBLICATION UPDATE — 10 October 2026
+See PUBLICATION-2026-10-10.txt for the published artifacts and current host hashes.
+The earlier local-only status below is historical.
+
 minimaDocs / Parlons Desktop / minimaCore Desktop
 Desktop contacts and invitation integration — implementation specification
 7 October 2026

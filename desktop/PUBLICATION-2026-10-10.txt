@@ -1,0 +1,58 @@
+DESKTOP RELEASE PUBLICATION — 10 October 2026
+
+minimaDocs Mac 0.1.2
+https://github.com/eurobuddha/minimaDocs/releases/tag/mac-v0.1.2
+minimaDocs-0.1.2-mac-arm64.dmg
+SHA-256 237d5d5f524b37c7b1ea7eb4191cd31e15c67c1db97fd8c09f9abc6ed39c9d5c
+Source 510c51e; CI build-path and isolated-host test follow-up e130e78.
+GitHub Check and Android device checks both pass for e130e78.
+The public IPFS download was hashed and matches the signed installer exactly.
+
+Parlons Desktop 1.5.109
+https://github.com/eurobuddha/maxima/releases/tag/desktop-v1.5.109
+MaximaNode-1.5.109-notarized.dmg
+SHA-256 aa08b5769f43cb08eb78628c03e8668b0d2a55fcab9d8ec75a31afb9a245562e
+Source 3d3ec02b; CI Mac publication guard e6f4ff3c.
+App notarization bdefaaa0-accc-40c3-bc60-d1fcb765b6a1; DMG c26b6ce9-7f25-4dbf-bf3e-fa7b25d0c779.
+Native Windows MSI and Linux DEB builds passed in GitHub run 38060840961.
+
+Parlons Node 0.2.122
+https://github.com/eurobuddha/maxima/releases/tag/node-v0.2.122
+SHA-256 baf0194a39d79d044faeb44f997a1d58a9632fe37095ef0959d989d9208fe677
+
+minimaCore Desktop 0.17.33
+https://github.com/eurobuddha/minimacore-desktop/releases/tag/v0.17.33
+minimaCore-0.17.33-arm64-notarized.dmg
+SHA-256 ce742fec9d6f192e826ea611766b7fc7df6ee90d9f55a6bd0d74c6c98a0e7a7c
+Source 96cfd97; CI Mac publication guard 8f2d710.
+DMG notarization e444d53d-c0cc-4d7d-97b0-de48c39482c6.
+The bundled Parlons Node JAR matches the committed hash above.
+Native Windows/Linux build and validation steps passed in run 38061191350;
+its release-upload step failed because the integration token lacked permission.
+The exact retained native artifacts are published with the authorized gh account.
+
+IMPORTANT: these host builds supersede the earlier local artifacts recorded in
+PARLONS-HANDOFF.txt. The original maxima checkout was 20 commits behind GitHub.
+The integration was merged into current main in maxima/build/parlons-publication,
+retaining current chat links, private-file transfer, pairing and identity-import
+features. The original dirty checkout and unrelated work remain untouched.
+
+Validation: merged host Java suites 415/415; actual host/account/document integration
+3/3; minimaCore panel/session tests 7/7; rebuilt Image Studio tests 3/3. Signed
+Parlons launcher smoke test passes with an isolated synthetic profile. Both hosts'
+exact mounted DMGs pass strict signatures, hardened runtime, stapled tickets and
+Gatekeeper. Both apps pass syspolicy_check distribution. No personal profiles changed.
+
+Publishing safeguard: GitHub's automatic Parlons Mac build overwrote the first
+signed asset during this task. The signed file was published as -notarized.dmg.
+The CI DMG was proven unsigned, backed up with its checksums, and removed after
+automatic review accepted the new reversibility evidence. Both host workflows now
+keep CI Mac builds as artifacts only; they cannot replace public notarized files.
+
+STORE PUBLICATION
+Shared catalogue minima-core-apks: 6bd9d94 (minimaDocs Mac), b0890d8 (both hosts,
+all published platforms). check.py passed: 59 entries, 58 downloaded binaries
+verified. The minimaCore one-app feed at eurobuddha.com/pandaapps/minimacore-desktop.json
+is 0.17.33 with matching Mac, Windows and Linux rows; the feed is generated/ignored
+by that repository. Existing store clients consume the updated shared catalogue.
+The final IPFS refresh uses the exact catalogue commit, avoiding stale raw-CDN data.
