@@ -56,3 +56,12 @@ verified. The minimaCore one-app feed at eurobuddha.com/pandaapps/minimacore-des
 is 0.17.33 with matching Mac, Windows and Linux rows; the feed is generated/ignored
 by that repository. Existing store clients consume the updated shared catalogue.
 The final IPFS refresh uses the exact catalogue commit, avoiding stale raw-CDN data.
+
+Final IPFS snapshot: bafybeiavctdwcm34tms35x2nkfynzxovounyia27e3kosvnmpozcfp2wvy
+The normal public gateway catalogue matches all seven updated app/platform rows.
+The gateway service was restarted to clear a confirmed stale IPNS cache. Local
+IPFS publication/pinning succeeded. Filebase backup-pin enumeration was unavailable;
+that optional redundancy did not prevent publication or public downloads.
+
+All three Mac installers were downloaded from the public IPFS gateway and hashed;
+each matches its signed GitHub artifact SHA-256 listed above. Publication complete.
