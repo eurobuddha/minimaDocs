@@ -21,4 +21,4 @@ fs.writeFileSync(wasm,zlib.brotliDecompressSync(fs.readFileSync(wasm)));
 fs.writeFileSync(path.join(dest,'minimadocs-engines.json'),JSON.stringify({office:'9c743826d0152239dc7ad51677535d59679c7ff1',image:imageCommit},null,2));
 console.log('Offline office and image assets prepared.');
 
-cp.execFileSync(process.execPath,[path.join(__dirname,'prepare-image.cjs')],{stdio:'inherit'});
+cp.execFileSync(process.execPath,[path.join(__dirname,'prepare-image.cjs'),image],{stdio:'inherit'});

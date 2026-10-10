@@ -4,7 +4,7 @@ const {test}=require('node:test'),assert=require('node:assert/strict');
 const fs=require('node:fs/promises'),path=require('node:path'),crypto=require('node:crypto');
 const {spawn}=require('node:child_process'),readline=require('node:readline');
 const {ParlonsClient}=require('../main/parlons.cjs'),{Backend}=require('../main/backend.cjs');
-const root=path.resolve(__dirname,'..'),maxima=path.resolve(root,'../../../maxima');
+const root=path.resolve(__dirname,'..'),maxima=path.resolve(process.env.MINIMADOCS_HOST_SOURCE||path.join(root,'../../../maxima'));
 async function until(action,description,timeout=120000){const end=Date.now()+timeout;let error;while(Date.now()<end){try{const value=await action();if(value)return value;}catch(e){error=e;}await new Promise(r=>setTimeout(r,250));}throw Error(description+(error?': '+error.message:''));}
 async function hosts(directory){
  const cp=(await fs.readFile(path.join(maxima,'desktop/build/docs-fixture-classpath.txt'),'utf8')).trim();

@@ -28,4 +28,7 @@ runs:
         pnpm test
         pnpm build
     - shell: bash
+      working-directory: android/build/image-engine
+      run: npm ci --ignore-scripts
+    - shell: bash
       run: node scripts/prepare-editors.cjs android/build/office-engine android/build/image-engine
