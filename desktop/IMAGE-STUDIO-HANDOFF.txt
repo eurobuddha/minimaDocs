@@ -1,0 +1,70 @@
+minimaDocs Image Studio — release 0.1.2
+2026-10-10
+
+User scope
+Fix the large-image stack overflow and inability to close/quit, then upgrade the
+image workspace towards Photoshop. Reuse the user's Filtr project. Include a mix
+of layers/selections/masks, colour and retouching, brushes/text/effects. Build a
+properly Developer ID signed and Apple notarized Mac installer for user testing.
+Existing Parlons integration changes and both host projects remain preserved.
+
+Implementation
+- Desktop strict base64 validation no longer uses a repeated-group regex.
+- Save failures clear pending operations, pause autosave until explicit retry,
+  and retain the saved document. Approved native close bypasses beforeunload.
+- Dark image workspace, layer blend/opacity, undo/history, retouch shortcuts.
+- Filtr live preview, 15 effects, 14 presets, colour grade and post-processing.
+  Apply inserts a full-resolution image layer and hides the retained original.
+- Editable alpha masks in layer.params.minimaMask; selection, hide/reveal brush,
+  soft edges, inversion, enable/disable and remove. Raw layer pixels stay intact.
+- Save/export flush current mask strokes, outstanding actions and image decoding.
+- miniPaint's existing memory image store is enabled when IndexedDB is absent;
+  pixel-edit undo/redo now restores exact source bytes without persistent caches.
+
+Sources reused
+/Users/eurobuddha/Projects/tools/filtr/src/engine
+/Users/eurobuddha/Projects/minima/mds/statenft-suite/filtrport
+/Users/eurobuddha/Projects/minima/mds/statenft-suite/minidapp/filtr-engine.js
+/Users/eurobuddha/Projects/minima/mds/statenft-suite/minidapp/filtr.js (control schema)
+/Users/eurobuddha/Projects/minima/mininotes/image-engine/src/js
+Filtr license is bundled as workbench/FILTR-LICENSE.txt. Engine bundle SHA-256:
+1d33beae92a1c7de09eab17b1360c01c3efd6571dc042ffd756a965f069daf18
+
+Build
+Run node scripts/prepare-image.cjs at repository root to build the pinned engine
+with scripts/image-entry.js and image-source-loader.cjs. This leaves the sibling
+image-engine source unchanged. Full prepare-editors.cjs invokes the same build.
+Desktop version, lockfile and backend package-input jar are aligned at 0.1.2.
+Use desktop/npm run dist:mac:signed, existing minimadesk Keychain profile, and
+verify both the outer DMG and the app mounted from that exact disk image.
+
+Validation
+Filtr source regression: pass. Desktop unit tests: 21 pass. Bridge: 10 pass.
+Word/spreadsheet/image compatibility UI tests: 2 pass.
+Image suite: 3 pass, including 6,015,024-byte project save/export/reopen/quit,
+failed save retry/keep/discard, every effect/preset on the actual GPU engine,
+alpha retention, masks, saving during a stroke, pixel retouch undo/redo and
+layered project persistence. Visual screenshots are in desktop/build.
+Logs: build/image-studio-verified-test.log, image-studio-test.log,
+image-studio-existing-ui.log, image-studio-review.txt.
+
+Product limits
+16 MiB project/sharing cap remains. No PSD support. Applied effects are raster
+copies, not Photoshop smart objects or continuously editable adjustment layers.
+Masks use a minimaDocs layer parameter extension; plain older miniPaint ignores
+it. This is a substantial image editor upgrade, not full Photoshop feature parity.
+
+Release result — complete
+Installer: dist/minimaDocs-0.1.2-mac-arm64.dmg (Apple Silicon, macOS 13+)
+SHA-256: 237d5d5f524b37c7b1ea7eb4191cd31e15c67c1db97fd8c09f9abc6ed39c9d5c
+Developer ID: Barry Sherman (Z4JD286WF4).
+App notarization: f63b53b1-6f72-4bd2-aaa9-e2c47fe80cb4, Accepted.
+DMG notarization: 07211126-53c9-4049-9c4f-41acb622fd96, Accepted.
+Both app and DMG have valid Developer ID signatures and stapled tickets.
+The app mounted read-only from this exact DMG passed deep strict signature,
+stapler and Gatekeeper checks. syspolicy_check distribution passed certificate,
+notarization, XProtect and deep Gatekeeper policies. All 3 image UI tests also
+passed against the signed packaged executable, using isolated synthetic data.
+Evidence: build/image-studio-signed-release.log, image-studio-dmg-verified.log,
+image-studio-distribution-check.log, image-studio-packaged-test.log.
+No commit, push, publication or replacement of the user's installed app was done.

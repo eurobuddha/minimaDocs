@@ -134,3 +134,8 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
+
+Image studio effects: Filtr (MIT), Copyright (c) 2026 filtr.
+Engine reused from tools/filtr through statenft-suite/filtrport and its
+vendored minidapp/filtr-engine.js; control schema from minidapp/filtr.js.
+License bundled as workbench/FILTR-LICENSE.txt. No analytics or remote services.

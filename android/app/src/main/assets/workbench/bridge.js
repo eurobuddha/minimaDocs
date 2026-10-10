@@ -82,6 +82,7 @@
       if(config.kind==='image') {
         if(!opened)throw new Error('The image editor is still opening.');
         const editor=frame.contentWindow;
+        await editor.ImageStudio?.flush();
         const project=editor.FileSave.export_as_json();
         if(exportType==='PNG') {
           const info=JSON.parse(project).info;
@@ -165,6 +166,10 @@
           return result;
         };
       }
+      for(const source of ['filtr-engine.js','filtr-controls.js','image-studio.js']) {
+        await new Promise((resolve,reject)=>{const script=editor.document.createElement('script');script.src='/workbench/'+source;script.onload=resolve;script.onerror=()=>reject(new Error('The image studio could not load.'));editor.document.head.appendChild(script);});
+      }
+      await editor.ImageStudio.ready;
       if(config.readonly)editor.document.body.inert=true;
       opened=true;MinimaDocs.ready();
     } catch(e){error(e);}

@@ -1,0 +1,178 @@
+PARLONS DESKTOP INTEGRATION — CONTINUATION CHECKPOINT
+8 October 2026
+
+STATUS
+Both hosts and the existing minimaDocs client are implemented. Existing work was
+preserved. No commits, pushes, publication or modifications to installed personal
+accounts were made. The old sibling write-permission blocker is resolved.
+
+SIGNED RELEASE BUILDS COMPLETE
+The user explicitly approved signing and Apple notarization for all three builds.
+All three apps AND their outer DMG containers carry the existing Developer ID
+signature. Apple accepted all final submissions; tickets are stapled to both the
+apps and DMGs. Strict signature checks, hardened runtime, and Gatekeeper assessment
+passed. Existing production workflows were reused. No publication was performed.
+
+The existing scripts had signed the apps but omitted explicit DMG signatures.
+The release helpers now sign the outer DMG before notarization, and their verification
+scripts reject unsigned containers. Re-running the Electron notarization helper on
+an already signed/stapled installer was checked: it exits without another upload.
+Changed release helpers:
+- maxima/desktop/release-mac.sh and desktop/verify-mac.sh
+- desktop/minimacore-desktop/scripts/notarize-dmg.sh and verify-mac.sh
+- mininotes/minimaDocs/desktop/scripts/notarize-dmg.sh and verify-mac.sh
+
+Final signed installer Apple submission IDs:
+Parlons Desktop: 97f54c3c-318c-4b4a-a82b-0d8baa997a68
+minimaCore: 126128c5-a798-4661-be51-6fd8ce44ca92
+minimaDocs: 1fcb9a03-d54a-45af-b77e-179f4d363879
+
+VERSIONS AND ARTIFACTS
+Paths below are relative to /Users/eurobuddha/Projects/minima/.
+- maxima/desktop/build/jpackage/MaximaNode-1.5.109.dmg
+- desktop/minimacore-desktop/dist/minimaCore-0.17.33-arm64.dmg
+- mininotes/minimaDocs/desktop/dist/minimaDocs-0.1.1-mac-arm64.dmg
+- maxima/node/build/libs/parlons-node-0.2.122.jar
+Node SHA-256:
+60cbbbb73f3a3d6fa8f9ba0ed7b9bcaed62adf4903dc694202e29b8f05711c91
+minimaCore package.json pins this version and digest; its resources JAR and the
+JAR inside the signed bundle match. fetch:parlons confirms the pinned local JAR.
+Final installer hashes: desktop/build/PARLONS-SIGNED-SHA256SUMS.txt in minimaDocs.
+The earlier unsigned checksum file is historical; the standalone build-path DMG
+was replaced by the final signed installer.
+
+IMPLEMENTATION
+maxima/desktoplinks/com/eurobuddha/maxima/desktoplinks/MinimaDocsLink.java:
+shared loopback-only service, explicit one-use two-minute connection codes, hashed
+256-bit scoped credentials, immediate revocation, fixed minimaDocs invitation
+channel, strict fields/Host/Origin/size limits, request deadlines, bounded inbox,
+replay tombstones and idempotent request journal. PrivateFiles.java extracts the
+existing AccountFiles atomic owner-only write implementation; AccountFiles reuses it.
+
+DesktopNode hooks both built-in MaximaNode and classic DesktopJarEngine into the
+same service. SettingsPanel adds Connected apps approval and revocation controls.
+ParlonsCore owns the included account service and routes invitations before chat.
+ParlonsLocal exposes approval controls only behind its existing owner session and
+local-device authorization. The owner panel and scoped companion port stay separate.
+account/src/main/resources/panel/app.js adds the controls to existing Settings.
+
+MaximaNode admits validated passive invitations through its retained-message gate.
+Classic SocketTransport queues a mailbox barrier on the manager lane. Main retains
+failed invitation notifications for retry; it withholds mailbox acknowledgement
+until application persistence succeeds. DesktopJarEngine propagates invitation disk
+failures, including when its sink is not ready. Existing chat behavior is preserved.
+
+Desktop runtime includes jdk.httpserver; account and desktop compile the same
+shared service without adding HTTP dependencies to Android. Version sources align
+with app metadata and filenames. Node fatJar now has an explicit release version.
+
+minimaDocs retains its existing encrypted main-process client, account-separated
+People/share/inbox UI, direct QR flow and Pairing permission checks. MacBackend's
+existing invitation exposes its wire line; document transfer is still the original
+minimaDocs protocol. No new third-party dependencies were introduced.
+
+VALIDATION — ALL PASSED
+Java host/regression suites: desktop 19, cloud 89, maxjar 3, core 257, node 10
+(378 total, zero failures/errors/skips). Includes real classic-engine encrypted
+invitation round trips, expiry/replay, credential isolation, revocation, malformed
+requests, size limits, durable inbox, retry-on-disk-failure and uncertain-send cases.
+minimaDocs backend: 708 tests, zero failures/errors.
+minimaDocs client/security/assets: 19 tests, zero failures.
+minimaCore existing Parlons panel/call isolation: 7 tests, zero failures.
+Real-host integration: 3 tests, zero failures in final combined run:
+1. Actual DesktopNode and ParlonsCore with synthetic profiles and real encrypted
+   loopback transport: both directions, same-name/different-key contacts, host and
+   client restart, dismissal replay protection, removal and host revocation.
+2. Existing MacBackend document peers through live Maxima relays: exact synthetic
+   DOCX and XLSX bytes after Parlons invitation/Pairing acceptance, edit/view roles,
+   read-only save rejection, existing QR roundtrip.
+3. Actual ParlonsLocal account panel approval/revocation and minimaDocs Electron UI
+   displaying both account sections independently; direct QR control preserved.
+
+PACKAGED CHECKS
+Signed builds were checked after approval:
+- Standalone signed launcher: isolated synthetic seed/profile; actual companion
+  server starts and correctly refuses unauthenticated requests.
+- minimaCore signed launcher: isolated setup profile; version 0.17.33 and bundled
+  Parlons Node 0.2.122 digest confirmed.
+- minimaDocs signed package: both packaged SQLite native signatures, dependency
+  contents, real Keychain storage, all three editors, Maxima connectivity and QR
+  roundtrip passed (2 packaged tests). Only synthetic profiles were used.
+- All final DMGs and the apps mounted from inside them passed signature, stapled
+  ticket and Gatekeeper checks.
+
+Earlier unsigned-build evidence:
+- minimaDocs 0.1.1 unsigned bundle: isolated --user-data-dir, real Keychain-protected
+  key, all three bundled editors ready, no saved personal documents touched, live
+  Maxima connection and direct QR invitation. Existing packaged-ui test reused with
+  only unsigned artifact path/profile substitutions and signature-only test omitted.
+- Standalone 1.5.109 bundle: actual launcher started with a known synthetic seed in
+  desktop/build/parlons-packaged-profile; log confirms start and companion state has
+  a bound loopback port. No personal host profile used. A later native inspection
+  opened a duplicate launch dialog; that build-path process was closed, leaving the
+  preexisting /Applications/MaximaNode.app process untouched.
+- minimaCore 0.17.33 unsigned bundle: launched to setup with isolated user-data;
+  metadata verified. Packaged JAR digest, version output and jdk.httpserver verified.
+  Its included account behavior was exercised through the real ParlonsCore fixture,
+  not a newly onboarded wallet inside this packaged setup profile.
+- Real account/panel screenshots visually checked; all git diff --check runs clean.
+
+EVIDENCE
+minimaDocs/desktop/build/parlons-final-hosts.log
+minimaDocs/desktop/build/parlons-backend-validation.log
+minimaDocs/desktop/build/parlons-packaged-smoke.log
+minimaDocs/desktop/build/parlons-core-package-smoke.log
+minimaDocs/desktop/build/parlons-real-accounts.png
+minimaDocs/desktop/build/parlons-core-connected-apps.png
+minimaDocs/desktop/build/mac-packaged-{workspace,docx,xlsx,image}.png
+maxima/build/parlons-final-build.log
+maxima/build/parlons-release-validation.log
+maxima/build/parlons-classic-tests.log
+maxima/build/parlons-packaged-startup.log
+Each repo also has build/parlons-unsigned-package.log.
+
+REPRODUCING TESTS
+In maxima:
+./gradlew -PskipAndroid=true :core:test :maxjar:test :desktop:test :cloud:test :node:test :node:fatJar :desktop:docsFixtureClasspath --offline
+The shared service tests compile into both desktop and cloud. The classpath task
+prepares DocsHostsFixture for the minimaDocs cross-repository Node test.
+In minimaDocs/android, select a compatible Gradle JDK (tested with Android Studio's
+JBR), then ./gradlew -p ../desktop/backend test packageInput --offline.
+In minimaDocs/desktop: npm run prepare:mac; npm test; npm run test:parlons-hosts.
+The final host test needs the existing synthetic Android Office fixtures and live
+Maxima relay access for document transfer. It creates only disposable build profiles.
+In minimaCore: npm run fetch:parlons; npm run test:parlons.
+
+CODE REVIEW
+Summary: shared host transport and persistence were reused; the companion has no
+owner RPC capability. Reviewed the security boundary, lifecycle, acknowledgements,
+validation, packaging and cross-app tests. Review fixes made before the final build:
+strict JSON trailing-data rejection and avoiding inbox fsync on unchanged polling.
+Findings: no outstanding critical or major source issues identified in this review.
+Verdict: approve source implementation and locally verified signed Mac artifacts.
+
+REMAINING LIMITS
+- Signing/notarization and signed startup checks are complete. Publication remains
+  separate and was not requested.
+- No physical Android-device run was performed. Android/Desktop wire compatibility
+  is exercised through the existing shared Android Pairing parser and MN1/MN2 tests.
+- Outgoing 'queued' uses existing MaximaNode outbox semantics, not a new durable
+  outgoing delivery queue. The inbox and send request journal are durable. No UI
+  claims a queued invitation is a delivered document.
+- Final publication and platform builds other than Mac arm64 have not been done.
+
+PRESERVE OTHER WORK
+All three repos have preexisting changes. maxima includes extensive unrelated calls,
+wake, Android, node and dist changes; do not bulk-stage, revert or delete them.
+minimaDocs has the preexisting client/UI work and Android APK outside this task.
+Graphify outputs were already dirty and querying/reflecting also updated generated
+metadata. No subagents were used. Read current status before any subsequent commit.
+
+SIGNED RELEASE EVIDENCE
+Each repo: build/parlons-signed-release.log and
+build/parlons-final-signature-verification.log.
+maxima and minimaCore: build/parlons-signed-dmg-notarization.log.
+maxima: build/parlons-signed-startup.log.
+minimaDocs/desktop: build/parlons-signed-smoke.log (2 passed),
+build/parlons-core-signed-smoke.log, build/PARLONS-SIGNED-SHA256SUMS.txt.
+minimaCore: build/parlons-notarize-repeat-check.log.

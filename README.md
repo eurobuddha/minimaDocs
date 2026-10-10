@@ -5,7 +5,7 @@ Maxima messaging transport. Repository: [eurobuddha/minimaDocs](https://github.c
 
 ## macOS 0.1.0
 
-[Download the Mac preview](https://github.com/eurobuddha/minimaDocs/releases/tag/mac-v0.1.0).
+[Download the Mac preview](https://github.com/eurobuddha/minimaDocs/releases/tag/mac-v0.1.2).
 The versioned DMG is Developer ID signed and Apple notarized; a SHA-256 checksum
 is included with the release. Open it and drag minimaDocs into Applications.
 

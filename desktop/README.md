@@ -1,14 +1,14 @@
 # minimaDocs for Mac
 
-[Download the signed, notarized Mac preview](https://github.com/eurobuddha/minimaDocs/releases/tag/mac-v0.1.0).
+[Download the signed, notarized Mac preview](https://github.com/eurobuddha/minimaDocs/releases/tag/mac-v0.1.2).
 
-The first Mac version is **0.1.0**, for **Apple Silicon and macOS 13 or newer**.
+The current Mac version is **0.1.2**, for **Apple Silicon and macOS 13 or newer**.
 It uses the approved minimaDocs workspace, Manrope, and the same offline editors
 and encrypted Maxima document protocol as Android.
 
 ## Use it
 
-Open `minimaDocs-0.1.0-mac-arm64.dmg` and drag minimaDocs into Applications.
+Open `minimaDocs-0.1.2-mac-arm64.dmg` and drag minimaDocs into Applications.
 Java and the editor engines are bundled; no separate runtime or Office account
 is needed. Create a document, spreadsheet or layered image from Files, or choose
 Import. Each editor opens in its own window.
@@ -35,17 +35,26 @@ the workspace directory alone is not a supported migration procedure.
 
 ### First-version limits
 
+Version 0.1.2 includes desktop Parlons integration and connects to standalone Parlons Desktop 1.5.109 and
+the included account in minimaCore 0.17.33 (Parlons Node 0.2.122).
+In the host, open Settings → Connected apps → Connect minimaDocs, then paste the
+short-lived link into minimaDocs People → Connect Parlons. Each account stays
+separate. Host revocation withdraws companion access; removing a contact does
+not revoke existing document permissions.
+
+The shared hosts, restart/revocation, exact DOCX/XLSX delivery, permission checks
+and real account-panel UI have passed integration tests. All three local Mac
+builds are signed, notarized and stapled; their apps and DMGs pass Gatekeeper.
+See [PARLONS-HANDOFF.txt](PARLONS-HANDOFF.txt) for artifacts and verification.
+The releases are distributed through GitHub and the shared PandaApps catalogue.
+
 - Apple Silicon only; an Intel installer has not been built or tested.
-- Parlons Desktop does not expose Android's linked-app contacts interface yet.
-  Direct minimaDocs QR/link/recipient sharing is available; a live Parlons contact
-  book is not integrated in this Mac version.
 - Sharing sends saved document snapshots, rather than simultaneous cursor/typing
   sessions. The file limit is 16 MiB. Delivery requires reachable Maxima relays.
 - Invitations expire after 15 minutes. Unlike Android, this initial Mac UI does
   not yet ask for owner approval when somebody accepts an expired invitation;
   create a fresh invitation instead.
-- No camera QR scanner, notebook import/migration, automatic app updates or Mac
-  store publication is included in this initial build.
+- No camera QR scanner, notebook import/migration, automatic app updates are included in this initial build.
 
 ## Build
 
@@ -88,7 +97,7 @@ npm run dist:mac:signed
 
 This signs and notarizes the app and DMG, staples their tickets, then checks the
 Developer ID signature, hardened runtime and Gatekeeper assessment. The result
-is `dist/minimaDocs-0.1.0-mac-arm64.dmg`. The version source is `package.json`;
+is `dist/minimaDocs-0.1.2-mac-arm64.dmg`. The version source is `package.json`;
 the backend jar reads that same version. Signing credentials are not in the repo.
 An `afterPack` hook uses electron-builder's selected certificate to sign both Mac
 SQLite libraries inside the packaged JDBC JAR before the outer app is signed.
@@ -124,3 +133,42 @@ After packaging, `node --test tests/packaged-ui.test.cjs` opens the real signed 
 and checks Keychain storage and all three bundled editors. This opt-in test uses
 the normal Mac workspace and opens disposable unsaved drafts. It never saves or
 shares a document. Quit an existing minimaDocs instance before running it.
+
+Real desktop-host integration checks are available with `npm run test:parlons-hosts`.
+First build the sibling maxima fixture using `./gradlew -PskipAndroid=true
+:desktop:docsFixtureClasspath`; prepare the backend, runtime and synthetic Office
+fixtures as above. Tests use disposable profiles under `desktop/build/`, real
+host adapters and encrypted loopback invitation transport. The DOCX/XLSX transfer
+case uses the existing public Maxima relays with synthetic documents only.
+
+
+Image Studio 0.1.2
+------------------
+The image workspace now exposes layers, blend modes, opacity, selections, masks,
+retouching, brushes and text in a dark desktop layout. Adjust/Effects open a
+preview with Filtr's 15 effects, 14 presets, global colour grade and finishing
+passes. Apply creates a full-resolution image layer and hides the source;
+Undo restores it. The result is a raster layer, not a Photoshop smart object.
+Masks are editable alpha PNGs in layer.params.minimaMask; the original image
+pixels stay untouched. Masks support selection, hide/reveal painting, inversion,
+disabling and removal, with normal undo and layered project save/reopen.
+The existing 16 MiB project/sharing limit remains. PSD import/export is not added.
+
+Reuse: tools/filtr/src/engine through statenft-suite/filtrport and the byte-identical
+workbench/filtr-engine.js bundle; the control schema is extracted unchanged from
+statenft-suite/minidapp/filtr.js. Filtr's MIT license is bundled. miniPaint remains
+pinned at a79733eb803fc97084ef0ee4faa96b031e69e1c0. scripts/prepare-image.cjs builds
+its engine with scripts/image-entry.js exposing the existing app/actions. The
+build-time image-source-loader.cjs enables miniPaint's existing memory history
+when IndexedDB is disabled by the offline host; otherwise pixel undo loses data.
+No analytics, downloads or remote image services run in the workspace.
+
+After installing image-engine's locked dependencies, build the image assets with
+`node scripts/prepare-image.cjs` from the repository root. Full prepare-editors.cjs
+also invokes this build. Run `npm run test:image` from desktop for large-image
+save/quit recovery and the GPU/mask/retouch/layered-project regressions. Set
+MINIMADOCS_IMAGE_TEST_APP to the packaged executable to repeat against a release.
+
+0.1.2 also replaces the recursive base64 regex that overflowed on large images,
+pauses autosave after an error until explicit retry, and allows the native approved
+save/discard decision to override the embedded browser editor's unload guard.

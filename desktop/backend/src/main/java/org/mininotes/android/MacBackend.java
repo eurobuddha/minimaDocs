@@ -155,7 +155,7 @@ public final class MacBackend implements AutoCloseable {
         String line=keys.line(Node.nameHere(context),address(),title.isEmpty()?"":Sharing.travelling(Sharing.Scope.PAGE,title),level,scope,id);
         offers.put(id.isEmpty()?"personal":"PAGE:"+id,new Offer(level,System.currentTimeMillis()+15*60_000));
         String link=Pairing.docsLink(line);ByteArrayOutputStream out=new ByteArrayOutputStream();javax.imageio.ImageIO.write(DesktopQr.draw(link,480),"png",out);
-        return new JSONObject().put("link",link).put("qr","data:image/png;base64,"+Base64.getEncoder().encodeToString(out.toByteArray()));
+        return new JSONObject().put("line",line).put("link",link).put("qr","data:image/png;base64,"+Base64.getEncoder().encodeToString(out.toByteArray()));
     }
     private JSONObject preview(String text) throws Exception {
         if(text.length()>Pairing.MOST*3)throw new IOException("The invitation is too long");

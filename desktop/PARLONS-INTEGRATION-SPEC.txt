@@ -1,0 +1,184 @@
+minimaDocs / Parlons Desktop / minimaCore Desktop
+Desktop contacts and invitation integration — implementation specification
+7 October 2026
+
+Latest continuation checkpoint: PARLONS-HANDOFF.txt (8 October 2026).
+
+Status — 8 October 2026
+Both host implementations and the minimaDocs client are implemented and tested.
+The previous sibling-repository permission blocker is resolved. Existing changes
+were preserved; no commits, pushes or releases were made in this continuation.
+
+Implementation checkpoint
+- Shared scoped companion service runs in standalone Parlons Desktop (built-in
+  and classic engines) and the Parlons account included in minimaCore Desktop.
+- Host settings expose explicit Connect minimaDocs and Revoke actions. Companion
+  credentials remain separate from the included account's owner-panel session.
+- Approvals, inbox, replay tombstones and send request IDs persist atomically.
+  Classic mailbox acknowledgements now wait for invitation persistence.
+- Passed: host/security/regression suites, real host restart/revocation tests,
+  actual DOCX/XLSX delivery and permission checks, and real panel/client UI checks.
+- Versioned signed/notarized Mac installers built: standalone 1.5.109, minimaCore 0.17.33
+  bundling parlons-node 0.2.122, and minimaDocs 0.1.1. Packaged minimaDocs startup,
+  Keychain, editors and QR checks passed. See PARLONS-HANDOFF.txt for full evidence.
+- The user approved signing/notarization. All three final apps and DMG containers
+  are signed, notarized, stapled and verified, with signed startup checks passed.
+  Release scripts now explicitly sign DMGs and reject unsigned containers.
+- A physical Android-device acceptance run has not been performed. Wire
+  compatibility uses the existing Android parsers. Nothing has been published.
+
+Outcome
+People and document sharing in minimaDocs use the live contacts of standalone
+Parlons Desktop, the Parlons account included in minimaCore Desktop, or both.
+The user explicitly connects each account and sees its name and host everywhere
+they choose a recipient. Direct minimaDocs invitation, QR and recipient sharing
+remain available. Connecting Parlons does not migrate identities or documents.
+
+Sources inspected and selected for reuse
+Paths below are relative to /Users/eurobuddha/Projects/minima/.
+
+mininotes/minimaDocs/android/app/src/main/java/org/mininotes/android/
+  MaximaConnection.java: CONTACTS list/add/remove, registration and subscription,
+  reliable invitations on com.eurobuddha.minimadocs.invite.v1.
+  ParlonsContact.java: public-key validation, normalization, invitation parsing.
+  ParlonsInbox.java: bounded invitation retention, review, dismissal and dedup.
+  ParlonsPane.java: contact search, explicit send/remove confirmation.
+mininotes/minimaDocs/android/app/src/test/java/org/mininotes/android/
+  ParlonsContactTest.java: malformed records, dedup and wire invitation tests.
+mininotes/minimaDocs/desktop/main/main.cjs:
+  isolated workspace IPC, encryption key lifecycle, atomic writes, URI handler.
+mininotes/minimaDocs/desktop/backend/src/main/java/org/mininotes/android/
+  MacBackend.java: Pairing preview/accept, permission checks, invitation creation.
+maxima/app/src/main/java/com/eurobuddha/maxima/app/ipc/MaximaApiReceiver.java:
+  explicit approval/revocation, application ownership and reserved channels.
+maxima/core/src/main/java/com/eurobuddha/maxima/core/ChatPort.java:
+  existing contact operations and sending across both desktop engines.
+maxima/desktop/src/main/java/com/eurobuddha/maxima/desktop/ui/DesktopNode.java:
+  transport lifecycle and inbound message dispatch for built-in and classic.
+maxima/account/src/main/java/com/eurobuddha/maxima/cloud/
+  ParlonsCore.java: included account lifecycle and inbound dispatch.
+  ParlonsLocal.java: loopback HTTP, Host/Origin checks, bounded bodies and tickets.
+  AccountFiles.java: private files for local capabilities.
+maxima/cloud/src/junit/java/com/eurobuddha/maxima/cloud/ParlonsLocalTest.java:
+  authentication, one-use tickets, origin rejection and revocation tests.
+maxima/desktop/build.gradle and maxima/account/build.gradle:
+  Java 11 hosts and their shared dependencies; Android must not inherit HTTP APIs.
+desktop/minimacore-desktop/main/parlons.js:
+  included account lifecycle/status, panel port and opening the host panel.
+desktop/minimacore-desktop/scripts/parlons-view-test.cjs:
+  panel lifecycle and stale-response checks.
+desktop/minimacore-desktop/scripts/fetch-parlons-node-jar.sh:
+  version and digest pinning for the included account artifact.
+desktop/minimaDesk/main/parlonsapi.js:
+  existing main-process HTTP request shape. Its broad owner-session cookie is
+  unsuitable for a companion app: minimaDocs needs separately revocable access
+  limited to contacts and its own invitations, not chat history or owner settings.
+
+Minimum adaptations
+Retain the existing Maxima network, contact book, document protocol and invitation
+application string. Android broadcasts cannot run on macOS. Add one shared Java
+desktop connection service, compiled into the standalone and included account
+hosts. Adapt their existing lifecycle and message callbacks to that service.
+Use ChatPort for contacts and sending; use the existing reliable sender when
+available. Do not route app invitations through the chat application channel.
+Add a main-process client and UI to minimaDocs. No new third-party dependency.
+Extend existing host settings/panel with Connect minimaDocs and Revoke controls.
+Update minimaCore's bundled node artifact and digest together after host tests.
+
+User flow
+1. minimaDocs People > Connect Parlons explains the two supported hosts.
+2. In the chosen host, Connected apps > Connect minimaDocs displays the account,
+   contacts/invitation permissions, and a short-lived connection link.
+3. Paste that link into minimaDocs. Review the host and connect. A connection
+   link is distinct from a document invitation; neither auto-accepts the other.
+4. People shows separately labelled account sections, search, refresh, add and
+   remove contact, and received document invitations. With two hosts, both appear.
+5. Share > Parlons contacts > account > recipient > Can view/Can edit > Send.
+   Create the existing document invitation only after the user confirms Send.
+6. Recipient reviews the invitation through the existing Pairing preview/accept.
+   Accepting establishes the existing minimaDocs document connection. Dismissal
+   removes the inbox entry while preserving replay protection.
+7. Disconnect in minimaDocs revokes the host credential. If the host is offline,
+   report that revocation failed and offer a separate explicit Forget on this Mac
+   action; never imply local deletion revoked the host.
+8. Revocation in the host rejects subsequent requests immediately. An offline host
+   shows a retry state without mixing another account's contacts or clearing data.
+
+UI
+Reuse the approved Atelier palette, Manrope typography, dialogs and text controls.
+No stock icons. Preserve direct QR/link/recipient controls. Label contacts by host
+and account; never silently merge equal names or equal keys across accounts.
+Show queued, sent-to-relay and received states accurately. A queued invitation is
+not a delivered document. Contact removal and document-access removal are distinct
+actions, with explicit explanation before removing a contact.
+
+Local protocol v1 (new shared host service)
+Listen on 127.0.0.1 only. Persist a per-profile port or provide rediscovery on
+restart; keep the same advertised account id. Host and Origin checks follow
+ParlonsLocal; reject browser Origin headers on companion API routes. No CORS.
+All endpoints are POST /minimadocs/v1/<operation>, Content-Type application/json.
+Except connect, require Authorization: Bearer <256-bit random token>.
+Never put bearer tokens in URLs, renderer IPC, logs or public discovery files.
+API body limit 32 KiB; response limit 256 KiB; requests time out at 20 seconds.
+
+Connection link:
+minimadocs://parlons/v1?port=<1..65535>&provider=<desktop|core>&account=<64 lowercase hex>&code=<64 lowercase hex>
+account is the SHA-256 fingerprint of the host account public key, not a filesystem
+path. code expires after two minutes and is single-use. Only a host approval action
+mints it. Provider and account must match the redemption response. Distinct host
+profiles maintain distinct credentials. Codes and pending registrations are bounded.
+
+Every successful response includes ok:true, provider, account. Errors have ok:false
+and a safe error string. Non-2xx HTTP status is an error; never follow redirects.
+
+connect {code} -> {token, name, publicKey, ...envelope}
+contacts {} -> {contacts:[{key,name,address}], ...envelope}
+invitations {} -> {invitations:[{id,from,line}], ...envelope}
+invite {to,line,requestId} -> {state:"queued"|"sent", ...envelope}
+contact/add {address} -> {state:"introduced", ...envelope}
+contact/remove {key} -> {removed:boolean, ...envelope}
+dismiss {id} -> {...envelope}
+disconnect {} -> {...envelope}
+
+Token scope is fixed to the existing minimaDocs invitation application and contact
+operations. No arbitrary command/application parameter, wallet, seed, media, chat
+history, arbitrary URL or generic RPC forwarding. Every request rechecks approval.
+Requests must not claim another identity or silently fall back to a different host.
+invite requestId is retained with its outcome so a retry cannot duplicate delivery.
+
+Persistence and message handling
+minimaDocs encrypts credentials with a key derived from its existing workspace key
+and writes atomically with mode 0600. The renderer receives only connection ids,
+names, provider labels and validated contact/invitation records. On restart it
+restores the selected connections without gaining access to host owner sessions.
+The host persists approvals and bounded received invitations within the account's
+private storage. Retain at most 64 invitations for seven days and bounded replay
+tombstones. Durably store before acknowledging Maxima mailbox delivery. Disk errors
+must propagate into the existing delivery retry path instead of silently dropping.
+Validate application, authenticated sender, payload size and invitation shape;
+full key and permission validation still happens in minimaDocs Pairing before accept.
+Poll while the People/share view is active; allow explicit Refresh. No overlapping
+polls, silent resend or unbounded retries. Late responses cannot replace a new view.
+
+Build sequence
+A. Specification and contract tests.
+B. Shared host service, persistence/security tests, standalone lifecycle and settings.
+C. Included account lifecycle and panel approval/revocation controls; rebuild node.
+D. minimaDocs encrypted client, People/share/inbox UI and integration tests.
+E. Pin rebuilt node version+SHA in minimaCore; run existing panel tests.
+F. Real apps together: standalone only, included only, both; restart and revoke.
+G. Review all changes; bump versions, build versioned installers, sign and notarize.
+   Publish only the tested artifacts. Preserve unrelated work in all repositories.
+
+Acceptance checks (required before claiming complete)
+- Both hosts provide real contacts; same names do not cross identities.
+- Added/removed contacts reflect the owning Parlons account and refresh in minimaDocs.
+- Document invitations travel both directions on the existing application channel.
+- Android/Desktop wire invitation compatibility; view/edit checks remain enforced.
+- Offline inbox survives host/client restart; duplicates and dismissal stay bounded.
+- Expired/replayed code, bad token, revoked token, wrong account/host/origin, oversized
+  request/response and malformed records fail without revealing contacts or secrets.
+- No invitation send from untrusted editor IPC; tokens never enter the renderer.
+- Actual DOCX/XLSX delivery after accepting an invitation; direct QR sharing still works.
+- Real installed app startup, bundled Java HTTP module, signing, notarization and
+  minimaCore artifact pin verification pass. Unit mocks alone do not prove integration.

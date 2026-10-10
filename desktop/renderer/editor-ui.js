@@ -1,6 +1,7 @@
 'use strict';
 (() => {
  const config=JSON.parse(MinimaDocs.bootstrap()),title=document.getElementById('title'),status=document.getElementById('save-status');
+ document.body.classList.toggle('image-workspace',config.kind==='image');
  title.value=config.title;title.disabled=!!config.readonly;
  title.addEventListener('input',()=>desktopEditor.action('title',title.value));
  for(const name of ['files','save','copy','export','share'])document.getElementById(name).addEventListener('click',()=>desktopEditor.action(name).catch(e=>{status.textContent=e.message;}));
