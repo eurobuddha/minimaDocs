@@ -41,3 +41,35 @@ are raster copies preserving the source layer. This is parity with minimaDocs
 Image Studio on desktop, not a claim to implement every Adobe Photoshop feature.
 
 Publication verification is appended after release.
+
+Published release verification (2026-10-11):
+Source commit: 3ccff7f41a4ca18a3748556f91ea7fc8661c771b, tag v0.3.3.
+https://github.com/eurobuddha/minimaDocs/releases/tag/v0.3.3
+APK: minimaDocs-0.3.3.apk, 221911125 bytes, package com.eurobuddha.minimadocs,
+versionName 0.3.3, versionCode 303.
+SHA-256: 99fc3ce0e775a7efd33f74fc7bee2dabf4a5a52c02d982d6ca7cca675b8d1ea3
+Signer SHA-256: eca1383c9d27683a281fbe6355356267877dc2dd14d963d7cc289ca0700e517f
+GitHub download was byte-compared with the local signed installer and its
+signature reverified. APK editor assets byte-match the tested source assets.
+
+Check workflow 38153093072: success.
+Android device workflow 38153093116: success, including Image Studio gestures,
+project round trips, Word/Sheets, storage, sharing and actual Parlons approval/IPC.
+Release workflow 38153094680 passed its build/tests but stopped at the mandatory
+signing guard because GitHub KEYSTORE_BASE64 is absent. No unsigned public asset
+was produced. The verified locally signed APK was published using the established
+local release path; the family private key was not uploaded to GitHub.
+
+The actual published Mac 0.1.2 app also passed the Android fixture compatibility
+check, with exact layers and image data. Code review: no outstanding blocking
+findings after the Android undo URL and compact-layout corrections.
+
+Store publication:
+minima-core-apks commit b4bf3d769332cc3f390d1dbf5ecfdc67e0938dca.
+The full catalogue validator passed: 55 entries, 54 binaries verified.
+Both normal public catalogues (GitHub main and IPFS) report 0.3.3 / 303 with the
+same signed APK SHA-256 above.
+IPFS snapshot: bafybeibmb5zuq66umowsbo5hyc7htfltzpu2o4x2zyokddm5r6anoyjzau
+https://ipfs.eurobuddha.com/apks/minimaDocs-0.3.3.apk
+Local pin and IPNS publication succeeded. Existing Filebase remote-pin-list
+availability warning remains; the public mirror and local pin are unaffected.

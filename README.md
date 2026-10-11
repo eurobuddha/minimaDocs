@@ -209,6 +209,9 @@ All of these checks passed on Android API 35 against Parlons commit
 `668f3544601f0d226fc067b307519d0b2f522d7b`.
 [Device integration run](https://github.com/eurobuddha/minimaDocs/actions/runs/37244000835).
 Synthetic editor screenshots and round-trip files are retained by subsequent runs.
+Android 0.3.3 adds real touch mask/brush, effects, retouch undo and layered reopen
+checks. [Image Studio device run](https://github.com/eurobuddha/minimaDocs/actions/runs/38153093116)
+passed, along with local portrait/landscape and published-Mac compatibility checks.
 Live invitation and document delivery between two independent network devices has
 not been exercised in this change; replica convergence and file receipt are covered
 by the native storage test using the existing receive path.
