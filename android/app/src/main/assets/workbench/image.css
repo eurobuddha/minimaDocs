@@ -10,3 +10,40 @@ body,button,input,select{font-family:Manrope,sans-serif;font-size:12px}button,in
 @media(max-width:700px){.sidebar_right{width:255px;right:-260px}.sidebar_left{left:-90px}.fx-body{grid-template-columns:1fr 220px}.fx-body aside{display:none}.studio-effects footer span{display:none}.studio-commands{display:none}}
 
 .wrapper{grid-template-rows:auto minmax(0,1fr)}.middle_area,.sidebar_right,.sidebar_left{min-height:0}.layers_list .item:last-child{margin-bottom:0}.sidebar_right .block.layers .content{padding-bottom:8px}.main_wrapper{inset:18px}.studio-layer-controls input{min-width:0}.layer_duplicate,.layer_raster{font-size:10px;padding:4px 6px}input[type=range]{accent-color:#a7cbe7}
+
+/* Filtr's in-flow phone sheet: the image stays above the controls, with every
+   category reachable. The same DOM and handlers serve phone and desktop. */
+.studio-sheet,.studio-catbar{display:none}
+@media(max-width:900px){
+ body{padding-top:0}.mobile_menu{display:none}.main_menu>ul.menu_bar{height:40px;padding:0 4px}.main_menu{height:40px}
+ .wrapper{top:40px;bottom:0;display:flex;flex-direction:column;align-items:stretch}.wrapper>.sidebar_right{display:none}
+ .submenu{flex:none;min-height:42px;display:flex;justify-content:flex-end}.submenu>.undo_button{display:none}.studio-commands{display:flex;padding:2px 8px;gap:8px}.studio-commands button{min-height:40px;min-width:48px}
+ .middle_area{flex:1;min-height:80px;width:100%}.main_wrapper{inset:8px}
+ .studio-catbar{display:flex;flex:none;order:20;border-top:1px solid #59616d;background:#25282d;padding-bottom:env(safe-area-inset-bottom)}
+ .studio-catbar button{flex:1 1 0;min-width:0;min-height:48px;padding:6px 2px;font-size:11px;background:none;border:0;border-top:2px solid transparent;border-radius:0!important}
+ .studio-catbar button[aria-expanded=true]{border-top-color:#a7cbe7;background:#34424e}
+ .studio-sheet:not([hidden]){display:flex;flex-direction:column;flex:none;order:15;max-height:48%;min-height:0;background:#292c30;border-top:1px solid #59616d}
+ .studio-sheet header{display:flex;align-items:center;justify-content:space-between;padding:0 12px;flex:none;height:44px}.studio-sheet header button{min-height:40px;padding:8px 16px}
+ .studio-sheet-body{overflow-y:auto;overscroll-behavior:contain;padding:0 10px 10px;min-height:0}.studio-slot[hidden]{display:none}
+ .studio-slot .sidebar_left{position:static;display:flex;flex-wrap:wrap;width:100%;height:auto;gap:4px;border:0;padding:0;background:none;box-shadow:none}.studio-slot .sidebar_left .item{width:44px;height:44px}
+ .studio-slot .attributes{width:100%;box-sizing:border-box;display:flex;flex-wrap:wrap;min-height:44px}.studio-slot .block{width:100%;box-sizing:border-box}.studio-slot .studio-heading{display:none}
+ .studio-slot button,.studio-tabs button,.studio-tabpanel button,.mask-actions button{min-height:44px;font-size:12px}.studio-slot input[type=range]{height:36px}.studio-slot select{min-height:40px}
+ .studio-slot .layers_list .layer_name,.studio-slot .layers_list .visibility,.studio-slot .layers_list .delete{height:40px}
+ .studio-effects{width:100vw;max-width:100vw;height:100dvh;max-height:100dvh;margin:0;border:0;border-radius:0}
+ .studio-effects header{padding:8px 12px;flex:none}.studio-effects h2{font-size:17px}.studio-effects #fx-close{min-width:44px;min-height:44px}
+ .fx-body{display:flex;flex-direction:column;min-height:0}.fx-image{order:0;flex:1;min-height:90px;padding:8px}.fx-image canvas{min-height:0;max-height:calc(100% - 45px)}.fx-image p{margin:3px}.fx-image label{min-height:28px}
+ .fx-body aside{display:block;order:1;flex:none;padding:5px 10px;border:0;border-top:1px solid #414751}.fx-body aside h3{margin:2px 0 4px;font-size:9px}#fx-presets{display:flex;overflow-x:auto;gap:6px}#fx-presets button{flex:none;min-height:40px;padding:8px}
+ .fx-body>section{order:2;flex:0 1 38%;min-height:60px;padding:8px 12px;overflow-y:auto}#fx-tabs{position:sticky;top:-8px;background:#25282d;z-index:1;padding:4px 0}#fx-tabs button{min-height:40px}.fx-control input[type=range]{height:32px}
+ .studio-effects footer{padding:6px 10px;flex:none}.studio-effects footer span{display:none}.studio-effects footer button{min-height:44px;padding:8px}#fx-apply{margin-left:auto}
+}
+@media(max-width:900px) and (max-height:460px){.studio-sheet:not([hidden]){max-height:55%}.fx-body{display:grid;grid-template-columns:1fr 1fr;grid-template-rows:1fr auto}.fx-image{grid-column:1;grid-row:1}.fx-body aside{grid-column:1/-1;grid-row:2}.fx-body>section{grid-column:2;grid-row:1}}
+@media(max-width:900px) and (max-height:460px){
+ .wrapper:has(.studio-sheet:not([hidden])){display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);grid-template-rows:42px minmax(0,1fr) 48px;grid-template-areas:"submenu submenu" "main sheet" "catbar catbar"}
+ .wrapper:has(.studio-sheet:not([hidden])) .middle_area{min-height:0}.studio-sheet:not([hidden]){grid-area:sheet;max-height:none;height:100%;box-sizing:border-box;border-left:1px solid #59616d}
+ .studio-catbar{grid-area:catbar}.studio-sheet header{height:36px}.studio-sheet header button{min-height:32px}
+}
+@media(min-width:650px) and (max-width:900px) and (max-height:460px){
+ .submenu{position:fixed;top:0;right:0;width:245px;height:40px;min-height:40px;z-index:101;background:#292c30;border:0}.studio-commands{padding:0 4px;gap:4px}.studio-commands button{min-width:48px;min-height:38px}
+ .main_menu>ul.menu_bar{padding-right:245px}.main_menu>ul.menu_bar>li>a{padding:0 7px}
+ .wrapper:has(.studio-sheet:not([hidden])){grid-template-rows:minmax(0,1fr) 48px;grid-template-areas:"main sheet" "catbar catbar"}
+}

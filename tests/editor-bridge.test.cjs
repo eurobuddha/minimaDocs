@@ -84,3 +84,12 @@ test('PDF conversion exports bytes without replacing the editable document',asyn
   await h.emit({type:'document:saved',id:h.sent[0].id,payload:{file:new Blob(['%PDF-1.7'])}});
   assert.equal(h.saved.length,0);assert.equal(h.exported[0].type,'PDF');
 });
+
+test('imported image history retains durable data bytes instead of a revoked blob URL',async()=>{
+  const original=Buffer.from('synthetic image bytes');const h=editorHarness('image',{name:'photo.png',base64:original.toString('base64')});let imported;
+  h.child.document={createElement:()=>({}),head:{appendChild:el=>el.onload?.()}};
+  h.child.FileSave={};h.child.State={do_action:async()=>({status:'completed'})};h.child.ImageStudio={ready:Promise.resolve()};
+  h.child.FileOpen={file_open_data_url_handler:url=>{imported=url;return h.child.State.do_action({action_id:'open_file_data_url'});}};
+  await h.frameHandlers.load();assert.equal(h.ready,1);assert.deepEqual(h.errors,[]);
+  assert.match(imported,/^data:.*;base64,/);assert.deepEqual(Buffer.from(imported.split(',')[1],'base64'),original);
+});

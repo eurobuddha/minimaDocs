@@ -6,8 +6,8 @@ android {
         applicationId 'com.eurobuddha.minimadocs'
         minSdk 28
         targetSdk 35
-        versionCode 302
-        versionName '0.3.2'
+        versionCode 303
+        versionName '0.3.3'
         testInstrumentationRunner 'org.mininotes.android.DocumentInstrumentation'
     }
     compileOptions { sourceCompatibility JavaVersion.VERSION_17; targetCompatibility JavaVersion.VERSION_17 }
@@ -71,6 +71,10 @@ tasks.register('verifyEditorAssets') {
                 throw new GradleException('Offline editor assets are missing. Run node scripts/prepare-editors.cjs from the repository root first.')
             }
         }
+        ['image-studio.js','image-mobile.js','image.css','filtr-engine.js','filtr-controls.js'].each { asset ->
+            if (!file("src/main/assets/workbench/$asset").isFile()) throw new GradleException("Image Studio asset missing: $asset")
+        }
+        if (!file('src/main/assets/editors/image/dist/bundle.js').text.contains('ImageEditor')) throw new GradleException('Rebuild the image engine with scripts/prepare-image.cjs.')
         if (!file('src/main/assets/editors/sdkjs/common/AllFonts.js').text.contains('"Manrope"')) throw new GradleException('Rebuild the office engine with scripts/customize-office.mjs to register Manrope.')
     }
 }

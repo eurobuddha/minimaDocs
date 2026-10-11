@@ -139,3 +139,6 @@ Image studio effects: Filtr (MIT), Copyright (c) 2026 filtr.
 Engine reused from tools/filtr through statenft-suite/filtrport and its
 vendored minidapp/filtr-engine.js; control schema from minidapp/filtr.js.
 License bundled as workbench/FILTR-LICENSE.txt. No analytics or remote services.
+
+Image Studio phone control relocation is adapted from the user's Atelier
+statenft-suite/minidapp/filtr-sheet.js, preserving the existing editor controls.

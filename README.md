@@ -13,14 +13,20 @@ The first Mac desktop build supports Apple Silicon and macOS 13 or newer, with
 offline Docs, Sheets and Images, editable DOCX/XLSX files, native import/export,
 Keychain-protected storage and direct Maxima sharing. See the
 [Mac build and usage guide](desktop/README.md) for setup, verification and current
-limits. Parlons Desktop contacts integration is pending a linked-app interface
-in Parlons Desktop.
+limits. Parlons Desktop and minimaCore Desktop provide the approved linked-app
+contacts interface.
 
-## Android 0.3.2
+## Android 0.3.3
 
 [Download the signed Android APK](https://github.com/eurobuddha/minimaDocs/releases/latest).
-Install `minimaDocs-0.3.2.apk` to update an existing installation while keeping its
+Install `minimaDocs-0.3.3.apk` to update an existing installation while keeping its
 data. The release includes a SHA-256 checksum. Android 9 or newer is required.
+Version 0.3.3 brings the desktop Image Studio to Android: layers and blend modes,
+selection masks with finger/stylus painting, colour adjustments, retouching,
+brushes, text, 15 Filtr effects and 14 presets. Phone controls use collapsible
+panels, with the image visible above them. Both hosts use the same editor code
+and layered project format. Imported-image retouch undo retains durable pixels.
+
 Version 0.3.2 discovers Minima Core PandaBear, BlackBear and Pandamonium in the eurobuddha namespace, using normal user-granted permissions.
 
 Also available through **PandaApps**, **PandaGet**, and the **minimaCore App Store**

@@ -137,23 +137,23 @@
           if(!loaded)throw new Error('The image project could not be opened.');
         }
         else {
-          const blob=new Blob([bytes(config.base64)]);const url=URL.createObjectURL(blob);
-          try {
-            // Reuse miniPaint's import action and wait for its layer insertion.
-            await new Promise((resolve,reject)=>{
-              const original=editor.State.do_action;
-              const timer=setTimeout(()=>{editor.State.do_action=original;reject(new Error('The image could not be opened.'));},30000);
-              editor.State.do_action=async function(action,...args) {
-                const result=await original.call(this,action,...args);
-                if(action.action_id==='open_file_data_url') {
-                  clearTimeout(timer);editor.State.do_action=original;
-                  if(result.status==='completed')resolve();else reject(new Error('The image could not be opened.'));
-                }
-                return result;
-              };
-              editor.FileOpen.file_open_data_url_handler(url);
-            });
-          } finally {URL.revokeObjectURL(url);}
+          // miniPaint retains this URL in layer pixels and undo history. A revoked
+          // blob works from some desktop caches but cannot be decoded on Android undo.
+          const blob=new Blob([bytes(config.base64)]);const url=await new Promise((resolve,reject)=>{const reader=new FileReader();reader.onload=()=>resolve(reader.result);reader.onerror=()=>reject(new Error('The image could not be read.'));reader.readAsDataURL(blob);});
+          // Reuse miniPaint's import action and wait for its layer insertion.
+          await new Promise((resolve,reject)=>{
+            const original=editor.State.do_action;
+            const timer=setTimeout(()=>{editor.State.do_action=original;reject(new Error('The image could not be opened.'));},30000);
+            editor.State.do_action=async function(action,...args) {
+              const result=await original.call(this,action,...args);
+              if(action.action_id==='open_file_data_url') {
+                clearTimeout(timer);editor.State.do_action=original;
+                if(result.status==='completed')resolve();else reject(new Error('The image could not be opened.'));
+              }
+              return result;
+            };
+            editor.FileOpen.file_open_data_url_handler(url);
+          });
         }
         delete config.base64;
       }
@@ -166,7 +166,7 @@
           return result;
         };
       }
-      for(const source of ['filtr-engine.js','filtr-controls.js','image-studio.js']) {
+      for(const source of ['filtr-engine.js','filtr-controls.js','image-studio.js','image-mobile.js']) {
         await new Promise((resolve,reject)=>{const script=editor.document.createElement('script');script.src='/workbench/'+source;script.onload=resolve;script.onerror=()=>reject(new Error('The image studio could not load.'));editor.document.head.appendChild(script);});
       }
       await editor.ImageStudio.ready;

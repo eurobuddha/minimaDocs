@@ -69,16 +69,30 @@
   if($('#mask-soft').checked)ctx.filter='blur('+(radius*.35)+'px)';ctx.strokeStyle='#fff';ctx.lineWidth=radius*2;ctx.beginPath();ctx.moveTo(last.x,last.y);ctx.lineTo(p.x+.01,p.y+.01);ctx.stroke();ctx.restore();
   stroke.last=p;stroke.revision++;config.need_render=true;
  }
- document.addEventListener('mousedown',e=>{
-  if(!maskMode||e.button!==0||e.target.id!=='canvas_minipaint')return;
+ // Pointer events cover mouse, finger and stylus. Use the already-decoded mask
+ // cache so a quick tap cannot finish before an asynchronous stroke has started.
+ const maskCanvas=$('#canvas_minipaint');let maskPointer=null;
+ maskCanvas.style.touchAction='none';
+ document.addEventListener('pointerdown',e=>{
+  if(!maskMode||e.button!==0||e.target!==maskCanvas||maskPointer!==null)return;
   e.preventDefault();e.stopImmediatePropagation();
-  run(async()=>{const l=imageLayer(),m=await loadMask(l);if(!m)throw Error('Add a mask first.');if(l.params.minimaMask.enabled===false)throw Error('Enable the mask before painting.');
+  run(()=>{const l=imageLayer(),m=masks.get(l.id);if(!m?.canvas)throw Error('Add a mask first.');if(l.params.minimaMask.enabled===false)throw Error('Enable the mask before painting.');
+   maskPointer=e.pointerId;maskCanvas.setPointerCapture(e.pointerId);
    stroke={id:l.id,canvas:canvas(m.canvas.width,m.canvas.height),revision:0};stroke.canvas.getContext('2d').drawImage(m.canvas,0,0);paintMask(e);
   });
  },true);
- document.addEventListener('mousemove',e=>{if(stroke){e.preventDefault();e.stopImmediatePropagation();paintMask(e);}},true);
- async function finishStroke(){if(!stroke)return;const current=stroke;stroke=null;await setMask(Layers.get_layer(current.id),current.canvas,'Paint layer mask');}
- document.addEventListener('mouseup',e=>{if(stroke){e.preventDefault();e.stopImmediatePropagation();run(finishStroke);}},true);
+ document.addEventListener('pointermove',e=>{if(stroke&&e.pointerId===maskPointer){e.preventDefault();e.stopImmediatePropagation();paintMask(e);}},true);
+ async function finishStroke(){
+  const pointer=maskPointer;maskPointer=null;
+  if(pointer!==null&&maskCanvas.hasPointerCapture(pointer))maskCanvas.releasePointerCapture(pointer);
+  if(!stroke)return;const current=stroke;stroke=null;await setMask(Layers.get_layer(current.id),current.canvas,'Paint layer mask');
+ }
+ for(const name of ['pointerup','pointercancel','lostpointercapture'])document.addEventListener(name,e=>{if(e.pointerId===maskPointer){e.preventDefault();e.stopImmediatePropagation();run(finishStroke);}},true);
+ // miniPaint uses legacy touch/mouse listeners for its normal tools. A mask
+ // gesture must not also paint or select the underlying image.
+ for(const name of ['mousedown','mousemove','mouseup','touchstart','touchmove','touchend','touchcancel'])document.addEventListener(name,e=>{
+  if(maskMode&&(e.target===maskCanvas||stroke)){e.preventDefault();e.stopImmediatePropagation();}
+ },{capture:true,passive:false});
  window.addEventListener('blur',()=>run(finishStroke));
  function maskTool(mode){maskMode=maskMode===mode?'':mode;$('#canvas_minipaint').style.cursor=maskMode?'crosshair':'';for(const b of document.querySelectorAll('[data-mask-mode]'))b.setAttribute('aria-pressed',String(b.dataset.maskMode===maskMode));note(maskMode?'Paint on the image to '+maskMode+' pixels.':'Image tools active.');}
  $('#tools_container').addEventListener('click',()=>{maskMode='';refresh();});

@@ -37,6 +37,7 @@ public final class DocumentInstrumentation extends Instrumentation {
         try {
             if(mode.equals("sharing")){sharing();result.putString("stream","PASS: direct sharing without Parlons, QR and copied invitation permissions, recipient entry, invitation review\n");finish(-1,result);return;}
             if(mode.equals("workspace")){workspace();result.putString("stream","PASS: document workspace, Word controls, Manrope DOCX save and native screenshots\n");finish(-1,result);return;}
+            if(mode.equals("image-studio")){imageStudio();result.putString("stream","PASS: Android Image Studio touch masks, brush, layers, retouch undo, 15 effects, 14 presets, layered reopen and PNG export\n");finish(-1,result);return;}
             if(mode.equals("editors")){editors();result.putString("stream","PASS: packaged Android DOCX/XLSX imports, round trips, PDF and layered PNG export\n");finish(-1,result);return;}
             if(mode.startsWith("parlons")){parlons();result.putString("stream","PASS: real Parlons registration and contacts IPC\n");finish(-1,result);return;}
             NoteStore.unlock(null);
@@ -182,6 +183,70 @@ public final class DocumentInstrumentation extends Instrumentation {
             EditorTestActivity proof=(EditorTestActivity)startActivitySync(new Intent(getTargetContext(),EditorTestActivity.class).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
             try{check(session.ready.await(240,java.util.concurrent.TimeUnit.SECONDS),"Manrope reopen timeout");check(session.error==null,session.error);runOnMainSync(()->proof.web.evaluateJavascript("minimaDocsExport('PDF')",null));check(session.saved.await(240,java.util.concurrent.TimeUnit.SECONDS),"Manrope PDF timeout");check(session.error==null,session.error);check(session.bytes!=null&&session.bytes.length>8,"No Manrope PDF");artifact("workspace-manrope.pdf",session.bytes);}finally{runOnMainSync(proof::finish);}
 
+        }finally{runOnMainSync(app::finish);waitForIdleSync();}
+    }
+    private static boolean sameJson(Object a,Object b)throws org.json.JSONException {
+        if(a instanceof org.json.JSONObject&&b instanceof org.json.JSONObject){
+            org.json.JSONObject x=(org.json.JSONObject)a,y=(org.json.JSONObject)b;if(x.length()!=y.length())return false;
+            Iterator<String> keys=x.keys();while(keys.hasNext()){String k=keys.next();if(!y.has(k)||!sameJson(x.get(k),y.get(k)))return false;}return true;
+        }
+        if(a instanceof org.json.JSONArray&&b instanceof org.json.JSONArray){org.json.JSONArray x=(org.json.JSONArray)a,y=(org.json.JSONArray)b;if(x.length()!=y.length())return false;for(int i=0;i<x.length();i++)if(!sameJson(x.get(i),y.get(i)))return false;return true;}
+        if(a instanceof Number&&b instanceof Number)return Double.compare(((Number)a).doubleValue(),((Number)b).doubleValue())==0;
+        return Objects.equals(a,b);
+    }
+    private String imageCheck(android.webkit.WebView web,String expression)throws Exception {
+        javascript(web,"window.imageCheckResult=null;Promise.resolve().then(()=>{const w=document.getElementById('editor').contentWindow;return w.eval("+org.json.JSONObject.quote(expression)+");}).then(value=>{window.imageCheckResult={ok:true,value};},e=>{window.imageCheckResult={ok:false,error:String(e.stack||e)};});true");
+        long until=System.currentTimeMillis()+120000;
+        while(System.currentTimeMillis()<until){
+            String result=javascript(web,"window.imageCheckResult");
+            if(!"null".equals(result)){org.json.JSONObject parsed=new org.json.JSONObject(result);check(parsed.getBoolean("ok"),expression.substring(0,Math.min(80,expression.length()))+": "+parsed.optString("error"));return parsed.optString("value","");}
+            Thread.sleep(100);
+        }
+        throw new AssertionError("Image check timed out: "+expression);
+    }
+    private void imageStroke(android.webkit.WebView web)throws Exception {
+        org.json.JSONObject point=new org.json.JSONObject(imageCheck(web,"ImageStudioCheck.point()"));int[] location=new int[2];int[] width={0};
+        runOnMainSync(()->{web.getLocationOnScreen(location);width[0]=web.getWidth();});
+        double cssWidth=Double.parseDouble(javascript(web,"innerWidth"));float scale=(float)(width[0]/cssWidth);
+        float x=location[0]+(float)point.getDouble("x")*scale,y=location[1]+(float)point.getDouble("y")*scale;
+        long down=android.os.SystemClock.uptimeMillis();
+        for(int i=0;i<6;i++){
+            int action=i==0?android.view.MotionEvent.ACTION_DOWN:i==5?android.view.MotionEvent.ACTION_UP:android.view.MotionEvent.ACTION_MOVE;
+            android.view.MotionEvent event=android.view.MotionEvent.obtain(down,android.os.SystemClock.uptimeMillis(),action,x+i*2,y+i,0);event.setSource(android.view.InputDevice.SOURCE_TOUCHSCREEN);
+            try{sendPointerSync(event);}finally{event.recycle();}Thread.sleep(40);
+        }
+        waitForIdleSync();
+    }
+    private void imageStudio()throws Exception {
+        check(android.os.Build.FINGERPRINT.contains("generic")||android.os.Build.MODEL.contains("sdk"),"Image fixtures require a disposable emulator");
+        android.graphics.Bitmap bitmap=android.graphics.Bitmap.createBitmap(320,240,android.graphics.Bitmap.Config.ARGB_8888);
+        android.graphics.Canvas canvas=new android.graphics.Canvas(bitmap);canvas.drawColor(android.graphics.Color.rgb(60,100,140));android.graphics.Paint paint=new android.graphics.Paint();paint.setColor(android.graphics.Color.rgb(230,180,100));canvas.drawCircle(80,60,30,paint);
+        ByteArrayOutputStream out=new ByteArrayOutputStream();bitmap.compress(android.graphics.Bitmap.CompressFormat.PNG,100,out);bitmap.recycle();
+        String script;try(InputStream in=getContext().getAssets().open("image-studio-check.js")){script=new String(in.readAllBytes(),java.nio.charset.StandardCharsets.UTF_8);}
+        byte[] project=null;org.json.JSONObject expected=null;
+        for(int round=0;round<2;round++){
+            org.json.JSONObject config=new org.json.JSONObject().put("kind","image").put("name",round==0?"phone.png":"phone.minimadocs-image.json").put("base64",android.util.Base64.encodeToString(round==0?out.toByteArray():project,android.util.Base64.NO_WRAP));
+            EditorTestActivity.Session session=new EditorTestActivity.Session(config.toString());EditorTestActivity.session=session;
+            EditorTestActivity activity=(EditorTestActivity)startActivitySync(new Intent(getTargetContext(),EditorTestActivity.class).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
+            try{
+                check(session.ready.await(120,java.util.concurrent.TimeUnit.SECONDS),"Image Studio open timed out");check(session.error==null,session.error);imageCheck(activity.web,script);
+                if(round==0){
+                    imageCheck(activity.web,"ImageStudioCheck.prepare()");imageStroke(activity.web);imageCheck(activity.web,"ImageStudioCheck.afterMask()");imageStroke(activity.web);imageCheck(activity.web,"ImageStudioCheck.afterBrush()");painted(activity.web);screen("image-studio-effects-screen.png");
+                    imageCheck(activity.web,"ImageStudioCheck.apply()");painted(activity.web);screen("image-studio-phone-screen.png");imageCheck(activity.web,"document.querySelector('.studio-catbar button[aria-controls=studio-slot-layers]').click();true");painted(activity.web);screen("image-studio-layers-screen.png");
+                    javascript(activity.web,"minimaDocsSave();true");check(session.saved.await(120,java.util.concurrent.TimeUnit.SECONDS),"Image project save timeout");check(session.error==null,session.error);project=session.bytes;check(project!=null,"No image project");expected=new org.json.JSONObject(new String(project,java.nio.charset.StandardCharsets.UTF_8));artifact("image-studio.minimadocs-image.json",project);
+                }else{
+                    org.json.JSONObject reopened=new org.json.JSONObject(imageCheck(activity.web,"ImageStudioCheck.reopened()"));artifact("image-studio-reopened.json",reopened.toString().getBytes(java.nio.charset.StandardCharsets.UTF_8));check(sameJson(reopened.getJSONArray("data"),expected.getJSONArray("data")),"Image bytes changed after reopen");check(sameJson(reopened.getJSONArray("layers"),expected.getJSONArray("layers")),"Layer properties changed after reopen");
+                    javascript(activity.web,"minimaDocsExport('PNG');true");check(session.saved.await(120,java.util.concurrent.TimeUnit.SECONDS),"PNG export timeout");check(session.error==null,session.error);android.graphics.Bitmap png=android.graphics.BitmapFactory.decodeByteArray(session.bytes,0,session.bytes.length);check(png!=null&&png.getWidth()==320&&png.getHeight()==240,"PNG export dimensions wrong");png.recycle();artifact("image-studio.png",session.bytes);
+                }
+            }finally{runOnMainSync(activity::finish);waitForIdleSync();}
+        }
+        MainActivity app=(MainActivity)startActivitySync(new Intent(getTargetContext(),MainActivity.class).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
+        try{
+            runOnMainSync(()->app.editDocument("image",null));EditorPane pane=(EditorPane)field(app,"editor");android.webkit.WebView web=(android.webkit.WebView)field(pane,"web");
+            long until=System.currentTimeMillis()+120000;while(System.currentTimeMillis()<until){if("true".equals(javascript(web,"!!document.getElementById('editor')?.contentWindow.document.querySelector('.studio-catbar')")))break;Thread.sleep(100);}
+            imageCheck(web,"ImageStudio.ready.then(()=>{document.querySelector('.studio-catbar button[aria-controls=studio-slot-layers]').click();return true;})");painted(web);screen("image-studio-native-screen.png");
+            check(textView(pane.getWindow().getDecorView(),"Save")!=null,"Native Save unavailable");
+            imageCheck(web,"(()=>{const c=document.querySelector('#canvas_minipaint').getBoundingClientRect(),bar=document.querySelector('.studio-catbar').getBoundingClientRect();if(c.height<30||bar.bottom>innerHeight+1)throw Error('Native host clips phone workspace');return true;})()");runOnMainSync(pane::dismiss);
         }finally{runOnMainSync(app::finish);waitForIdleSync();}
     }
     private void editors()throws Exception {

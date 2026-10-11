@@ -76,12 +76,12 @@ final class EditorPane extends Dialog {
         root.addView(bar);root.addView(Design.softRule(app));
         status=Design.note(app,"Opening editor…");status.setPadding(app.dp(14),app.dp(8),app.dp(14),app.dp(8));status.setAccessibilityLiveRegion(android.view.View.ACCESSIBILITY_LIVE_REGION_POLITE);
         LinearLayout statusLine=new LinearLayout(app);statusLine.setGravity(Gravity.CENTER_VERTICAL);statusLine.addView(status,new LinearLayout.LayoutParams(0,-2,1));
-        TextView exportTop=WorkspaceUi.textButton(app,"Export",()->{});exportTop.setOnClickListener(this::exportMenu);statusLine.addView(exportTop,new LinearLayout.LayoutParams(app.dp(76),app.dp(44)));
+        TextView exportTop=WorkspaceUi.textButton(app,"Export",()->{});exportTop.setPadding(app.dp(8),0,app.dp(8),0);exportTop.setOnClickListener(this::exportMenu);statusLine.addView(exportTop,new LinearLayout.LayoutParams(app.dp(76),app.dp(44)));
         TextView fileTop=WorkspaceUi.textButton(app,"File",()->{});fileTop.setOnClickListener(this::menu);statusLine.addView(fileTop,new LinearLayout.LayoutParams(app.dp(62),app.dp(44)));root.addView(statusLine);
         LinearLayout actions=new LinearLayout(app);actions.setPadding(app.dp(12),0,app.dp(12),app.dp(6));
         save=WorkspaceUi.button(app,"Save",false,this::requestSave);save.setEnabled(false);actions.addView(save,new LinearLayout.LayoutParams(0,app.dp(44),1));
         TextView export=WorkspaceUi.button(app,"Export",false,()->{});export.setOnClickListener(this::menu);actions.addView(export,new LinearLayout.LayoutParams(0,app.dp(44),1));
-        TextView more=WorkspaceUi.button(app,"File options",false,()->{});more.setOnClickListener(this::menu);actions.addView(more,new LinearLayout.LayoutParams(0,app.dp(44),1));if(!kind.equals("docx"))root.addView(actions);
+        TextView more=WorkspaceUi.button(app,"File options",false,()->{});more.setOnClickListener(this::menu);actions.addView(more,new LinearLayout.LayoutParams(0,app.dp(44),1));if(kind.equals("image")){actions.removeView(save);save.setPadding(app.dp(8),0,app.dp(8),0);statusLine.addView(save,new LinearLayout.LayoutParams(app.dp(68),app.dp(40)));}else if(!kind.equals("docx"))root.addView(actions);
         web=new WebView(app);configureWeb();root.addView(web,new LinearLayout.LayoutParams(-1,0,1));
         // Reuse MainActivity.shell's insets handling: Android 15+ does not resize for the IME.
         root.setOnApplyWindowInsetsListener((v,insets)->{
