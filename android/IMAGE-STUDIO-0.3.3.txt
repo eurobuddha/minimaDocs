@@ -73,3 +73,6 @@ IPFS snapshot: bafybeibmb5zuq66umowsbo5hyc7htfltzpu2o4x2zyokddm5r6anoyjzau
 https://ipfs.eurobuddha.com/apks/minimaDocs-0.3.3.apk
 Local pin and IPNS publication succeeded. Existing Filebase remote-pin-list
 availability warning remains; the public mirror and local pin are unaffected.
+Full public IPFS APK readback completed: 221911125 bytes, SHA-256
+99fc3ce0e775a7efd33f74fc7bee2dabf4a5a52c02d982d6ca7cca675b8d1ea3.
+The normal public gateway serves exactly the signed GitHub release bytes.
