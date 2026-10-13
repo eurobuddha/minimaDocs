@@ -54,3 +54,9 @@ Validation (2026-10-13)
 - Final staged-engine Electron suite: 2 passed. Same suite against the Developer ID
   signed app in an isolated Keychain workspace: 2 passed. Packaged JDBC integrity
   and both native signatures: passed.
+
+Release verification (2026-10-14)
+- Developer ID Application: Barry Sherman (Z4JD286WF4). Hardened runtime.
+- App and DMG notarized/stapled; strict signatures and Gatekeeper accepted both.
+- Installer: minimaDocs-0.1.3-mac-arm64.dmg
+- SHA-256: e94cb7c4698396ffb29842da85c6371256e7f7f627aebe92a18fe7b464aeffaa
