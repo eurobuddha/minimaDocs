@@ -1,0 +1,56 @@
+minimaDocs desktop PhotoCraft integration — 0.1.3
+
+Scope
+- Desktop only. Android remains 0.3.3 and its sources/assets are unchanged.
+- New images and imported raster/PSD/PSB/OpenRaster/PhotoCraft files use PhotoCraft.
+- Existing .minimadocs-image.json projects keep the tested miniPaint/Filtr editor;
+  there is no automatic flattening or destructive format migration.
+
+Upstream and build
+- PhotoCraft 0.8.2, d43db3e153c76aefce9b32cef9099e458eaf17a8, MIT OR Apache-2.0.
+- desktop/photocraft/pin.json records the source and tool versions.
+- desktop/photocraft/upstream.patch contains the small platform-service changes.
+- desktop/photocraft/minima_bridge.rs is the in-memory engine/host boundary.
+- npm run prepare:photocraft builds the actual Rust/WASM editor, never a hosted site.
+- prepare:mac checks the adapter and all engine asset hashes before packaging.
+- Third-party notices, font/icon/dictionary licenses ship with the WASM assets.
+
+Document safety
+- Native .pcraft bytes use the existing encrypted DocumentStore and immutable versions.
+- Existing read-only checks, Save a copy, autosave, and close/quit prompts are retained.
+- File > Save routes to the host. Native export acknowledgement, not merely opening a
+  save dialog, marks exported work saved. Cancel and failed writes leave work dirty.
+- File > New/Open create host-owned windows. Smart-object contents save into their
+  parent before snapshotting. Extra independent tabs must be exported/closed first;
+  they are never silently omitted from a successful host save.
+- Host timeouts and renderer-failure handling keep native close/discard available.
+- FileReader and bounded buffers avoid the old multi-MiB JavaScript stack overflow.
+- Limits remain 16 MiB per saved/shared/exported file. No persistent browser storage;
+  editor preferences and custom brush presets last for the editing session.
+
+APK viability (not implemented in this change)
+- The shared WASM engine makes an Android WebView integration technically possible.
+- PhotoCraft's egui desktop interface needs touch/layout work and physical-device
+  memory/performance testing. WASM image operations run on the UI thread.
+- The current APK cannot edit .pcraft projects. Keep legacy JSON for cross-version
+  editable sharing, or export PNG for raster interchange until Android is upgraded.
+- PhotoCraft upstream labels the product early alpha. Treat format fidelity and
+  large-document performance as testable capabilities, not full Photoshop parity.
+
+Validation (2026-10-13)
+- Desktop host/security suite: 22 passed. Desktop Java backend tests/packageInput passed.
+- Actual Electron PhotoCraft integration: layered/masked/adjustment project round trip,
+  PNG/PSD/PCraft exports, failure recovery, save on quit, cancelled exports, extra-tab
+  protection and host-owned File > New passed.
+- Word/spreadsheet compatibility: 2 passed. Legacy layered image, phone fixture,
+  6,015,024-byte image save and isolated save-failure/quit recovery passed.
+- Upstream file handling: 34 passed; close/save UI: 33 passed; web shell: 12 passed.
+- Native changed-crate Clippy passed with the existing upstream collapsible_match
+  warnings allowed. Strict WASM web-shell Clippy passed; architecture: 29 crates,
+  no layering violations. Unmodified upstream strict-all lint is not clean.
+- Visual review: full offline PhotoCraft workspace, layers, masks and adjustments;
+  no persistent-storage error banner. Upstream preset memory backend is reused.
+- Upstream `cargo xtask wasm` passed, including HEIF codecs.
+- Final staged-engine Electron suite: 2 passed. Same suite against the Developer ID
+  signed app in an isolated Keychain workspace: 2 passed. Packaged JDBC integrity
+  and both native signatures: passed.

@@ -9,6 +9,7 @@ function target(url,roots){
   if(pathname.includes('\\')||pathname.includes('\0')||pathname.split('/').some(p=>p==='..'||p==='.')||/\/(sw|document_editor_service_worker)\.js$/.test(pathname))return null;
   let root=roots.editors,relative=pathname.slice(1);
   if(u.origin===WORKSPACE){root=pathname.startsWith('/fonts/')?roots.workbench:roots.renderer;relative=relative||'index.html';}
+  else if(pathname.startsWith('/photocraft/')){root=roots.photocraft;relative=pathname.slice(12);if(!root)return null;}
   else if(pathname.startsWith('/desktop/')){root=roots.renderer;relative=pathname.slice(9);}
   else if(pathname.startsWith('/workbench/')){root=roots.workbench;relative=pathname.slice(11);}
   else if(/^\/fonts\/manrope-(regular|bold)$/.test(pathname)){root=roots.workbench;relative='fonts/'+path.basename(pathname);}
@@ -24,6 +25,8 @@ function handler(roots){return async request=>{
     if(t.file.endsWith('.html')){
       let html=await fs.readFile(t.file,'utf8');
       if(t.origin===EDITOR)html=html.replace(/<head>/i,'<head><script src="/workbench/memory-storage.js"></script><link rel="stylesheet" href="/workbench/typography.css">');
+      if(t.pathname==='/photocraft/index.html')html=html.replace('</head>','<script src="/desktop/photocraft-client.js"></script></head>');
+      if(t.pathname==='/workbench/index.html')html=html.replace('/workbench/bridge.js','/desktop/bridge.js');
       if(t.pathname==='/workbench/index.html')html=html.replace('</head>','<link rel="stylesheet" href="/desktop/editor.css"></head>').replace('<body>','<body><header id="desktop-bar"><button id="files">Files</button><input id="title" maxlength="100" aria-label="Document title"><span id="save-status" role="status">Opening editor…</span><button id="save" disabled>Save</button><button id="copy" disabled>Save a copy</button><button id="export" disabled>Export</button><button id="share" disabled class="primary">Share</button></header>').replace('</body>','<script src="/desktop/editor-ui.js"></script></body>');
       return new Response(html,{headers});
     }

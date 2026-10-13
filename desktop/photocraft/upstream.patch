@@ -1,0 +1,346 @@
+diff --git a/apps/photocraft-web/Cargo.toml b/apps/photocraft-web/Cargo.toml
+index a4ded64..77dc4dd 100644
+--- a/apps/photocraft-web/Cargo.toml
++++ b/apps/photocraft-web/Cargo.toml
+@@ -26,6 +26,7 @@ photocraft-doc = { workspace = true }
+ photocraft-ui-egui = { workspace = true }
+ egui = { workspace = true }
+ log = { workspace = true }
++serde_json = { workspace = true }
+ 
+ [target.'cfg(target_arch = "wasm32")'.dependencies]
+ # `wgpu` pulls egui-wgpu's defaults: WebGPU plus the WebGL2 fallback.
+@@ -34,7 +35,7 @@ rfd = { workspace = true }
+ wasm-bindgen = "0.2"
+ wasm-bindgen-futures = "0.4"
+ js-sys = "0.3"
+-web-sys = { version = "0.3", features = ["Window", "Document", "Element", "HtmlElement", "HtmlCanvasElement", "HtmlAnchorElement", "Blob", "BlobPropertyBag", "Url", "Location", "CssStyleDeclaration", "Storage", "Event", "EventTarget", "MouseEvent", "PointerEvent", "BeforeUnloadEvent", "AbortController", "AbortSignal", "DomException", "Response", "IdbFactory", "IdbOpenDbRequest", "IdbDatabase", "IdbRequest", "IdbTransaction", "IdbTransactionMode", "IdbObjectStore", "IdbCursor", "IdbCursorWithValue", "RequestInit", "Navigator"] }
++web-sys = { version = "0.3", features = ["CustomEvent", "CustomEventInit", "Window", "Document", "Element", "HtmlElement", "HtmlCanvasElement", "HtmlAnchorElement", "Blob", "BlobPropertyBag", "Url", "Location", "CssStyleDeclaration", "Storage", "Event", "EventTarget", "MouseEvent", "PointerEvent", "BeforeUnloadEvent", "AbortController", "AbortSignal", "DomException", "Response", "IdbFactory", "IdbOpenDbRequest", "IdbDatabase", "IdbRequest", "IdbTransaction", "IdbTransactionMode", "IdbObjectStore", "IdbCursor", "IdbCursorWithValue", "RequestInit", "Navigator"] }
+ 
+ [dev-dependencies]
+ serde_json = { workspace = true }
+diff --git a/apps/photocraft-web/src/main.rs b/apps/photocraft-web/src/main.rs
+index 5ba75f5..406a49e 100644
+--- a/apps/photocraft-web/src/main.rs
++++ b/apps/photocraft-web/src/main.rs
+@@ -20,8 +20,12 @@
+ mod preset_bridge;
+ 
+ #[cfg(target_arch = "wasm32")]
++#[allow(dead_code)]
+ mod indexed_presets;
+ 
++#[cfg(target_arch = "wasm32")]
++mod minima_bridge;
++
+ #[cfg(target_arch = "wasm32")]
+ mod web;
+ 
+diff --git a/apps/photocraft-web/src/preset_bridge.rs b/apps/photocraft-web/src/preset_bridge.rs
+index 6c9ef84..03c7042 100644
+--- a/apps/photocraft-web/src/preset_bridge.rs
++++ b/apps/photocraft-web/src/preset_bridge.rs
+@@ -101,6 +101,7 @@ impl Bridge {
+         }
+     }
+ 
++    #[cfg_attr(target_arch = "wasm32", allow(dead_code))] // The minimaDocs shell uses the memory backend.
+     pub fn unavailable(&self, error: String) {
+         self.state().error = Some(error);
+     }
+diff --git a/apps/photocraft-web/src/web.rs b/apps/photocraft-web/src/web.rs
+index 6c99396..cb062fd 100644
+--- a/apps/photocraft-web/src/web.rs
++++ b/apps/photocraft-web/src/web.rs
+@@ -61,16 +61,8 @@ pub fn start() {
+         {
+             create.instance_descriptor.backends = eframe::wgpu::Backends::GL;
+         }
+-        // Hydrate before constructing an interactive session: a late load must never undo a
+-        // user deletion/reorder. Storage denial or timeout still opens a usable session.
+-        let (database, presets, mut preset_warnings) = match crate::indexed_presets::load().await {
+-            Ok((db, bridge, warnings)) => (Some(db), bridge, warnings),
+-            Err(e) => {
+-                let bridge = crate::preset_bridge::Bridge::default();
+-                bridge.unavailable(e);
+-                (None, bridge, Vec::new())
+-            }
+-        };
++        // minimaDocs keeps editor preferences/presets in memory. Only host snapshots are durable.
++        let (database, presets, mut preset_warnings) = (None, crate::preset_bridge::Bridge::default(), Vec::new());
+         let pen_target = canvas.clone();
+         let result = eframe::WebRunner::new()
+             .start(
+@@ -96,8 +88,9 @@ pub fn start() {
+                         app.set_wgpu(rs);
+                     }
+                     let unsaved = Arc::new(AtomicBool::new(false));
+-                    guard_unload(unsaved.clone());
+-                    Ok(Box::new(WebShell { app, inbox, unsaved, served, database, presets }))
++
++                    let bridge = crate::minima_bridge::Bridge::new(cc.egui_ctx.clone()).map_err(std::io::Error::other)?;
++                    Ok(Box::new(WebShell { app, inbox, unsaved, served, database, presets, bridge }))
+                 }),
+             )
+             .await;
+@@ -140,24 +133,6 @@ fn listen_pen(target: &web_sys::HtmlCanvasElement, feed: photocraft_ui_egui::sty
+     }
+ }
+ 
+-/// Closing or reloading the tab while a document has unsaved changes asks first, as closing the
+-/// desktop window does: the browser shows its own "Leave site?" prompt (#1380). `unsaved` is
+-/// refreshed every frame by [`WebShell`].
+-fn guard_unload(unsaved: Arc<AtomicBool>) {
+-    use wasm_bindgen::closure::Closure;
+-    let Some(window) = web_sys::window() else { return };
+-    let cb = Closure::<dyn FnMut(web_sys::BeforeUnloadEvent)>::new(move |e: web_sys::BeforeUnloadEvent| {
+-        if unsaved.load(Ordering::Relaxed) {
+-            e.prevent_default();
+-            // Older browsers show the prompt only when a return value is set.
+-            e.set_return_value("");
+-        }
+-    });
+-    if window.add_event_listener_with_callback("beforeunload", cb.as_ref().unchecked_ref()).is_ok() {
+-        cb.forget();
+-    }
+-}
+-
+ fn query() -> String {
+     web_sys::window().and_then(|w| w.location().search().ok()).unwrap_or_default()
+ }
+@@ -221,9 +196,10 @@ async fn fetch_bytes(url: &str, integrity: Option<&str>) -> Result<Vec<u8>, Stri
+ /// Wraps the app to read dropped files asynchronously (browsers can't read them synchronously,
+ /// so the app's own drop path can't handle them) and feed them through the inbox.
+ struct WebShell {
++    bridge: crate::minima_bridge::Bridge,
+     app: PhotocraftApp,
+     inbox: Inbox,
+-    /// Read by the `beforeunload` listener ([`guard_unload`]).
++    /// Standalone browser dirty state; minimaDocs owns the native close guard.
+     unsaved: Arc<AtomicBool>,
+     served: Served,
+     database: Option<web_sys::IdbDatabase>,
+@@ -232,6 +208,12 @@ struct WebShell {
+ 
+ impl WebShell {
+     fn save_presets(&mut self, ctx: &egui::Context) {
++        if self.database.is_none() {
++            if let Some(batch) = self.presets.begin() {
++                self.presets.finish(batch, Ok(()));
++            }
++            return;
++        }
+         if let Some(db) = self.database.clone()
+             && let Some(batch) = self.presets.begin()
+         {
+@@ -300,6 +282,7 @@ impl eframe::App for WebShell {
+             });
+         }
+         self.serve_fonts(ctx);
++        self.bridge.poll(&mut self.app);
+         self.app.logic(ctx, frame);
+         self.save_presets(ctx);
+     }
+@@ -324,12 +307,15 @@ impl eframe::App for WebShell {
+             });
+         }
+         self.app.ui(ui, frame);
++        self.bridge.poll(&mut self.app);
+         self.save_presets(ui.ctx());
+     }
+ }
+ 
+ fn services(inbox: Inbox) -> Services {
+     Services {
++        host_command: Some(crate::minima_bridge::command),
++        host_write: Some(crate::minima_bridge::write),
+         screen_pick: screen_color_service(),
+         import: Some(Box::new(|name: &str, bytes: &[u8], max_svg_group_depth: usize| {
+             photocraft_io::import_with_svg_group_depth(name, bytes, max_svg_group_depth).map(|r| (r.document, r.warnings)).map_err(|e| e.to_string())
+@@ -406,42 +392,10 @@ fn local_storage() -> Option<web_sys::Storage> {
+ 
+ /// Trigger a browser download of `bytes` named after the last component of `path`.
+ fn download(path: &str, bytes: &[u8]) -> Result<(), String> {
+-    let js = |e: wasm_bindgen::JsValue| format!("{e:?}");
+-    let name = std::path::Path::new(path).file_name().map(|n| n.to_string_lossy().to_string()).unwrap_or_else(|| "photocraft".into());
+-    let window = web_sys::window().ok_or("no window")?;
+-    let document = window.document().ok_or("no document")?;
+-    let parts = js_sys::Array::of1(&js_sys::Uint8Array::from(bytes));
+-    let opts = web_sys::BlobPropertyBag::new();
+-    opts.set_type(mime_for(&name));
+-    let blob = web_sys::Blob::new_with_u8_array_sequence_and_options(&parts, &opts).map_err(js)?;
+-    let url = web_sys::Url::create_object_url_with_blob(&blob).map_err(js)?;
+-    let a: web_sys::HtmlAnchorElement = document.create_element("a").map_err(js)?.dyn_into().map_err(|_| "not an anchor")?;
+-    a.set_href(&url);
+-    a.set_download(&name);
+-    a.style().set_property("display", "none").map_err(js)?;
+-    let body = document.body().ok_or("no body")?;
+-    body.append_child(&a).map_err(js)?;
+-    a.click();
+-    a.remove();
+-    // Revoke after the click has been dispatched; the download keeps its own reference.
+-    let revoke = wasm_bindgen::closure::Closure::once_into_js(move || {
+-        web_sys::Url::revoke_object_url(&url).ok();
+-    });
+-    window.set_timeout_with_callback_and_timeout_and_arguments_0(revoke.unchecked_ref(), 10_000).map_err(js)?;
+-    Ok(())
+-}
+-
+-fn mime_for(name: &str) -> &'static str {
+-    match name.rsplit('.').next().map(str::to_ascii_lowercase).as_deref() {
+-        Some("png") => "image/png",
+-        Some("jpg" | "jpeg") => "image/jpeg",
+-        Some("tif" | "tiff") => "image/tiff",
+-        Some("webp") => "image/webp",
+-        Some("gif") => "image/gif",
+-        Some("psd" | "psb") => "image/vnd.adobe.photoshop",
+-        Some("ora") => "image/openraster",
+-        _ => "application/octet-stream",
++    if bytes.len() > 16 * 1024 * 1024 {
++        return Err("Export exceeds the 16 MiB minimaDocs limit".into());
+     }
++    crate::minima_bridge::emit("download", serde_json::json!({"name":path}), bytes)
+ }
+ 
+ /// Rust bindings to the browser's user-activated EyeDropper API; unsupported browsers keep
+diff --git a/crates/ui-egui/src/discard_ui.rs b/crates/ui-egui/src/discard_ui.rs
+index b0b455e..52f4fc1 100644
+--- a/crates/ui-egui/src/discard_ui.rs
++++ b/crates/ui-egui/src/discard_ui.rs
+@@ -192,7 +192,7 @@ fn save(app: &mut PhotocraftApp, ctx: &egui::Context, doc: DocId) -> bool {
+         return false;
+     }
+     match saved {
+-        Ok(_) => !app.save_options_open() && !app.saving(),
++        Ok(_) => !app.save_options_open() && !app.saving() && index_of(app, doc).is_some_and(|i| !app.session.documents()[i].is_dirty()),
+         // Backing out of the file dialog is the user's choice, not an error.
+         Err(e) if e == crate::file_dialog::CANCELLED => false,
+         Err(e) => {
+diff --git a/crates/ui-egui/src/file_open/tests.rs b/crates/ui-egui/src/file_open/tests.rs
+index d49ab58..f338535 100644
+--- a/crates/ui-egui/src/file_open/tests.rs
++++ b/crates/ui-egui/src/file_open/tests.rs
+@@ -776,3 +776,32 @@ fn a_set_of_background_opens_keeps_its_order_however_they_finish() {
+     jobs_ui::finish_open_tab(&mut app, &late, &json!({"document": index})).unwrap();
+     assert_eq!(doc_names(&app), ["dropped.psd", "existing.psd", "f0.psd", "f1.psd", "f2.psd", "f3.psd", "late.psd"]);
+ }
++
++#[test]
++fn host_export_is_not_saved_until_acknowledged_and_stale_ack_keeps_edits() {
++    let (mut app, _) = app_with(vec![]);
++    app.open_file("image.pcraft", b"image").unwrap();
++    app.run("layer.new.layer", json!({"name":"Retouch"})).unwrap();
++    app.services.host_write = Some(|_, _, _, _, _, _| Ok(()));
++    let st = app.session.active().unwrap();
++    let (id, revision) = (st.doc.id.0, st.revision);
++    assert!(app.write_document("saved.pcraft".into(), &crate::ExportSettings::default(), false).unwrap().is_none());
++    assert!(app.session.active().unwrap().is_dirty());
++    app.run("layer.new.layer", json!({"name":"Newer edit"})).unwrap();
++    app.complete_host_save(id, revision, "saved.pcraft", &[], false, &egui::Context::default());
++    assert!(app.session.active().unwrap().is_dirty());
++    let revision = app.session.active().unwrap().revision;
++    app.complete_host_save(id, revision, "saved.pcraft", &[], false, &egui::Context::default());
++    assert!(!app.session.active().unwrap().is_dirty());
++}
++
++#[test]
++fn host_snapshot_rejects_unfinished_dialog_instead_of_discarding_its_preview() {
++    let (mut app, _) = app_with(vec![]);
++    app.open_file("image.pcraft", b"image").unwrap();
++    app.ui.open_dialog(crate::state::DialogKind::NewDocument, Default::default());
++    assert!(app.host_pending_edits());
++    assert!(app.prepare_host_snapshot().is_err());
++    assert_eq!(app.ui.dialogs.len(), 1);
++    assert_eq!(app.session.documents().len(), 1);
++}
+diff --git a/crates/ui-egui/src/lib.rs b/crates/ui-egui/src/lib.rs
+index 2042e1e..b60dff0 100644
+--- a/crates/ui-egui/src/lib.rs
++++ b/crates/ui-egui/src/lib.rs
+@@ -362,10 +362,18 @@ pub type CapsLockFn = Box<dyn FnMut() -> bool>;
+ /// Called once per frame; `None` when the window is decorated or the platform needs no fixing.
+ pub type WindowFrameFn = Box<dyn FnMut()>;
+ 
++/// Embedding host callbacks; unset in the upstream standalone application.
++pub type HostWriteFn = fn(u64, u64, &str, &[u8], &[String], bool) -> Result<(), String>;
++pub type HostCommandFn = fn(&mut PhotocraftApp, &str, &serde_json::Value) -> Option<Result<serde_json::Value, String>>;
++
+ /// Platform services injected by the app binary (file dialogs, codecs), keeping this crate free of
+ /// I/O dependencies.
+ #[derive(Default)]
+ pub struct Services {
++    /// Deferred native picker writes: acknowledgement owns the saved revision.
++    pub host_write: Option<HostWriteFn>,
++    /// Optional embedding host lifecycle commands.
++    pub host_command: Option<HostCommandFn>,
+     /// User-initiated desktop/browser pixel sampling.
+     pub screen_pick: Option<screen_picker::Service>,
+     /// Decode a file's bytes into a document (PSD, PNG, JPEG, …).
+@@ -1360,12 +1368,51 @@ impl PhotocraftApp {
+         let (doc, revision) = (st.doc.id, st.revision);
+         let export = self.services.export.as_ref().ok_or("no exporter configured")?;
+         let (bytes, warnings) = export(&st.doc, &path, settings)?;
++        if let Some(host) = self.services.host_write {
++            host(doc.0, revision, &path, &bytes, &warnings, copy)?;
++            return Ok(None);
++        }
+         let write = self.services.write.as_mut().ok_or("no writer configured")?;
+         write(&path, &bytes)?;
+         self.saved(doc, revision, &path, &warnings, copy);
+         Ok(Some((path, warnings)))
+     }
+ 
++    /// Pending editing UI must not disappear behind an apparently successful host snapshot.
++    pub fn host_pending_edits(&self) -> bool {
++        self.drag.is_some() || self.ui.text_edit.is_some() || self.host_unfinished_preview()
++    }
++    fn host_unfinished_preview(&self) -> bool {
++        !self.ui.dialogs.is_empty()
++            || self.camera_raw.is_some()
++            || self.ui.transform.is_some()
++            || self.ui.cam_transform.is_some()
++            || self.ui.symmetry_transform.is_some()
++            || crop_ui::pending(self)
++            || perspective_crop_ui::pending(self)
++            || self.distort.active()
++            || self.distort.gallery.is_some()
++            || !self.remove_pending.is_empty()
++    }
++    /// Reuse the tools' commit operations. Dialog previews require an explicit user choice.
++    pub fn prepare_host_snapshot(&mut self) -> Result<(), String> {
++        if self.host_unfinished_preview() {
++            return Err("Finish or cancel the active PhotoCraft dialog, crop, transform or retouch preview before saving.".into());
++        }
++        if let Some(drag) = self.drag.take() {
++            canvas::finish_gesture(self, drag);
++        }
++        type_tool::commit(self);
++        Ok(())
++    }
++
++    /// Complete an embedding host write only after its native picker and disk commit succeeded.
++    pub fn complete_host_save(&mut self, doc: u64, revision: u64, path: &str, warnings: &[String], copy: bool, ctx: &egui::Context) {
++        let doc = photocraft_doc::DocId(doc);
++        self.saved(doc, revision, path, warnings, copy);
++        crate::discard_ui::saved_document(self, ctx, doc);
++    }
++
+     /// Record a written save of document `doc` as it was at `revision`: its name, path and saved
+     /// state (unless a copy), the status, script events and the warnings.
+     pub(crate) fn saved(&mut self, doc: DocId, revision: u64, path: &str, warnings: &[String], copy: bool) {
+diff --git a/crates/ui-egui/src/menus.rs b/crates/ui-egui/src/menus.rs
+index 18f1d6a..ba974dd 100644
+--- a/crates/ui-egui/src/menus.rs
++++ b/crates/ui-egui/src/menus.rs
+@@ -143,6 +143,11 @@ fn workspace_name(id: &str) -> Option<&'static str> {
+ 
+ /// Run a command id from any source (menu, shortcut, palette, automation).
+ pub fn invoke(app: &mut PhotocraftApp, ctx: &egui::Context, id: &str, params: Value) -> Result<Value, String> {
++    if let Some(host) = app.services.host_command
++        && let Some(result) = host(app, id, &params)
++    {
++        return result;
++    }
+     if app.automation_input
+         && let Some(authorize) = app.services.automation_command.as_ref()
+     {

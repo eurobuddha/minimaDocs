@@ -172,3 +172,20 @@ MINIMADOCS_IMAGE_TEST_APP to the packaged executable to repeat against a release
 0.1.2 also replaces the recursive base64 regex that overflowed on large images,
 pauses autosave after an error until explicit retry, and allows the native approved
 save/discard decision to override the embedded browser editor's unload guard.
+
+## PhotoCraft images (Mac 0.1.3)
+
+New images use the bundled [PhotoCraft 0.8.2](https://github.com/storytold/photocraft/releases/tag/v0.8.2)
+Rust/WASM editor. Save keeps an encrypted native `.pcraft` project; Export offers
+PhotoCraft, PNG, PSD and OpenRaster. Older `.minimadocs-image.json` projects retain
+their miniPaint/Filtr editor and editable layers. Android is unchanged; its current
+APK cannot edit `.pcraft` files. Preferences/custom brush presets are session-only.
+
+Before `prepare:mac`, clone PhotoCraft into the sibling `photocraft-engine` folder
+at the revision in `photocraft/pin.json`, install Rust 1.95.0 with the
+`wasm32-unknown-unknown` target and Trunk 0.21.14, then run
+`npm run prepare:photocraft`. The script refuses unrelated checkout changes and
+records engine hashes. `PHOTOCRAFT_SOURCE` and `PHOTOCRAFT_TRUNK` can select existing
+local tool/source locations. `npm run test:photocraft` tests the real host/engine
+round trip. See [PHOTOCRAFT-HANDOFF.txt](PHOTOCRAFT-HANDOFF.txt) for compatibility
+and save-boundary details.

@@ -4,6 +4,7 @@ const root=path.resolve(__dirname,'..'),repo=path.resolve(root,'..');
 const run=(cmd,args)=>cp.execFileSync(cmd,args,{stdio:'inherit',cwd:root});
 const jdk=process.env.JPACKAGE_JDK||cp.execFileSync('/usr/libexec/java_home',[],{encoding:'utf8'}).trim();
 if(!fs.existsSync(path.join(repo,'android/app/src/main/assets/editors/editor.html')))throw Error('Prepare the existing offline editor assets before building the desktop app.');
+require('./prepare-photocraft.cjs').verify();
 const version=require('../package.json').version;
 if(!fs.existsSync(path.join(root,'backend/build/package-input/minimaDocs-backend-'+version+'.jar')))throw Error('Run the backend tests and packageInput Gradle task first.');
 const runtime=path.join(root,'build/runtime');

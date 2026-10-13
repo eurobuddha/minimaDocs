@@ -40,6 +40,7 @@ function makeWorkspace(){
 }
 function update(state,message){if(!state.win.isDestroyed())state.win.webContents.send('editor:status',{message,ready:state.ready,dirty:state.dirty,saving:state.saving,readonly:state.config.readonly,title:state.title,conflict:state.config.conflict});}
 function saveFailed(state,error){
+  clearTimeout(state.saveTimer);state.saveTimer=null;
   state.saving=false;state.exporting=false;state.closeAfterSave=false;state.shareAfterSave=false;state.exportAfterSave=false;
   state.saveError=String(error?.message||error||'The operation could not finish.');quitRequested=false;
   update(state,'Could not save: '+state.saveError+' Use Save to retry, or close and choose Discard edits.');
@@ -52,6 +53,7 @@ async function openEditor(params){
 async function createEditor(params){
   if(params.id){const already=[...editors.values()].find(s=>s.config.id===params.id);if(already){already.win.show();already.win.focus();return {id:params.id};}}
   const config=await backend.call('open',params);
+  config.photocraft=config.kind==='image'&&!config.name?.toLowerCase().endsWith('.minimadocs-image.json');
   const win=new BrowserWindow({width:1320,height:920,minWidth:820,minHeight:600,title:config.title+' — minimaDocs',backgroundColor:'#F2F1EC',titleBarStyle:'hiddenInset',trafficLightPosition:{x:18,y:24},webPreferences:{preload:path.join(__dirname,'editor-preload.cjs'),contextIsolation:true,nodeIntegration:false,sandbox:true,spellcheck:false}});
   const state={win,config,title:config.title,dirty:!params.id,ready:false,saving:false,saveError:'',edits:0,savedEdits:0,lastBytes:config.base64||null,lastEdit:Date.now()};editors.set(win.webContents.id,state);secureWindow(win);
   // Embedded browser editors have their own exit guards. The native save/discard
@@ -63,19 +65,25 @@ async function createEditor(params){
     if(state.saving){state.closeAfterSave=true;return;}
     state.prompting=true;
     dialog.showMessageBox(win,{type:'question',message:'Save changes to “'+state.title+'”?',detail:(state.saveError?'The last save failed: '+state.saveError+'\n\n':'')+'Your last saved version is kept if you discard these edits.',buttons:['Save','Keep editing','Discard edits'],defaultId:state.saveError?1:0,cancelId:1}).then(({response})=>{
-      state.prompting=false;if(response===0){state.closeAfterSave=true;requestSave(state);}else if(response===2){state.forceClose=true;win.close();}else quitRequested=false;
+      state.prompting=false;if(response===0){state.closeAfterSave=true;requestSave(state);}else if(response===2){state.forceClose=true;win.destroy();}else quitRequested=false;
     }).catch(()=>{state.prompting=false;quitRequested=false;});
   });
+  win.webContents.on('render-process-gone',()=>{state.ready=false;saveFailed(state,'The editor stopped unexpectedly. Your previous saved version is safe.');});
+  win.on('unresponsive',()=>{
+    if(state.unresponsivePrompt)return;state.unresponsivePrompt=true;
+    dialog.showMessageBox(win,{type:'warning',message:'The editor is not responding',detail:'You can keep waiting or close it. Closing keeps the last saved version and discards unsaved edits.',buttons:['Keep waiting','Close editor'],defaultId:0,cancelId:0}).then(({response})=>{if(response===1&&!win.isDestroyed()){state.forceClose=true;win.destroy();}}).catch(()=>{}).finally(()=>{state.unresponsivePrompt=false;});
+  });
   const contentsId=win.webContents.id;
-  win.on('closed',()=>{editors.delete(contentsId);backend.call('release',{session:config.session}).catch(()=>{});notify();finishQuit();});
+  win.on('closed',()=>{clearTimeout(state.saveTimer);editors.delete(contentsId);backend.call('release',{session:config.session}).catch(()=>{});notify();finishQuit();});
   await win.loadURL(EDITOR+'/workbench/index.html');return {id:config.id};
 }
 function requestSave(state){
-  if(!state.ready||state.saving||state.config.readonly){update(state,state.config.readonly?'Read-only · use Save a copy to edit.':'Wait for the editor to finish.');state.closeAfterSave=false;quitRequested=false;return;}
+  if(!state.ready||state.saving||state.exporting||state.config.readonly){update(state,state.config.readonly?'Read-only · use Save a copy to edit.':'Wait for the editor to finish.');state.closeAfterSave=false;quitRequested=false;return;}
   state.saveError='';state.saving=true;state.savedEdits=state.edits;update(state,'Saving…');
+  state.saveTimer=setTimeout(()=>{if(state.saving)saveFailed(state,'The editor did not finish saving. Your previous saved version is safe.');},180000);state.saveTimer.unref();
   state.win.webContents.executeJavaScript('window.minimaDocsSave()').catch(e=>saveFailed(state,e));
 }
-function kindOf(name){const n=name.toLowerCase();return /\.(docx|odt|rtf|doc)$/.test(n)?'docx':/\.(xlsx|ods|csv|xls)$/.test(n)?'xlsx':/\.(minimadocs-image\.json|png|jpg|jpeg|webp)$/.test(n)?'image':'';}
+function kindOf(name){const n=name.toLowerCase();return /\.(docx|odt|rtf|doc)$/.test(n)?'docx':/\.(xlsx|ods|csv|xls)$/.test(n)?'xlsx':/\.(minimadocs-image\.json|pcraft|psd|psb|ora|png|jpg|jpeg|webp|tif|tiff|heic|heif|bmp|gif)$/.test(n)?'image':'';}
 async function importFile(file){
   const kind=kindOf(file);if(!kind)throw new Error('Choose a Word document, spreadsheet, image or minimaDocs image project.');
   const stat=await fs.stat(file);if(!stat.isFile()||stat.size>MAX||!stat.size)throw new Error('Choose a file between 1 byte and 16 MiB.');
@@ -83,7 +91,7 @@ async function importFile(file){
   return openEditor({kind,title:name.replace(/(\.minimadocs-image\.json|\.[^.]+)$/i,''),name,base64:raw.toString('base64')});
 }
 async function exportFile(state,data,type){
-  const ext=type|| (state.config.kind==='image'?'minimadocs-image.json':state.config.kind);
+  const ext=type|| (state.config.kind==='image'?(state.config.photocraft?'pcraft':'minimadocs-image.json'):state.config.kind);
   const name=(state.title||'Untitled').replace(/[\x00-\x1f/\\:]/g,'_')+'.'+ext.toLowerCase();
   const picked=await dialog.showSaveDialog(state.win,{title:'Export a copy',defaultPath:name});if(picked.canceled)return;
   await atomicWrite(picked.filePath,data);update(state,'Exported a copy · your document stays here.');
@@ -99,7 +107,7 @@ ipcMain.on('editor:event',(e,event,message)=>{
 ipcMain.handle('editor:saved',async(e,base64)=>{
   const s=editorOnly(e);if(!s.saving)throw new Error('No save is pending');
   try {
-    bytes(base64);const saved=await backend.call('save',{session:s.config.session,base64,title:s.title});s.config.id=saved.id;s.config.conflict=saved.conflict;s.lastBytes=base64;s.dirty=s.edits!==s.savedEdits;s.saving=false;
+    bytes(base64);const saved=await backend.call('save',{session:s.config.session,base64,title:s.title});s.config.id=saved.id;s.config.conflict=saved.conflict;s.lastBytes=base64;s.dirty=s.edits!==s.savedEdits;s.saving=false;clearTimeout(s.saveTimer);s.saveTimer=null;
     update(s,saved.conflict?'Concurrent versions kept for review':s.dirty?'Saved · newer edits waiting':'Saved on this Mac');notify();
     if(s.exportAfterSave){s.exportAfterSave=false;await exportFile(s,bytes(base64));}
     if(s.shareAfterSave){s.shareAfterSave=false;shareEditor(s);}
@@ -107,17 +115,36 @@ ipcMain.handle('editor:saved',async(e,base64)=>{
     return saved;
   }catch(err){saveFailed(s,err);throw err;}
 });
-ipcMain.handle('editor:exported',async(e,base64,type)=>{const s=editorOnly(e);try{if(!s.exporting||!['PDF','PNG'].includes(type))throw new Error('No export is pending');s.exporting=false;await exportFile(s,bytes(base64),type);}catch(err){s.exporting=false;update(s,err.message);throw err;}});
+ipcMain.handle('editor:exported',async(e,base64,type)=>{const s=editorOnly(e);try{if(!s.exporting||!(s.config.photocraft?['PNG','PSD','ORA']:['PDF','PNG']).includes(type))throw new Error('No export is pending');s.exporting=false;await exportFile(s,bytes(base64),type);}catch(err){s.exporting=false;update(s,err.message);throw err;}});
+// Upstream File > Export uses the same native picker; it never writes a renderer-selected path.
+ipcMain.handle('editor:photocraft-export',async(e,base64,name)=>{
+  const s=editorOnly(e);if(!s.config.photocraft)throw new Error('Not a PhotoCraft editor');
+  if(typeof name!=='string'||name.length>255||!/[.](pcraft|png|jpe?g|webp|ps[db]|ora|tiff?|gif|bmp|svg|pdf|qoi|exr|hdr|tga|ico)$/i.test(name))throw new Error('Unsupported image export');
+  const data=bytes(base64),safe=path.basename(name).replace(/[\x00-\x1f/\\:]/g,'_');
+  const picked=await dialog.showSaveDialog(s.win,{title:'Export PhotoCraft file',defaultPath:safe});
+  if(!picked.canceled)await atomicWrite(picked.filePath,data);
+  return {saved:!picked.canceled};
+});
 ipcMain.handle('editor:action',async(e,action,value)=>{
   const s=editorOnly(e);
   if(action==='title'){if(s.config.readonly||typeof value!=='string'||value.length>100)return;s.title=value;s.dirty=true;s.edits++;s.lastEdit=Date.now();s.win.setTitle((value||'Untitled')+' — minimaDocs');update(s,'Unsaved changes');}
   else if(action==='save')requestSave(s);
   else if(action==='files')makeWorkspace();
+  else if(s.config.photocraft&&action==='new')await openEditor({kind:'image',title:'Untitled image'});
+  else if(s.config.photocraft&&action==='open'){const p=await dialog.showOpenDialog(s.win,{properties:['openFile']});if(!p.canceled)await importFile(p.filePaths[0]);}
+  else if(s.config.photocraft&&action==='close')s.win.close();
+  else if(s.config.photocraft&&action==='exportNotes'&&typeof value==='string')update(s,'Export notes: '+value.slice(0,1000));
   else if(action==='share'){if(s.dirty||!s.lastBytes){s.shareAfterSave=true;requestSave(s);}else shareEditor(s);}
   else if(action==='copy'){if(!s.ready||s.saving||s.exporting||s.copying)return;s.copying=true;try{const result=await backend.call('copy',{session:s.config.session});s.config.id=result.id;s.config.readonly=false;s.config.conflict=false;s.dirty=true;await s.win.webContents.executeJavaScript('window.minimaDocsWritable()');requestSave(s);}finally{s.copying=false;}}
   else if(action==='export'){
     if(!s.ready||s.saving||s.exporting)return;
     const converted=s.config.kind==='image'?'PNG':'PDF';
+    if(s.config.photocraft){
+      const {response}=await dialog.showMessageBox(s.win,{message:'Export “'+s.title+'”',buttons:['PhotoCraft project (.pcraft)','PNG image','Photoshop document (.psd)','OpenRaster layers (.ora)','Cancel'],cancelId:4});
+      if(response===0){if(s.dirty||!s.lastBytes){s.exportAfterSave=true;requestSave(s);}else await exportFile(s,bytes(s.lastBytes));}
+      else if(response>0&&response<4){const type=['','PNG','PSD','ORA'][response];s.exporting=true;update(s,'Preparing '+type+'…');try{await s.win.webContents.executeJavaScript('window.minimaDocsExport('+JSON.stringify(type)+')');}catch(err){saveFailed(s,err);}}
+      return;
+    }
     const {response}=await dialog.showMessageBox(s.win,{message:'Export “'+s.title+'”',buttons:[s.config.kind==='image'?'Editable image project':s.config.kind.toUpperCase(),converted,'Cancel'],cancelId:2});
     if(response===0){if(s.dirty||!s.lastBytes){s.exportAfterSave=true;requestSave(s);}else await exportFile(s,bytes(s.lastBytes));}
     if(response===1){s.exporting=true;update(s,'Preparing '+converted+'…');try{await s.win.webContents.executeJavaScript('window.minimaDocsExport('+JSON.stringify(converted)+')');}catch(err){saveFailed(s,err);}}
@@ -150,7 +177,7 @@ ipcMain.handle('workspace:call',async(e,method,params={})=>{
   if(['list','versions','people','invitation','preview','accept','share','access','manage','sync','name'].includes(method))return backend.call(method,params);
   if(method==='new'){if(!['docx','xlsx','image'].includes(params.kind))throw new Error('Unknown document type');return openEditor({kind:params.kind,title:params.kind==='docx'?'Untitled document':params.kind==='xlsx'?'Untitled spreadsheet':'Untitled image'});}
   if(method==='open')return openEditor({id:params.id,...(params.file?{file:params.file}:{})});
-  if(method==='import'){const p=await dialog.showOpenDialog(workspace,{properties:['openFile'],filters:[{name:'Documents, spreadsheets and images',extensions:['docx','doc','odt','rtf','xlsx','xls','ods','csv','png','jpg','jpeg','webp','json']}]});return p.canceled?{}:importFile(p.filePaths[0]);}
+  if(method==='import'){const p=await dialog.showOpenDialog(workspace,{properties:['openFile'],filters:[{name:'Documents, spreadsheets and images',extensions:['docx','doc','odt','rtf','xlsx','xls','ods','csv','png','jpg','jpeg','webp','pcraft','psd','psb','ora','tif','tiff','heic','heif','bmp','gif','json']}]});return p.canceled?{}:importFile(p.filePaths[0]);}
   if(method==='readQR'){const p=await dialog.showOpenDialog(workspace,{title:'Open a recipient QR image',properties:['openFile'],filters:[{name:'QR image',extensions:['png','jpg','jpeg']}]});if(p.canceled)return {};const stat=await fs.stat(p.filePaths[0]);if(stat.size>MAX)throw new Error('Choose an image up to 16 MiB.');return backend.call('qrRead',{base64:(await fs.readFile(p.filePaths[0])).toString('base64')});}
   if(method==='clipboard'){if(typeof params.text!=='string'||params.text.length>16384)throw new Error('Invalid invitation');clipboard.writeText(params.text);return {};}
   if(method==='version')return {version:app.getVersion()};
@@ -169,7 +196,7 @@ else {
  app.on('open-url',(event,url)=>{event.preventDefault();if(!url.startsWith('minimadocs://pair/')||url.length>16384)return;pendingInvitation=url;if(ready){const w=makeWorkspace();if(!w.webContents.isLoading()){w.webContents.send('workspace:invitation',pendingInvitation);pendingInvitation='';}}});
  app.whenReady().then(async()=>{
   const root=app.isPackaged?process.resourcesPath:path.resolve(ROOT,'../android/app/src/main/assets');
-  const roots={renderer:path.join(ROOT,'renderer'),editors:path.join(root,'editors'),workbench:path.join(root,'workbench')};
+  const roots={renderer:path.join(ROOT,'renderer'),editors:path.join(root,'editors'),workbench:path.join(root,'workbench'),photocraft:app.isPackaged?path.join(process.resourcesPath,'photocraft'):path.join(ROOT,'build/photocraft')};
   session.defaultSession.protocol.handle('https',handler(roots));
   session.defaultSession.setPermissionRequestHandler((_wc,_permission,callback)=>callback(false));
   session.defaultSession.setPermissionCheckHandler(()=>false);

@@ -1,7 +1,8 @@
 const {test}=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs/promises'),path=require('node:path'),os=require('node:os');
 const {target,handler,WORKSPACE,EDITOR}=require('../main/assets.cjs');
-const roots={renderer:'/bundle/ui',editors:'/bundle/editors',workbench:'/bundle/workbench'};
+const roots={renderer:'/bundle/ui',editors:'/bundle/editors',workbench:'/bundle/workbench',photocraft:'/bundle/photocraft'};
 test('bundled routes stay under their asset roots',()=>{
+ assert.equal(target(EDITOR+'/photocraft/editor.wasm',roots).file,'/bundle/photocraft/editor.wasm');
  assert.equal(target(EDITOR+'/workbench/bridge.js',roots).file,'/bundle/workbench/bridge.js');
  assert.equal(target(WORKSPACE+'/fonts/manrope_regular.ttf',roots).file,'/bundle/workbench/fonts/manrope_regular.ttf');
  assert.equal(target(EDITOR+'/fonts/manrope-bold',roots).file,'/bundle/workbench/fonts/manrope-bold');
@@ -14,5 +15,14 @@ test('asset serving refuses writes and injects only bundled editor support',asyn
   assert.equal((await serve(new Request(EDITOR+'/workbench/index.html',{method:'POST'}))).status,403);
   const response=await serve(new Request(EDITOR+'/workbench/index.html'));assert.equal(response.status,200);assert.match(response.headers.get('content-security-policy'),/connect-src 'self' blob:/);assert.equal(response.headers.get('cache-control'),'no-store');const html=await response.text();assert.match(html,/memory-storage.js/);assert.match(html,/desktop-bar/);
   assert.equal((await serve(new Request(EDITOR+'/missing'))).status,404);
+ }finally{await fs.rm(dir,{recursive:true,force:true});}
+});
+
+test('PhotoCraft bridge is injected only into the desktop engine and stays offline',async()=>{
+ const dir=await fs.mkdtemp(path.join(os.tmpdir(),'minimadocs-photocraft-assets-'));try{
+  await fs.writeFile(path.join(dir,'index.html'),'<html><head></head><body></body></html>');
+  const response=await handler({renderer:dir,workbench:dir,editors:dir,photocraft:dir})(new Request(EDITOR+'/photocraft/index.html')),html=await response.text();
+  assert.match(html,/photocraft-client.js/);assert.match(html,/memory-storage.js/);assert.doesNotMatch(html,/desktop-bar/);
+  assert.match(response.headers.get('content-security-policy'),/connect-src 'self' blob:/);
  }finally{await fs.rm(dir,{recursive:true,force:true});}
 });

@@ -19,7 +19,7 @@ test('large imported image saves, exports, reopens and saves on quit',{timeout:2
   let home;({app,home}=await launch(dir));
   // A deterministic, detailed image exercises multi-MiB data rather than a blank canvas.
   const png=await home.evaluate(()=>{const c=document.createElement('canvas');c.width=1280;c.height=1024;const ctx=c.getContext('2d'),pixels=ctx.createImageData(c.width,c.height);let n=123456789;for(let i=0;i<pixels.data.length;i+=4){n^=n<<13;n^=n>>>17;n^=n<<5;pixels.data[i]=n&255;pixels.data[i+1]=(n>>>8)&255;pixels.data[i+2]=(n>>>16)&255;pixels.data[i+3]=255;}ctx.putImageData(pixels,0,0);return c.toDataURL('image/png').split(',')[1];});
-  const imported=path.join(dir,'synthetic-large.png');await fs.writeFile(imported,Buffer.from(png,'base64'));
+  const imported=path.join(dir,'synthetic-large.minimadocs-image.json');await fs.writeFile(imported,require('./legacy-image.cjs')(png,1280,1024));
   await app.evaluate(({dialog},file)=>{dialog.showOpenDialog=async()=>({canceled:false,filePaths:[file]});},imported);
   const opening=app.waitForEvent('window');await home.evaluate(()=>docs.call('import'));const editor=await opening;await ready(editor);
   await editor.locator('#title').fill('Large image regression');await editor.locator('#save').click();await saved(editor);
@@ -47,7 +47,7 @@ test('save failure pauses autosave and allows retry, discard, and quit',{timeout
  try{
   const started=await launch(dir);app=started.app;const home=started.home;
   const png=await home.evaluate(()=>{const c=document.createElement('canvas');c.width=c.height=32;const ctx=c.getContext('2d');ctx.fillStyle='#e63312';ctx.fillRect(0,0,32,32);return c.toDataURL('image/png').split(',')[1];});
-  const file=path.join(dir,'synthetic-filled.png');await fs.writeFile(file,Buffer.from(png,'base64'));
+  const file=path.join(dir,'synthetic-filled.minimadocs-image.json');await fs.writeFile(file,require('./legacy-image.cjs')(png,32,32));
   await app.evaluate(({dialog},file)=>{dialog.showOpenDialog=async()=>({canceled:false,filePaths:[file]});},file);
   const opening=app.waitForEvent('window');await home.evaluate(()=>docs.call('import'));const editor=await opening;await ready(editor);
   await editor.locator('#save').click();await saved(editor);const baseline=(await home.evaluate(()=>docs.call('list'))).documents[0];

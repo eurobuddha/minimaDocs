@@ -1,0 +1,7 @@
+{
+  "repository": "https://github.com/storytold/photocraft.git",
+  "version": "0.8.2",
+  "revision": "d43db3e153c76aefce9b32cef9099e458eaf17a8",
+  "rust": "1.95.0",
+  "trunk": "0.21.14"
+}

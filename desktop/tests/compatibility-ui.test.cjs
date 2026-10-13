@@ -18,13 +18,13 @@ test('Mac imports Office fixtures, preserves structure, and exports PDF and laye
    await editor.locator('#title').fill('Compatibility '+kind);
    await editor.locator('#save').click();await editor.waitForFunction(()=>document.getElementById('save-status').textContent==='Saved on this Mac',null,{timeout:180000});
    await editor.screenshot({path:path.join(root,'build/mac-'+kind+'.png')});
-   const file=path.join(dir,'saved.'+(kind==='image'?'minimadocs-image.json':kind));
+   const file=path.join(dir,'saved.'+(kind==='image'?'pcraft':kind));
    await app.evaluate(({dialog},file)=>{dialog.showMessageBox=async()=>({response:0});dialog.showSaveDialog=async()=>({canceled:false,filePath:file});},file);
    await editor.locator('#export').click();await editor.waitForFunction(()=>document.getElementById('save-status').textContent.startsWith('Exported a copy'),null,{timeout:180000});
    const bytes=await fs.readFile(file);
    if(kind==='docx'){assert.match(xml(bytes,'word/document.xml'),/Body text: alpha, beta, gamma/);assert.match(xml(bytes,'word/document.xml'),/w:tbl/);assert.match(xml(bytes,'word/header1.xml'),/minimaDocs header/);assert.match(xml(bytes,'word/footer1.xml'),/minimaDocs footer/);}
    if(kind==='xlsx'){const sheet=xml(bytes,'xl/worksheets/sheet1.xml');assert.match(sheet,/SUM\(B2:B3\)/);assert.match(sheet,/<v>20<\/v>/);assert.match(sheet,/pane/);assert.match(sheet,/autoFilter/);}
-   if(kind==='image')assert.ok(Array.isArray(JSON.parse(bytes).layers));
+   if(kind==='image')assert.equal(bytes.subarray(0,4).toString('hex'),'504b0304');
    const rendered=path.join(dir,kind+(kind==='image'?'.png':'.pdf'));
    await app.evaluate(({dialog},file)=>{dialog.showMessageBox=async()=>({response:1});dialog.showSaveDialog=async()=>({canceled:false,filePath:file});},rendered);
    await editor.locator('#export').click();await editor.waitForFunction(()=>document.getElementById('save-status').textContent.startsWith('Exported a copy'),null,{timeout:180000});

@@ -7,7 +7,7 @@ test('image studio retains masks, alpha, layers and effects through undo, save a
   app=await _electron.launch({executablePath:packaged||require('electron'),args:packaged?['--user-data-dir='+dir]:[root],env:{...process.env,MINIMADOCS_TEST_DIR:dir}});
   const home=await app.firstWindow();await home.waitForFunction(()=>document.querySelector('#connection')&&!document.querySelector('#connection').textContent.includes('Opening workspace'));
   const png=await home.evaluate(()=>{const c=document.createElement('canvas');c.width=640;c.height=480;const x=c.getContext('2d'),g=x.createLinearGradient(0,0,640,480);g.addColorStop(0,'#174b68');g.addColorStop(.5,'#edb06b');g.addColorStop(1,'#964d51');x.fillStyle=g;x.fillRect(0,0,640,480);x.fillStyle='#ffe8b9';x.beginPath();x.arc(420,155,62,0,Math.PI*2);x.fill();x.fillStyle='#183a47';x.beginPath();x.moveTo(0,410);x.lineTo(220,190);x.lineTo(470,480);x.lineTo(0,480);x.fill();x.clearRect(0,0,12,12);return c.toDataURL().split(',')[1];});
-  const file=path.join(dir,'studio-landscape.png');await fs.writeFile(file,Buffer.from(png,'base64'));
+  const file=path.join(dir,'studio-landscape.minimadocs-image.json');await fs.writeFile(file,require('./legacy-image.cjs')(png,640,480));
   await app.evaluate(({dialog},file)=>{dialog.showOpenDialog=async()=>({canceled:false,filePaths:[file]});},file);
   const opening=app.waitForEvent('window');await home.evaluate(()=>docs.call('import'));let editor=await opening;editor.on('dialog',()=>{});await editor.waitForFunction(()=>!document.querySelector('#save').disabled);
   let frame=editor.frames().find(f=>f.url().includes('/image/index.html'));assert.ok(frame);

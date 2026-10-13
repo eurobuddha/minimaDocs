@@ -1,7 +1,7 @@
 {
   "name": "minimadocs-desktop",
   "productName": "minimaDocs",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "private": true,
   "description": "Offline documents, spreadsheets and images with Maxima sharing.",
   "author": "eurobuddha",
@@ -12,11 +12,13 @@
     "test": "node --test tests/assets.test.cjs tests/parlons.test.cjs tests/file-data.test.cjs",
     "test:parlons-ui": "node --test tests/parlons-ui.test.cjs",
     "prepare:mac": "node scripts/prepare-mac.cjs",
-    "dist:mac": "electron-builder --mac --arm64",
+    "dist:mac": "node scripts/prepare-mac.cjs && electron-builder --mac --arm64",
     "dist:mac:signed": "APPLE_KEYCHAIN_PROFILE=minimadesk npm run dist:mac && scripts/notarize-dmg.sh && scripts/verify-mac.sh",
     "test:ui": "node --test --test-concurrency=1 tests/mac-ui.test.cjs tests/compatibility-ui.test.cjs",
     "test:parlons-hosts": "node --test tests/parlons-hosts.test.cjs",
-    "test:image": "node --test --test-concurrency=1 tests/image-save.test.cjs tests/image-studio.test.cjs tests/image-phone.test.cjs"
+    "test:image": "node --test --test-concurrency=1 tests/image-save.test.cjs tests/image-studio.test.cjs tests/image-phone.test.cjs",
+    "test:photocraft": "node --test --test-concurrency=1 tests/photocraft.test.cjs",
+    "prepare:photocraft": "node scripts/prepare-photocraft.cjs"
   },
   "devDependencies": {
     "electron": "44.6.0",
@@ -57,6 +59,10 @@
       {
         "from": "../NOTICE",
         "to": "NOTICE"
+      },
+      {
+        "from": "build/photocraft",
+        "to": "photocraft"
       }
     ],
     "protocols": [
@@ -96,6 +102,16 @@
       {
         "ext": "xlsx",
         "name": "Excel spreadsheet",
+        "role": "Editor"
+      },
+      {
+        "ext": [
+          "pcraft",
+          "psd",
+          "psb",
+          "ora"
+        ],
+        "name": "Layered image",
         "role": "Editor"
       }
     ]

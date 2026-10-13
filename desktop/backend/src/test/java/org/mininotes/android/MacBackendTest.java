@@ -19,6 +19,16 @@ public class MacBackendTest {
   try(MacBackend b=new MacBackend(dir,KEY,true)){var v=b.call("open",new JSONObject().put("id",id));assertEquals("Synthetic document bytes 日本語",new String(Base64.getDecoder().decode(v.getString("base64")),StandardCharsets.UTF_8));}
   try(var files=Files.walk(dir)){for(Path p:files.filter(Files::isRegularFile).toList())assertFalse(new String(Files.readAllBytes(p),StandardCharsets.ISO_8859_1).contains("Synthetic document bytes"));}
  }
+ @Test public void desktopPhotoCraftKeepsNativeFileNameAndLegacyJsonStaysUnchanged()throws Exception {
+  try(MacBackend b=new MacBackend(temp.newFolder().toPath(),KEY,true)){
+   var v=fresh(b,"image");var saved=save(b,v,"PK\u0003\u0004synthetic native image");String id=saved.getString("id");
+   b.call("release",new JSONObject().put("session",v.getString("session")));
+   var reopened=b.call("open",new JSONObject().put("id",id));assertEquals("Synthetic test.pcraft",reopened.getString("name"));
+   var legacy=fresh(b,"image");String old=save(b,legacy,"{synthetic legacy image}").getString("id");
+   b.call("release",new JSONObject().put("session",legacy.getString("session")));
+   assertEquals("Synthetic test.minimadocs-image.json",b.call("open",new JSONObject().put("id",old)).getString("name"));
+  }
+ }
  @Test public void failedSaveKeepsThePreviousSnapshot()throws Exception {
   try(MacBackend b=new MacBackend(temp.newFolder().toPath(),KEY,true)){var v=fresh(b,"xlsx");String id=save(b,v,"first").getString("id");assertThrows(Exception.class,()->save(b,v,""));var doc=RichDocument.read(b.store.get(id).body);assertEquals(1,doc.heads.size());assertEquals("first",new String(b.store.bytesOf(b.store.keptFile(doc.heads.values().iterator().next()))));}
  }
