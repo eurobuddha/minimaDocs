@@ -51,4 +51,20 @@ Release artifact
 - SHA-256: dbe4f6b539e314bf52bd2bf7d52981c946b9d905935abb30cd343ea879dfb0b5
 - Certificate SHA-256: eca1383c9d27683a281fbe6355356267877dc2dd14d963d7cc289ca0700e517f
 - Signature verified and matches the 0.3.3 release certificate.
-- Final GitHub/store publication evidence will be appended after publication.
+
+Publication verified (2026-10-17)
+- Source commit: 7fe782605c5564a17241f6bb42e07889aea7c05b, pushed to minimadocs.
+- Public GitHub release: https://github.com/eurobuddha/minimaDocs/releases/tag/v0.3.4
+- GitHub's uploaded digest and a complete release download match the SHA-256 above.
+- Store catalogue commit: 048e4877624d2bad3fe79316790681daf5dc5bfd.
+- Catalogue gate passed: 54 entries, 53 binaries verified. Android row is 0.3.4/304;
+  Mac 0.1.3 installer/hash remain unchanged, with updated compatibility wording.
+- IPFS/IPNS publication succeeded; snapshot:
+  bafybeie2jt2ci4n4tqcj2ape3y64u6kofedut2kumypj3eilyu5ywpxi6q
+- https://ipfs.eurobuddha.com/apks/apks.json serves 0.3.4. A complete public
+  mirror download was verified: 232937924 bytes, matching the SHA-256 above.
+- Optional Filebase redundancy remains unavailable; local pin, IPNS and the public
+  mirror succeeded through the existing publisher.
+- GitHub Check workflow passed: https://github.com/eurobuddha/minimaDocs/actions/runs/38981929132
+- Final native-host check also edited a real project and verified a new immutable
+  saved revision. Physical phones were not changed; the installer is ready for testing.
