@@ -12,7 +12,7 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 
-final class EditorAssets extends WebViewClient {
+class EditorAssets extends WebViewClient {
     static final String HOST="editors.minimadocs.local", ORIGIN="https://"+HOST;
     private final Context context;
     EditorAssets(Context context){this.context=context;}
@@ -30,7 +30,7 @@ final class EditorAssets extends WebViewClient {
         // No service worker: editor assets and document bytes are owned by the APK/notebook.
         if(path.endsWith("/sw.js")||path.endsWith("/document_editor_service_worker.js"))return refused(404,"Not Found");
         if(path.equals("/editor"))path="/editor.html";
-        String asset=path.startsWith("/workbench/")?path.substring(1):"editors"+path;
+        String asset=(path.startsWith("/workbench/")||path.startsWith("/photocraft/"))?path.substring(1):"editors"+path;
         if(path.equals("/fonts/manrope-regular")||path.equals("/fonts/manrope-bold"))asset="workbench/fonts/"+path.substring(path.lastIndexOf('/')+1);
         String mime=path.endsWith(".wasm.br")?"application/wasm":MimeTypes.forPath(path);
         try {
@@ -39,6 +39,7 @@ final class EditorAssets extends WebViewClient {
                 String html;
                 try(java.io.InputStream in=input){java.io.ByteArrayOutputStream out=new java.io.ByteArrayOutputStream();byte[] part=new byte[8192];int n;while((n=in.read(part))!=-1)out.write(part,0,n);html=out.toString("UTF-8");}
                 html=html.replaceFirst("(?i)<head>","<head><script src=\"/workbench/memory-storage.js\"></script><link rel=\"stylesheet\" href=\"/workbench/typography.css\">");
+                if(path.equals("/photocraft/index.html"))html=html.replace("<head>","<head><script src=\"/workbench/photocraft-client.js\"></script>");
                 input=new ByteArrayInputStream(html.getBytes(java.nio.charset.StandardCharsets.UTF_8));
             }
             WebResourceResponse answer=new WebResourceResponse(mime,MimeTypes.isText(mime)?"UTF-8":null,input);

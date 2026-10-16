@@ -11,12 +11,14 @@ permissions:
 
 jobs:
   android:
-    name: Tests, lint and a release build
+    name: Tests, lint and a development build
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
       - uses: ./.github/actions/prepare-editors
+
+      - uses: ./.github/actions/prepare-photocraft
 
       - name: Android update pointer matches the build
         shell: bash
@@ -40,7 +42,7 @@ jobs:
 
       - name: Test, lint, build
         working-directory: android
-        run: ./gradlew --no-daemon testReleaseUnitTest lintRelease assembleRelease
+        run: ./gradlew --no-daemon testDebugUnitTest lintDebug assembleDebug
 
       # A failed run should say which test, not just that something failed.
       - name: Reports
@@ -58,11 +60,11 @@ jobs:
         run: |
           VERSION=$(sed -n "s/.*versionName '\([^']*\)'.*/\1/p" android/app/build.gradle)
           mkdir -p out
-          cp android/app/build/outputs/apk/release/app-release-unsigned.apk "out/minimaDocs-$VERSION-unsigned.apk"
+          cp android/app/build/outputs/apk/debug/app-debug.apk "out/minimaDocs-$VERSION-debug.apk"
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
 
-      - name: Unsigned APK
+      - name: Development APK
         uses: actions/upload-artifact@v4
         with:
-          name: minimaDocs-${{ steps.apk.outputs.version }}-unsigned-apk
+          name: minimaDocs-${{ steps.apk.outputs.version }}-debug-apk
           path: out/*.apk

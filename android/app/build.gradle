@@ -6,8 +6,8 @@ android {
         applicationId 'com.eurobuddha.minimadocs'
         minSdk 28
         targetSdk 35
-        versionCode 303
-        versionName '0.3.3'
+        versionCode 304
+        versionName '0.3.4'
         testInstrumentationRunner 'org.mininotes.android.DocumentInstrumentation'
     }
     compileOptions { sourceCompatibility JavaVersion.VERSION_17; targetCompatibility JavaVersion.VERSION_17 }
@@ -23,7 +23,7 @@ android {
     //     keyAlias=...
     //     keyPassword=...
     // Then: ./gradlew assembleRelease  -> a signed APK the transport will talk to.
-    // Without that file the release build is unsigned exactly as it was, and nothing here fails.
+    // Release builds fail closed when the family signing configuration is missing.
     signingConfigs {
         family {
             def where=rootProject.file('keystore.properties')
@@ -80,4 +80,18 @@ tasks.register('verifyEditorAssets') {
 }
 tasks.configureEach { task ->
     if (task.name.startsWith('merge') && task.name.endsWith('Assets')) task.dependsOn('verifyEditorAssets')
+}
+
+// Both hosts ship the same pinned engine. Fail if its source hash or generated files drift.
+android.sourceSets.main.assets.srcDir(layout.buildDirectory.dir('generated/photocraft-assets'))
+tasks.register('preparePhotoCraftAssets', Exec) {
+    workingDir rootProject.projectDir.parentFile
+    commandLine 'node', 'scripts/prepare-photocraft-android.cjs'
+}
+tasks.configureEach { task ->
+    if (task.name.startsWith('merge') && task.name.endsWith('Assets')) task.dependsOn('preparePhotoCraftAssets')
+    if (task.name == 'preReleaseBuild') task.doFirst {
+        if (!rootProject.file('keystore.properties').exists() && !project.hasProperty('MINIMA_FAMILY_RELEASE_STORE_FILE'))
+            throw new GradleException('A signed release is required. Configure the existing family release key.')
+    }
 }

@@ -1,0 +1,11 @@
+'use strict';
+const fs=require('node:fs'),path=require('node:path');
+const root=path.resolve(__dirname,'..');
+require('../desktop/scripts/prepare-photocraft.cjs').verify();
+const target=path.join(root,'android/app/build/generated/photocraft-assets');
+fs.mkdirSync(target,{recursive:true});
+fs.rmSync(path.join(target,'photocraft'),{recursive:true,force:true});
+fs.cpSync(path.join(root,'desktop/build/photocraft'),path.join(target,'photocraft'),{recursive:true});
+fs.mkdirSync(path.join(target,'workbench'),{recursive:true});
+fs.copyFileSync(path.join(root,'desktop/renderer/photocraft-client.js'),path.join(target,'workbench/photocraft-client.js'));
+console.log('Verified and staged the shared PhotoCraft engine for Android.');

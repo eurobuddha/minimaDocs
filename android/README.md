@@ -21,7 +21,7 @@ cd android
 
 Windows: `gradlew.bat testReleaseUnitTest lintRelease assembleRelease`.
 
-The release APK is **unsigned**, under `app/build/outputs/apk/release/`, unless `android/keystore.properties` names a key — see `app/build.gradle`. No signing key is required to compile. To test locally, run `assembleDebug` or `installDebug` for an APK signed by your own development key. Android refuses to install a build over one signed with a different key, and uninstalling takes the notebook with it: export a backup first.
+Release builds require the existing family signing key in `android/keystore.properties` or `MINIMA_FAMILY_RELEASE_*` Gradle properties; they fail if it is missing. The signed APK is under `app/build/outputs/apk/release/`. Prepare the pinned offline editors and PhotoCraft engine using the root README before building. To test locally, run `assembleDebug` or `installDebug` for an APK signed by your own development key. Android refuses to install a build over one signed with a different key, and uninstalling takes the notebook with it: export a backup first.
 
 App ID `org.mininotes.android`, version in `app/build.gradle`, Android 9+. This initial ID must be finalized before public distribution. Retain the same signing identity for upgrades.
 

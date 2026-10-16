@@ -72,6 +72,7 @@ pub fn command(app: &mut PhotocraftApp, id: &str, params: &Value) -> Option<Resu
 }
 pub struct Bridge {
     queue: Queue,
+    mobile: crate::minima_mobile::Mobile,
     signature: Vec<(u64, u64)>,
     exported: Vec<(u64, u64)>,
     opened: bool,
@@ -101,7 +102,7 @@ impl Bridge {
             .map_err(|e| format!("{e:?}"))?;
         cb.forget();
         emit("ready", Value::Null, &[])?;
-        Ok(Self { queue, signature: Vec::new(), exported: Vec::new(), opened: false, pending_edit: false, ctx })
+        Ok(Self { queue, mobile: Default::default(), signature: Vec::new(), exported: Vec::new(), opened: false, pending_edit: false, ctx })
     }
     fn revisions(app: &PhotocraftApp) -> Vec<(u64, u64)> {
         app.session.documents().iter().map(|s| (s.doc.id.0, s.revision)).collect()
@@ -130,7 +131,11 @@ impl Bridge {
         }
     }
     fn run(&mut self, app: &mut PhotocraftApp, r: &Value, bytes: Vec<u8>) -> Result<(Value, Vec<u8>), String> {
-        match r.get("method").and_then(Value::as_str).unwrap_or("") {
+        let method = r.get("method").and_then(Value::as_str).unwrap_or("");
+        if method.starts_with("mobile.") {
+            return self.mobile.run(app, &self.ctx, method, r);
+        }
+        match method {
             "open" => {
                 if self.opened {
                     return Err("This document is already open.".into());
@@ -150,6 +155,9 @@ impl Bridge {
                 Ok((json!({"warnings":app.ui.status}), Vec::new()))
             }
             "snapshot" => {
+                if self.mobile.pending() {
+                    return Err("Apply or cancel the current tool before saving".into());
+                }
                 app.prepare_host_snapshot()?;
                 let format = r.get("format").and_then(Value::as_str).unwrap_or("pcraft");
                 if !["pcraft", "png", "psd", "ora"].contains(&format) {

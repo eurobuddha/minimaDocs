@@ -11,6 +11,7 @@ final class DocumentStore {
         final NoteStore.Held file;final RichDocument viewed,current;
         Saved(NoteStore.Held file,RichDocument viewed,RichDocument current){this.file=file;this.viewed=viewed;this.current=current;}
     }
+    static boolean photocraft(String kind,byte[] bytes){return kind.equals("image") && bytes.length>=4 && bytes[0]==80 && bytes[1]==75 && bytes[2]==3 && bytes[3]==4;}
     static String extension(String kind){return kind.equals("image")?"minimadocs-image.json":kind;}
     static String mime(String kind){return kind.equals("image")?"application/json":kind.equals("xlsx")?
         "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet":"application/vnd.openxmlformats-officedocument.wordprocessingml.document";}
@@ -36,7 +37,7 @@ final class DocumentStore {
                 if(note!=null&&(note.deleted||note.archived||store.onlyReads(noteId)))throw new IOException("This document cannot be changed here. Save a separate copy.");
                 if(note==null){note=new NoteStore.Note();note.id=noteId;note.book=Things.HOME;}
                 NoteStore.Held held=store.opening(NoteStore.Branch.Kind.PAGE,noteId,
-                    (title.isEmpty()?"Untitled":title)+"."+extension(viewed.kind),mime(viewed.kind),bytes.length);
+                    (title.isEmpty()?"Untitled":title)+"."+(photocraft(viewed.kind,bytes)?"pcraft":extension(viewed.kind)),(photocraft(viewed.kind,bytes)?"application/x-photocraft":mime(viewed.kind)),bytes.length);
                 RichDocument written=viewed.write(actor,held.id,current.clock.getOrDefault(actor,0L));
                 RichDocument merged=current.heads.isEmpty()?written:current.merge(written);
                 long replacing=0;for(String old:current.heads.values())if(!merged.heads.containsValue(old)){

@@ -1,0 +1,54 @@
+minimaDocs Android PhotoCraft touch workspace — 0.3.4 / code 304
+
+Implementation
+- The desktop-pinned PhotoCraft 0.8.2 engine is reused without a document-format fork.
+- desktop/photocraft/minima_mobile.rs adapts its existing commands, camera,
+  bounded thumbnails and copy-on-write document history to a touch host.
+- workbench/photocraft-mobile.{html,css,js} provides Looks, adjustments,
+  crop/rotate/straighten, mask brushing, editable layers, pan/zoom and comparison.
+- Apply coalesces a tool into one history step; Cancel restores its baseline.
+- Save applies an open tool. Autosave defers until Apply/Cancel. Android acknowledges
+  only after DocumentStore commits; failed snapshots and writes retain the previous file.
+- Native Files/Back stays available if the renderer crashes or saving stalls.
+- New and imported images use PhotoCraft; legacy .minimadocs-image.json files
+  keep the previous miniPaint/Filtr editor. There is no automatic flattening.
+- Imports: PNG/JPEG/WebP, PSD/PSB, OpenRaster and PCraft. Editable saves use PCraft;
+  flattened PNG and native-project copies use Android's existing file picker.
+- Sharing, encrypted storage when notebook locking is enabled, readonly enforcement,
+  concurrent versions, and the 16 MiB file limit use existing native code.
+
+Build
+- Prepare the existing office/legacy-image assets first, as documented in README.md.
+- node desktop/scripts/prepare-photocraft.cjs builds the pinned Rust/WASM engine.
+- Gradle runs scripts/prepare-photocraft-android.cjs to verify hashes and stage assets.
+- assembleRelease requires the existing family release signing configuration.
+- Debug/instrumentation builds use a separate disposable emulator for tests.
+
+Scope and limits
+- Photo-first controls, not all of PhotoCraft's desktop UI. Healing, text,
+  advanced selections and new layer creation remain desktop tools in this version.
+- Advanced desktop layers remain in PCraft documents; unsupported controls do not
+  flatten or convert them. Layer visibility, opacity and masks remain available.
+- Before comparison shows the image as opened, fitted to the viewport.
+- Undo history and custom presets are session-only; applied layers/masks persist.
+- WASM operations run on the WebView UI thread. Large layered photos can be slow;
+  physical-device performance still needs the user's installation test.
+
+Validation (2026-10-17)
+- Android JVM tests and release lint passed; debug, instrumentation and signed release built.
+- Native storage/encryption/concurrent-version tests and legacy Image Studio device tests passed.
+- Real PhotoCraft Android touch adjustment/cancel, Look undo/redo, mask pixel changes,
+  crop, PCraft reopen, PNG export and native save acknowledgement passed.
+- Electron mobile and existing desktop integration: 3 passed, including shared
+  editable project import and save/export failure recovery. Portrait/landscape reviewed.
+- Rust web-shell tests: 15 passed. Strict web-shell Clippy (--no-deps) passed;
+  unchanged upstream dependencies have existing collapsible_match/drop_non_drop warnings.
+- Dependency-layering check: 29 crates, no violations.
+- Every packaged engine file and the final mobile UI matched source/build hashes.
+
+Release artifact
+- minimaDocs-0.3.4.apk; package com.eurobuddha.minimadocs; versionCode 304.
+- SHA-256: dbe4f6b539e314bf52bd2bf7d52981c946b9d905935abb30cd343ea879dfb0b5
+- Certificate SHA-256: eca1383c9d27683a281fbe6355356267877dc2dd14d963d7cc289ca0700e517f
+- Signature verified and matches the 0.3.3 release certificate.
+- Final GitHub/store publication evidence will be appended after publication.

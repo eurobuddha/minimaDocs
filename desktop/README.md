@@ -178,8 +178,9 @@ save/discard decision to override the embedded browser editor's unload guard.
 New images use the bundled [PhotoCraft 0.8.2](https://github.com/storytold/photocraft/releases/tag/v0.8.2)
 Rust/WASM editor. Save keeps an encrypted native `.pcraft` project; Export offers
 PhotoCraft, PNG, PSD and OpenRaster. Older `.minimadocs-image.json` projects retain
-their miniPaint/Filtr editor and editable layers. Android is unchanged; its current
-APK cannot edit `.pcraft` files. Preferences/custom brush presets are session-only.
+their miniPaint/Filtr editor and editable layers. Android 0.3.4 adds a photo-first
+touch workspace using the same engine and `.pcraft` format. Older APKs cannot
+edit `.pcraft` files. Preferences/custom brush presets are session-only.
 
 Before `prepare:mac`, clone PhotoCraft into the sibling `photocraft-engine` folder
 at the revision in `photocraft/pin.json`, install Rust 1.95.0 with the

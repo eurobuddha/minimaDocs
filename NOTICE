@@ -142,3 +142,10 @@ License bundled as workbench/FILTR-LICENSE.txt. No analytics or remote services.
 
 Image Studio phone control relocation is adapted from the user's Atelier
 statenft-suite/minidapp/filtr-sheet.js, preserving the existing editor controls.
+
+PhotoCraft image engine: storytold/photocraft, version 0.8.2, revision
+d43db3e153c76aefce9b32cef9099e458eaf17a8, MIT OR Apache-2.0. The offline
+engine assets include upstream LICENSE-MIT, LICENSE-APACHE, NOTICE,
+ATTRIBUTION.md and the bundled font, icon and dictionary licenses.
+The minimaDocs desktop and Android hosts use the same engine and native
+project format; the touch controls and host boundary are minimaDocs adapters.

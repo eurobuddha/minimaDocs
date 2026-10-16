@@ -37,6 +37,7 @@ public final class DocumentInstrumentation extends Instrumentation {
         try {
             if(mode.equals("sharing")){sharing();result.putString("stream","PASS: direct sharing without Parlons, QR and copied invitation permissions, recipient entry, invitation review\n");finish(-1,result);return;}
             if(mode.equals("workspace")){workspace();result.putString("stream","PASS: document workspace, Word controls, Manrope DOCX save and native screenshots\n");finish(-1,result);return;}
+            if(mode.equals("photocraft")){mobilePhoto();result.putString("stream","PASS: PhotoCraft touch adjustments, Look undo, cancel, mask stroke, crop, PCraft reopen and PNG export\n");finish(-1,result);return;}
             if(mode.equals("image-studio")){imageStudio();result.putString("stream","PASS: Android Image Studio touch masks, brush, layers, retouch undo, 15 effects, 14 presets, layered reopen and PNG export\n");finish(-1,result);return;}
             if(mode.equals("editors")){editors();result.putString("stream","PASS: packaged Android DOCX/XLSX imports, round trips, PDF and layered PNG export\n");finish(-1,result);return;}
             if(mode.startsWith("parlons")){parlons();result.putString("stream","PASS: real Parlons registration and contacts IPC\n");finish(-1,result);return;}
@@ -204,6 +205,52 @@ public final class DocumentInstrumentation extends Instrumentation {
         }
         throw new AssertionError("Image check timed out: "+expression);
     }
+    private String mobileCheck(android.webkit.WebView web,String expression)throws Exception {
+        javascript(web,"window.mobileCheckResult=null;Promise.resolve().then(()=>eval("+org.json.JSONObject.quote(expression)+")).then(value=>{window.mobileCheckResult={ok:true,value};},e=>{window.mobileCheckResult={ok:false,error:String(e.stack||e)};});true");
+        long until=System.currentTimeMillis()+180000;
+        while(System.currentTimeMillis()<until){String result=javascript(web,"window.mobileCheckResult");if(!"null".equals(result)){org.json.JSONObject parsed=new org.json.JSONObject(result);check(parsed.getBoolean("ok"),parsed.optString("error"));return String.valueOf(parsed.opt("value"));}Thread.sleep(100);}
+        throw new AssertionError("Mobile check timed out: "+expression);
+    }
+    private void mobilePhoto()throws Exception {
+        check(android.os.Build.FINGERPRINT.contains("generic")||android.os.Build.MODEL.contains("sdk"),"Photo fixtures require a disposable emulator");
+        android.graphics.Bitmap bitmap=android.graphics.Bitmap.createBitmap(320,240,android.graphics.Bitmap.Config.ARGB_8888);
+        android.graphics.Canvas canvas=new android.graphics.Canvas(bitmap);canvas.drawColor(android.graphics.Color.rgb(60,100,140));android.graphics.Paint paint=new android.graphics.Paint();paint.setColor(android.graphics.Color.rgb(230,180,100));canvas.drawCircle(80,60,30,paint);
+        ByteArrayOutputStream out=new ByteArrayOutputStream();bitmap.compress(android.graphics.Bitmap.CompressFormat.PNG,100,out);bitmap.recycle();
+        String script;try(InputStream in=getContext().getAssets().open("photocraft-mobile-check.js")){script=new String(in.readAllBytes(),java.nio.charset.StandardCharsets.UTF_8);}
+        byte[] project=null;String expected=null;
+        for(int round=0;round<2;round++){
+            org.json.JSONObject config=new org.json.JSONObject().put("kind","image").put("photocraft",true).put("name",round==0?"photo.png":"photo.pcraft").put("base64",android.util.Base64.encodeToString(round==0?out.toByteArray():project,android.util.Base64.NO_WRAP));
+            EditorTestActivity.Session session=new EditorTestActivity.Session(config.toString());EditorTestActivity.session=session;
+            EditorTestActivity activity=(EditorTestActivity)startActivitySync(new Intent(getTargetContext(),EditorTestActivity.class).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
+            try{
+                check(session.ready.await(180,java.util.concurrent.TimeUnit.SECONDS),"PhotoCraft open timed out");check(session.error==null,session.error);mobileCheck(activity.web,script);
+                if(round==0){
+                    mobileCheck(activity.web,"MobilePhotoCheck.prepare()");
+                    org.json.JSONObject point=new org.json.JSONObject(mobileCheck(activity.web,"MobilePhotoCheck.point()"));strokeAt(activity.web,point);
+                    expected=mobileCheck(activity.web,"MobilePhotoCheck.afterMask()");mobileCheck(activity.web,"MobilePhotoCheck.layout()");painted(activity.web);screen("photocraft-mobile-screen.png");
+                    javascript(activity.web,"minimaDocsSave();true");check(session.saved.await(180,java.util.concurrent.TimeUnit.SECONDS),"PhotoCraft save timeout");check(session.error==null,session.error);project=session.bytes;check(DocumentStore.photocraft("image",project),"Missing native PCraft snapshot");artifact("photocraft-mobile.pcraft",project);
+                    Context context=isolated("mobile-photo");try(NoteStore store=new NoteStore(context)){DocumentStore.Saved saved=DocumentStore.save(context,store,UUID.randomUUID().toString(),"Mobile photo",RichDocument.empty("image"),project);check(saved.file.name.endsWith(".pcraft"),"Stored project extension wrong");check(Arrays.equals(project,store.bytesOf(saved.file)),"Native storage changed project bytes");}
+                }else{
+                    mobileCheck(activity.web,"MobilePhotoCheck.reopened("+expected+")");javascript(activity.web,"minimaDocsExport('PNG');true");check(session.saved.await(180,java.util.concurrent.TimeUnit.SECONDS),"PhotoCraft PNG timeout");check(session.error==null,session.error);android.graphics.Bitmap png=android.graphics.BitmapFactory.decodeByteArray(session.bytes,0,session.bytes.length);check(png!=null&&png.getWidth()==240&&png.getHeight()==240,"Wrong PNG export");png.recycle();artifact("photocraft-mobile.png",session.bytes);
+                }
+            }finally{runOnMainSync(activity::finish);waitForIdleSync();}
+        }
+        MainActivity app=(MainActivity)startActivitySync(new Intent(getTargetContext(),MainActivity.class).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
+        try{DocumentStore.Saved nativeInput=DocumentStore.save(app,app.store,UUID.randomUUID().toString(),"Mobile photo",RichDocument.empty("image"),project);
+            runOnMainSync(()->app.editDocument("image",nativeInput.file));EditorPane pane=(EditorPane)field(app,"editor");android.webkit.WebView web=(android.webkit.WebView)field(pane,"web");
+            long deadline=System.currentTimeMillis()+180000;while(System.currentTimeMillis()<deadline){if("true".equals(javascript(web,"!!document.querySelector('.tool-grid')")))break;Thread.sleep(100);}
+            mobileCheck(web,script);mobileCheck(web,"(async()=>{MobilePhotoCheck.click('Tune image');await MobilePhotoCheck.wait(()=>document.querySelector('#range-brightness'),'No native tool sheet');await MobilePhotoCheck.input('brightness',12);await MobilePhotoCheck.apply();return true;})()");mobileCheck(web,"MobilePhotoCheck.layout()");painted(web);screen("photocraft-native-screen.png");check(textView(pane.getWindow().getDecorView(),"Save")!=null,"Native Save missing");
+            runOnMainSync(()->textView(pane.getWindow().getDecorView(),"Save").performClick());
+            long savedBy=System.currentTimeMillis()+180000;while(System.currentTimeMillis()<savedBy){if(field(pane,"source")!=null&&!((NoteStore.Held)field(pane,"source")).id.equals(nativeInput.file.id)&&!Boolean.TRUE.equals(field(pane,"saving")))break;Thread.sleep(100);}
+            NoteStore.Held nativeSaved=(NoteStore.Held)field(pane,"source");check(nativeSaved!=null&&!nativeSaved.id.equals(nativeInput.file.id)&&nativeSaved.name.endsWith(".pcraft"),"Native save/ack did not persist PCraft");check(DocumentStore.photocraft("image",app.store.bytesOf(nativeSaved)),"Native saved image invalid");
+            runOnMainSync(pane::dismiss);
+        }finally{runOnMainSync(app::finish);waitForIdleSync();}
+    }
+    private void strokeAt(android.webkit.WebView web,org.json.JSONObject point)throws Exception {
+        int[] location=new int[2];int[] width={0};runOnMainSync(()->{web.getLocationOnScreen(location);width[0]=web.getWidth();});
+        float scale=(float)(width[0]/Double.parseDouble(javascript(web,"innerWidth"))),x=location[0]+(float)point.getDouble("x")*scale,y=location[1]+(float)point.getDouble("y")*scale;
+        long down=android.os.SystemClock.uptimeMillis();for(int i=0;i<8;i++){int action=i==0?0:i==7?1:2;android.view.MotionEvent e=android.view.MotionEvent.obtain(down,android.os.SystemClock.uptimeMillis(),action,x+i*3,y+i,0);e.setSource(android.view.InputDevice.SOURCE_TOUCHSCREEN);try{sendPointerSync(e);}finally{e.recycle();}Thread.sleep(50);}waitForIdleSync();
+    }
     private void imageStroke(android.webkit.WebView web)throws Exception {
         org.json.JSONObject point=new org.json.JSONObject(imageCheck(web,"ImageStudioCheck.point()"));int[] location=new int[2];int[] width={0};
         runOnMainSync(()->{web.getLocationOnScreen(location);width[0]=web.getWidth();});
@@ -242,7 +289,8 @@ public final class DocumentInstrumentation extends Instrumentation {
         }
         MainActivity app=(MainActivity)startActivitySync(new Intent(getTargetContext(),MainActivity.class).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
         try{
-            runOnMainSync(()->app.editDocument("image",null));EditorPane pane=(EditorPane)field(app,"editor");android.webkit.WebView web=(android.webkit.WebView)field(pane,"web");
+            DocumentStore.Saved legacy=DocumentStore.save(app,app.store,UUID.randomUUID().toString(),"Legacy image fixture",RichDocument.empty("image"),project);
+            runOnMainSync(()->app.editDocument("image",legacy.file));EditorPane pane=(EditorPane)field(app,"editor");android.webkit.WebView web=(android.webkit.WebView)field(pane,"web");
             long until=System.currentTimeMillis()+120000;while(System.currentTimeMillis()<until){if("true".equals(javascript(web,"!!document.getElementById('editor')?.contentWindow.document.querySelector('.studio-catbar')")))break;Thread.sleep(100);}
             imageCheck(web,"ImageStudio.ready.then(()=>{document.querySelector('.studio-catbar button[aria-controls=studio-slot-layers]').click();return true;})");painted(web);screen("image-studio-native-screen.png");
             check(textView(pane.getWindow().getDecorView(),"Save")!=null,"Native Save unavailable");

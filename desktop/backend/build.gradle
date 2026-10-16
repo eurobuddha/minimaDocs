@@ -30,13 +30,6 @@ tasks.register('sharedSources') {
                     .replace('android.content.', 'org.mininotes.desktop.platform.content.')
                     .replace('android.database.', 'org.mininotes.desktop.platform.database.')
                     .replace('android.util.', 'org.mininotes.desktop.platform.util.')
-                // Desktop PhotoCraft snapshots use their native extension; Android sources stay unchanged.
-                if (name == 'DocumentStore') {
-                    def marker = '    static String extension(String kind)'
-                    if (!source.contains(marker)) throw new org.gradle.api.GradleException('DocumentStore format adapter changed')
-                    source = source.replace(marker, '    static boolean photocraft(String kind,byte[] bytes){return kind.equals("image") && bytes.length>=4 && bytes[0]==80 && bytes[1]==75 && bytes[2]==3 && bytes[3]==4;}\n' + marker)
-                    source = source.replace('extension(viewed.kind),mime(viewed.kind)', '(photocraft(viewed.kind,bytes)?"pcraft":extension(viewed.kind)),(photocraft(viewed.kind,bytes)?"application/x-photocraft":mime(viewed.kind))')
-                }
                 if (name == 'Node') {
                     source = source.replace('where.checkSelfPermission(android.Manifest.permission.INTERNET)', '0')
                         .replace('org.mininotes.desktop.platform.content.pm.PackageManager.PERMISSION_GRANTED', '0')

@@ -4,7 +4,7 @@ const fs=require('node:fs'),path=require('node:path'),cp=require('node:child_pro
 const desktop=path.resolve(__dirname,'..'),adapter=path.join(desktop,'photocraft'),pin=require('../photocraft/pin.json');
 const source=path.resolve(process.env.PHOTOCRAFT_SOURCE||path.join(desktop,'../../photocraft-engine'));
 const digest=data=>crypto.createHash('sha256').update(data).digest('hex');
-function inputHash(){return digest(['pin.json','upstream.patch','minima_bridge.rs'].map(f=>fs.readFileSync(path.join(adapter,f))).reduce((a,b)=>Buffer.concat([a,b]),Buffer.alloc(0)));}
+function inputHash(){return digest(['pin.json','upstream.patch','minima_bridge.rs','minima_mobile.rs'].map(f=>fs.readFileSync(path.join(adapter,f))).reduce((a,b)=>Buffer.concat([a,b]),Buffer.alloc(0)));}
 const out=path.join(desktop,'build/photocraft');
 function verify(){
  const manifest=JSON.parse(fs.readFileSync(path.join(out,'minimadocs-engine.json'),'utf8'));
@@ -20,9 +20,11 @@ if(require.main===module){
  const patch=fs.readFileSync(path.join(adapter,'upstream.patch'),'utf8'),diff=run(['diff','--binary','HEAD']);
  if(diff&&diff!==patch)throw Error('PhotoCraft has other source changes. They have been preserved.');
  if(!diff){run(['apply','--check','-'],{input:patch});run(['apply','-'],{input:patch});}
- const bridge=path.join(source,'apps/photocraft-web/src/minima_bridge.rs'),expected=fs.readFileSync(path.join(adapter,'minima_bridge.rs'));
- if(fs.existsSync(bridge)&&!fs.readFileSync(bridge).equals(expected))throw Error('PhotoCraft host bridge has other edits. They have been preserved.');
- fs.writeFileSync(bridge,expected);
+ for(const name of ['minima_bridge.rs','minima_mobile.rs']){
+  const bridge=path.join(source,'apps/photocraft-web/src',name),expected=fs.readFileSync(path.join(adapter,name));
+  if(fs.existsSync(bridge)&&!fs.readFileSync(bridge).equals(expected))throw Error('PhotoCraft host adapter has other edits. They have been preserved: '+name);
+  fs.writeFileSync(bridge,expected);
+ }
  if(!process.argv.includes('--stage')){
   const env={...process.env,RUSTUP_TOOLCHAIN:pin.rust};delete env.NO_COLOR;
   const cargoBin=path.join(require('node:os').homedir(),'.cargo/bin');env.PATH=cargoBin+path.delimiter+env.PATH;

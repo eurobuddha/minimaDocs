@@ -1,8 +1,24 @@
+diff --git a/Cargo.lock b/Cargo.lock
+index ec1ddff..feafdc9 100644
+--- a/Cargo.lock
++++ b/Cargo.lock
+@@ -4625,6 +4625,7 @@ dependencies = [
+  "js-sys",
+  "log",
+  "photocraft-codecs",
++ "photocraft-compose",
+  "photocraft-doc",
+  "photocraft-engine",
+  "photocraft-io",
 diff --git a/apps/photocraft-web/Cargo.toml b/apps/photocraft-web/Cargo.toml
-index a4ded64..77dc4dd 100644
+index a4ded64..baaec66 100644
 --- a/apps/photocraft-web/Cargo.toml
 +++ b/apps/photocraft-web/Cargo.toml
-@@ -26,6 +26,7 @@ photocraft-doc = { workspace = true }
+@@ -23,9 +23,11 @@ photocraft-engine = { workspace = true }
+ photocraft-io = { workspace = true }
+ photocraft-codecs = { workspace = true }
+ photocraft-doc = { workspace = true }
++photocraft-compose = { workspace = true }
  photocraft-ui-egui = { workspace = true }
  egui = { workspace = true }
  log = { workspace = true }
@@ -10,7 +26,7 @@ index a4ded64..77dc4dd 100644
  
  [target.'cfg(target_arch = "wasm32")'.dependencies]
  # `wgpu` pulls egui-wgpu's defaults: WebGPU plus the WebGL2 fallback.
-@@ -34,7 +35,7 @@ rfd = { workspace = true }
+@@ -34,7 +36,7 @@ rfd = { workspace = true }
  wasm-bindgen = "0.2"
  wasm-bindgen-futures = "0.4"
  js-sys = "0.3"
@@ -20,10 +36,10 @@ index a4ded64..77dc4dd 100644
  [dev-dependencies]
  serde_json = { workspace = true }
 diff --git a/apps/photocraft-web/src/main.rs b/apps/photocraft-web/src/main.rs
-index 5ba75f5..406a49e 100644
+index 5ba75f5..bff5b40 100644
 --- a/apps/photocraft-web/src/main.rs
 +++ b/apps/photocraft-web/src/main.rs
-@@ -20,8 +20,12 @@
+@@ -20,8 +20,15 @@
  mod preset_bridge;
  
  #[cfg(target_arch = "wasm32")]
@@ -32,6 +48,9 @@ index 5ba75f5..406a49e 100644
  
 +#[cfg(target_arch = "wasm32")]
 +mod minima_bridge;
++
++#[cfg(any(target_arch = "wasm32", test))]
++mod minima_mobile;
 +
  #[cfg(target_arch = "wasm32")]
  mod web;

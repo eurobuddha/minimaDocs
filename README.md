@@ -3,9 +3,9 @@
 Android first office and image workspace, forked from Mininotes with its embedded
 Maxima messaging transport. Repository: [eurobuddha/minimaDocs](https://github.com/eurobuddha/minimaDocs), branch `minimadocs`.
 
-## macOS 0.1.0
+## macOS 0.1.3
 
-[Download the Mac preview](https://github.com/eurobuddha/minimaDocs/releases/tag/mac-v0.1.2).
+[Download the Mac preview](https://github.com/eurobuddha/minimaDocs/releases/tag/mac-v0.1.3).
 The versioned DMG is Developer ID signed and Apple notarized; a SHA-256 checksum
 is included with the release. Open it and drag minimaDocs into Applications.
 
@@ -16,16 +16,21 @@ Keychain-protected storage and direct Maxima sharing. See the
 limits. Parlons Desktop and minimaCore Desktop provide the approved linked-app
 contacts interface.
 
-## Android 0.3.3
+## Android 0.3.4
 
 [Download the signed Android APK](https://github.com/eurobuddha/minimaDocs/releases/latest).
-Install `minimaDocs-0.3.3.apk` to update an existing installation while keeping its
+Install `minimaDocs-0.3.4.apk` to update an existing installation while keeping its
 data. The release includes a SHA-256 checksum. Android 9 or newer is required.
-Version 0.3.3 brings the desktop Image Studio to Android: layers and blend modes,
-selection masks with finger/stylus painting, colour adjustments, retouching,
-brushes, text, 15 Filtr effects and 14 presets. Phone controls use collapsible
-panels, with the image visible above them. Both hosts use the same editor code
-and layered project format. Imported-image retouch undo retains durable pixels.
+Version 0.3.4 adds a photo-first touch workspace powered by the same offline
+PhotoCraft engine as desktop: Looks with strength control, brightness/contrast,
+exposure, colour and white balance, black and white, crop/straighten/rotate,
+brush masks, an editable layer stack, undo/redo, pinch zoom and before comparison.
+Apply keeps a tool's changes; Cancel restores them. Autosave waits while a tool
+preview is open. Save applies it and confirms only after native storage succeeds.
+Native `.pcraft` projects open on desktop with their layers and masks intact.
+Existing `.minimadocs-image.json` files retain the previous miniPaint/Filtr editor.
+This first touch workspace does not expose every desktop tool: healing, text,
+advanced selections and new layer creation remain desktop operations.
 
 Version 0.3.2 discovers Minima Core PandaBear, BlackBear and Pandamonium in the eurobuddha namespace, using normal user-granted permissions.
 
@@ -41,12 +46,13 @@ The interface and new documents use Manrope; imported documents retain their fon
 
 **Docs**, **Sheets**, and **Images** each have a library, New and Import actions.
 Docs and Sheets use the bundled offline ONLYOFFICE engine from `ranuts/document`.
-Images use miniPaint with layers, tools, effects, undo and editable project files.
+Images use PhotoCraft; legacy JSON image projects retain miniPaint/Filtr.
 The native interface uses Atelier/Salon's Katalog design.
 
 - Open a document directly from Files. Save updates that same document.
 - DOCX and XLSX import/export preserve the editable Office file. PDF and flattened
-  PNG exports use Android's Save As picker. Layered images use `.minimadocs-image.json`.
+  PNG exports use Android's Save As picker. New layered images use `.pcraft`;
+  legacy projects retain `.minimadocs-image.json`.
   Home's Send to another app action shares the selected document file.
 - Autosave keeps complete snapshots on this phone. Its interval adapts to export
   cost (30–180 seconds, initially 60 seconds), and leaving the app requests a save.
@@ -109,7 +115,7 @@ updates are saved document snapshots; simultaneous typing is not merged characte
 by character. Delivery depends on connectivity, relay availability and Android's
 background-execution policy. No document server or cloud Office service is required.
 
-The offline engines make the APK large (about 212 MiB). Automatic update checks
+The offline engines make the APK large (about 222 MiB). Automatic update checks
 are disabled in 0.3.1; download updates from this repository's Releases page.
 
 ## Reused implementations
@@ -137,7 +143,9 @@ engine has not been audited.
 
 Use JDK 17 or 21, Android SDK 37, Node 24 and pnpm 11.4.0.
 The reusable CI action `.github/actions/prepare-editors/action.yml` checks out,
-tests and builds the exact editor revisions before packaging Android.
+tests and builds the exact editor revisions before packaging Android. The
+`prepare-photocraft` action builds the pinned Rust/WASM engine and hashes its
+reviewed adapters; Android and desktop packaging verify the same generated files.
 
 For a local build, build the pinned `ranuts/document` checkout with
 `pnpm install --frozen-lockfile`. Before testing and building, register the bundled
@@ -149,6 +157,9 @@ install the test browser with `pnpm exec playwright install chromium`, and run
 ```sh
 node scripts/prepare-editors.cjs /path/to/office-engine /path/to/miniPaint
 node --test tests/editor-bridge.test.cjs tests/core.test.cjs
+# Clone the revision in desktop/photocraft/pin.json into ../photocraft-engine.
+# Install its pinned Rust toolchain, wasm32-unknown-unknown target and Trunk.
+node desktop/scripts/prepare-photocraft.cjs
 cd android
 ./gradlew :app:testDebugUnitTest :app:lintRelease :app:assembleDebug
 ```
@@ -217,7 +228,8 @@ not been exercised in this change; replica convergence and file receipt are cove
 by the native storage test using the existing receive path.
 
 See [NOTICE](NOTICE) for attribution. Office carries AGPL-3.0 terms, miniPaint is
-MIT, and the fonts use the SIL Open Font License. Engine licenses ship in the APK.
+MIT, PhotoCraft is MIT OR Apache-2.0, and the fonts use the SIL Open Font License.
+Engine licenses ship in the APK.
 
 ## Code Review
 

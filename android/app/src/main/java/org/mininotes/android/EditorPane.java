@@ -32,7 +32,7 @@ final class EditorPane extends Dialog {
     private final android.os.Handler timer=new android.os.Handler(android.os.Looper.getMainLooper());
     private final Runnable autosave=new Runnable(){public void run(){
         if(closed)return;long now=android.os.SystemClock.elapsedRealtime();
-        if(ready&&dirty&&!saving&&!readOnly&&!conflictReview&&now-lastSaved>=interval&&now-lastEdit>=2000)saveCopy();
+        if(ready&&dirty&&!saving&&!readOnly&&!conflictReview&&now-lastSaved>=interval&&now-lastEdit>=2000)saveCopy(true);
         timer.postDelayed(this,5000);
     }};
     private final Background storage;
@@ -41,6 +41,7 @@ final class EditorPane extends Dialog {
     private TextView status,save;
     private volatile String bootstrap="{}";
     private boolean exporting,saving,ready,closed,acceptingSave;
+    private final Runnable saveTimeout=()->{if(saving&&(acceptingSave||exporting))failed("The editor did not finish saving. Your previous saved version is safe; use Files to close or try again.");};
     private ValueCallback<Uri[]> picked;
     private String seedTitle,seedText;
     private boolean shareAfterSave;
@@ -57,7 +58,7 @@ final class EditorPane extends Dialog {
         String n=name.toLowerCase(Locale.ROOT);
         if(n.endsWith(".docx")||n.endsWith(".odt")||n.endsWith(".rtf")||n.endsWith(".doc"))return "docx";
         if(n.endsWith(".xlsx")||n.endsWith(".ods")||n.endsWith(".csv")||n.endsWith(".xls"))return "xlsx";
-        if(n.endsWith(".minimadocs-image.json")||n.endsWith(".png")||n.endsWith(".jpg")||n.endsWith(".jpeg")||n.endsWith(".webp"))return "image";
+        if(n.endsWith(".minimadocs-image.json")||n.endsWith(".png")||n.endsWith(".jpg")||n.endsWith(".jpeg")||n.endsWith(".webp")||n.endsWith(".pcraft")||n.endsWith(".psd")||n.endsWith(".psb")||n.endsWith(".ora"))return "image";
         return "";
     }
 
@@ -94,7 +95,7 @@ final class EditorPane extends Dialog {
         root.requestApplyInsets();
         storage.submit(()->{
             if(!PhoneLock.open(app))throw new IllegalStateException("Unlock your notebook first.");
-            JSONObject config=new JSONObject().put("kind",kind);
+            JSONObject config=new JSONObject().put("kind",kind).put("photocraft",kind.equals("image")&&(source==null||!source.name.toLowerCase(Locale.ROOT).endsWith(".minimadocs-image.json")));
             if(seedText!=null)config.put("seedText",seedText);
             if(source!=null) {
                 NoteStore.Held kept=app.store.keptFile(source.id);
@@ -114,7 +115,7 @@ final class EditorPane extends Dialog {
                 public void beforeTextChanged(CharSequence s,int start,int count,int after){}
                 public void onTextChanged(CharSequence s,int start,int before,int count){changed();}
                 public void afterTextChanged(android.text.Editable s){}
-            });web.loadUrl(EditorAssets.ORIGIN+"/workbench/index.html");},e->failed(e.getMessage()));
+            });web.loadUrl(EditorAssets.ORIGIN+"/workbench/"+(kind.equals("image")&&(source==null||!source.name.toLowerCase(Locale.ROOT).endsWith(".minimadocs-image.json"))?"photocraft-mobile.html":"index.html"));},e->failed(e.getMessage()));
     }
 
     @android.annotation.SuppressLint({"SetJavaScriptEnabled","JavascriptInterface"})
@@ -124,7 +125,12 @@ final class EditorPane extends Dialog {
         web.getSettings().setAllowFileAccess(false);web.getSettings().setAllowContentAccess(false);
         web.getSettings().setAllowFileAccessFromFileURLs(false);web.getSettings().setAllowUniversalAccessFromFileURLs(false);
         web.getSettings().setMixedContentMode(android.webkit.WebSettings.MIXED_CONTENT_NEVER_ALLOW);
-        web.setWebViewClient(new EditorAssets(app));
+        web.setWebViewClient(new EditorAssets(app){
+            @Override public boolean onRenderProcessGone(WebView view,android.webkit.RenderProcessGoneDetail detail){
+                ready=false;failed("The image editor stopped. Your previous saved version is safe. Use Files to close and reopen it.");
+                ((android.view.ViewGroup)view.getParent()).removeView(view);view.destroy();web=null;return true;
+            }
+        });
         web.addJavascriptInterface(new Bridge(),"MinimaDocs");
         web.setWebChromeClient(new WebChromeClient(){
             @Override public boolean onShowFileChooser(WebView view,ValueCallback<Uri[]> callback,FileChooserParams params) {
@@ -150,7 +156,7 @@ final class EditorPane extends Dialog {
         menu.getMenu().add("Export to phone").setOnMenuItemClickListener(item->{exportAfterSave=true;if(dirty||source==null)requestSave();else{exportAfterSave=false;app.exportFile(source);}return true;});
         menu.getMenu().add(kind.equals("image")?"Export PNG":"Export PDF").setOnMenuItemClickListener(item->{
             saving=true;exporting=true;save.setEnabled(false);status.setText("Preparing export…");
-            web.evaluateJavascript("minimaDocsExport("+JSONObject.quote(kind.equals("image")?"PNG":"PDF")+")",null);return true;
+            timer.postDelayed(saveTimeout,180_000);web.evaluateJavascript("minimaDocsExport("+JSONObject.quote(kind.equals("image")?"PNG":"PDF")+")",null);return true;
         });
         menu.getMenu().add("Save a separate copy").setOnMenuItemClickListener(item->{noteId=java.util.UUID.randomUUID().toString();viewed=RichDocument.empty(kind);conflictReview=false;source=null;readOnly=false;title.setEnabled(true);web.evaluateJavascript("minimaDocsWritable()",null);dirty=true;saveCopy();return true;});
         menu.getMenu().add("Share document").setOnMenuItemClickListener(item->{if(source==null||dirty)app.toast("Save the document before sharing.");else app.shareDocument(noteId,title.getText().toString());return true;});
@@ -161,13 +167,17 @@ final class EditorPane extends Dialog {
         if(!ready||saving){app.toast("Wait for the editor to finish.");return;}
         android.widget.PopupMenu menu=new android.widget.PopupMenu(app,anchor);
         menu.getMenu().add("Export "+(kind.equals("docx")?"Word (.docx)":kind.equals("xlsx")?"Excel (.xlsx)":"layered image")).setOnMenuItemClickListener(item->{exportAfterSave=true;if(dirty||source==null)requestSave();else{exportAfterSave=false;app.exportFile(source);}return true;});
-        menu.getMenu().add(kind.equals("image")?"Export PNG":"Export PDF").setOnMenuItemClickListener(item->{saving=true;exporting=true;save.setEnabled(false);status.setText("Preparing export…");web.evaluateJavascript("minimaDocsExport("+JSONObject.quote(kind.equals("image")?"PNG":"PDF")+")",null);return true;});menu.show();
+        menu.getMenu().add(kind.equals("image")?"Export PNG":"Export PDF").setOnMenuItemClickListener(item->{saving=true;exporting=true;save.setEnabled(false);status.setText("Preparing export…");timer.postDelayed(saveTimeout,180_000);web.evaluateJavascript("minimaDocsExport("+JSONObject.quote(kind.equals("image")?"PNG":"PDF")+")",null);return true;});menu.show();
     }
     @Override public void onBackPressed() {
         if(!ready||readOnly||(!dirty&&!saving)){dismiss();return;}
-        closeAfterSave=true;if(!saving)requestSave();
+        new AlertDialog.Builder(app).setTitle(saving?"Save in progress":"Save your changes?")
+            .setMessage(saving?"The editor is still saving. Closing may keep a save already submitted to storage.":"Save this document, keep editing, or discard changes since the last save.")
+            .setNegativeButton("Keep editing",null)
+            .setNeutralButton(saving?"Close editor":"Discard",(d,w)->dismiss())
+            .setPositiveButton("Save & close",(d,w)->{closeAfterSave=true;if(!saving)requestSave();}).show();
     }
-    void backgrounded(){if(ready&&dirty&&!saving&&!readOnly&&!conflictReview)saveCopy();}
+    void backgrounded(){if(ready&&dirty&&!saving&&!readOnly&&!conflictReview)saveCopy(true);}
     private void changed(){if(closed||readOnly)return;dirty=true;lastEdit=android.os.SystemClock.elapsedRealtime();if(saving)changedDuringSave=true;if(ready&&!saving)status.setText(conflictReview?"Unsaved changes · Save to choose this version":"Unsaved changes · Autosave on");}
     @Override public void dismiss() {
         closed=true;timer.removeCallbacksAndMessages(null);bootstrap="{}";picked(null);
@@ -184,13 +194,14 @@ final class EditorPane extends Dialog {
             .setPositiveButton("Use this version",(d,w)->{conflictReview=false;saveCopy();}).show();
     }
 
-    private void saveCopy(){
+    private void saveCopy(){saveCopy(false);}
+    private void saveCopy(boolean automatic){
         if(!ready||saving||closed||readOnly)return;
         saving=true;changedDuringSave=false;acceptingSave=true;saveStarted=android.os.SystemClock.elapsedRealtime();
-        save.setEnabled(false);status.setText("Saving…");web.evaluateJavascript("minimaDocsSave()",null);
+        save.setEnabled(false);status.setText("Saving…");timer.postDelayed(saveTimeout,180_000);web.evaluateJavascript("minimaDocsSave("+automatic+")",null);
     }
     private void failed(String message){app.runOnUiThread(()->{
-        if(closed)return;saving=false;acceptingSave=false;if(!exporting)dirty=true;exporting=false;closeAfterSave=false;exportAfterSave=false;
+        if(closed)return;timer.removeCallbacks(saveTimeout);if(web!=null)web.evaluateJavascript("window.minimaDocsSaved&&minimaDocsSaved(false,"+JSONObject.quote(message==null?"Could not save":message)+")",null);saving=false;acceptingSave=false;if(!exporting)dirty=true;exporting=false;closeAfterSave=false;exportAfterSave=false;
         shareAfterSave=false;save.setEnabled(ready&&!readOnly);status.setText(message==null?"Could not save. Your previous version is safe.":message);
         lastSaved=android.os.SystemClock.elapsedRealtime();
     });}
@@ -198,15 +209,16 @@ final class EditorPane extends Dialog {
     private final class Bridge {
         @JavascriptInterface public void used(){app.runOnUiThread(()->{app.onUserInteraction();lastEdit=android.os.SystemClock.elapsedRealtime();});}
         @JavascriptInterface public void changed(){app.runOnUiThread(EditorPane.this::changed);}
+        @JavascriptInterface public void saveDeferred(){app.runOnUiThread(()->{if(closed||!saving||!acceptingSave)return;timer.removeCallbacks(saveTimeout);saving=false;acceptingSave=false;save.setEnabled(!readOnly);status.setText("Preview · Apply or Cancel to resume autosave");});}
         @JavascriptInterface public void toolsOpened(){app.runOnUiThread(()->{if(closed||web==null)return;android.view.inputmethod.InputMethodManager input=(android.view.inputmethod.InputMethodManager)app.getSystemService(android.content.Context.INPUT_METHOD_SERVICE);if(input!=null)input.hideSoftInputFromWindow(web.getWindowToken(),0);});}
         @JavascriptInterface public String bootstrap(){return bootstrap;}
-        @JavascriptInterface public void ready(){app.runOnUiThread(()->{if(closed||ready)return;ready=true;save.setEnabled(!readOnly);status.setText(readOnly?"Read only":viewed.heads.size()>1?"Reviewing a concurrent version · Save to choose it":"Saved on this device · Autosave on");bootstrap="{}";timer.postDelayed(autosave,5000);});}
+        @JavascriptInterface public void ready(){app.runOnUiThread(()->{if(closed||ready)return;ready=true;save.setEnabled(!readOnly);status.setText(readOnly?"Read only":viewed.heads.size()>1?"Reviewing a concurrent version · Save to choose it":dirty?"Unsaved changes · Autosave on":"Saved on this device · Autosave on");bootstrap="{}";timer.postDelayed(autosave,5000);});}
         @JavascriptInterface public void error(String message){failed(message);}
         @JavascriptInterface public void exported(String base64,String type){app.runOnUiThread(()->{
             if(closed||!saving||!exporting||!("PDF".equals(type)||"PNG".equals(type)))return;
             if(base64==null||base64.length()>4*((Enclosure.MOST+2)/3)){failed("Export exceeds 16 MiB.");return;}
             try{byte[] bytes=Base64.decode(base64,Base64.DEFAULT);if(bytes.length>Enclosure.MOST)throw new IllegalArgumentException();
-                saving=false;exporting=false;closeAfterSave=false;save.setEnabled(!readOnly);status.setText(dirty?"Unsaved changes":"Export ready");
+                timer.removeCallbacks(saveTimeout);saving=false;exporting=false;closeAfterSave=false;save.setEnabled(!readOnly);status.setText(dirty?"Unsaved changes":"Export ready");
                 app.exportBytes(title.getText().toString()+"."+type.toLowerCase(Locale.ROOT),type.equals("PDF")?"application/pdf":"image/png",bytes);
             }catch(IllegalArgumentException invalid){failed("Could not read the exported file.");}
         });}
@@ -221,8 +233,8 @@ final class EditorPane extends Dialog {
                 storage.submit(()->DocumentStore.save(app,app.store,savingNote,named,savingView,Base64.decode(base64,Base64.DEFAULT)),result->{
                     source=result.file;viewed=result.viewed;app.documentSaved(savingNote);
                     if(closed)return;
-                    saving=false;dirty=changedDuringSave;lastSaved=android.os.SystemClock.elapsedRealtime();
-                    interval=Math.min(180_000,Math.max(30_000,(lastSaved-saveStarted)*300));save.setEnabled(!readOnly);
+                    timer.removeCallbacks(saveTimeout);if(web!=null)web.evaluateJavascript("window.minimaDocsSaved&&minimaDocsSaved(true)",null);saving=false;dirty=changedDuringSave;lastSaved=android.os.SystemClock.elapsedRealtime();
+                    interval=Math.min(180_000,Math.max(30_000,(lastSaved-saveStarted)*300));save.setEnabled(ready&&!readOnly);
                     status.setText(result.current.heads.size()>1?"Concurrent versions kept · Reopen to review":dirty?"Unsaved changes · Autosave on":"Saved on this phone · Autosave on");
                     if(exportAfterSave){exportAfterSave=false;app.exportFile(source);}
                     if(shareAfterSave){if(dirty)saveCopy();else{shareAfterSave=false;app.shareDocument(noteId,title.getText().toString());}}

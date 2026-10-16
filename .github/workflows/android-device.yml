@@ -9,10 +9,11 @@ permissions:
 jobs:
   device:
     runs-on: ubuntu-latest
-    timeout-minutes: 50
+    timeout-minutes: 90
     steps:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/prepare-editors
+      - uses: ./.github/actions/prepare-photocraft
       - name: Customized office assets
         uses: actions/upload-artifact@v4
         with:

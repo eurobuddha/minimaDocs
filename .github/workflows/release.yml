@@ -22,6 +22,8 @@ jobs:
 
       - uses: ./.github/actions/prepare-editors
 
+      - uses: ./.github/actions/prepare-photocraft
+
       # Three places name the version and they have to agree before anything is built: the tag, the
       # build's own versionName, and dist/latest.txt, which is the one line every installed pad reads
       # to learn whether it is behind. A tag ahead of that file publishes a build nobody is told about;
@@ -44,57 +46,72 @@ jobs:
 
       - uses: gradle/actions/setup-gradle@v4
 
-      - name: Test, lint, build
+      - name: Require the release signing key
+        if: env.SIGNING_KEY == ''
+        run: |
+          echo "::error::Configure the existing family release signing secrets before building an installer."
+          exit 1
+
+      - name: Prepare the signing key
+        shell: bash
+        run: |
+          set -euo pipefail
+          printf '%s' "$SIGNING_KEY" | base64 -d > "$RUNNER_TEMP/key.jks"
+          chmod 600 "$RUNNER_TEMP/key.jks"
+
+      - name: Test, lint, build signed release
         working-directory: android
+        env:
+          ORG_GRADLE_PROJECT_MINIMA_FAMILY_RELEASE_STORE_FILE: ${{ runner.temp }}/key.jks
+          ORG_GRADLE_PROJECT_MINIMA_FAMILY_RELEASE_STORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          ORG_GRADLE_PROJECT_MINIMA_FAMILY_RELEASE_KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          ORG_GRADLE_PROJECT_MINIMA_FAMILY_RELEASE_KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
         run: ./gradlew --no-daemon testReleaseUnitTest lintRelease assembleRelease
 
       - name: Name it after the tag
         id: name
         run: echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
 
-      # A public installer needs the configured release key.
-      - name: Require a release signing key
-        if: env.SIGNING_KEY == ''
-        run: |
-          echo "::error::Configure the release signing secrets before publishing an installer."
-          exit 1
-
-      - name: Sign
+      - name: Verify signature
         id: sign
-        if: env.SIGNING_KEY != ''
-        env:
-          KEYSTORE: ${{ secrets.KEYSTORE_BASE64 }}
-          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
-          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
-          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
         run: |
           set -euo pipefail
-          echo "$KEYSTORE" | base64 -d > "$RUNNER_TEMP/key.jks"
           BUILD_TOOLS=$(ls -d "$ANDROID_HOME"/build-tools/* | sort -V | tail -1)
-          IN=android/app/build/outputs/apk/release/app-release-unsigned.apk
-          "$BUILD_TOOLS/zipalign" -p 4 "$IN" "$RUNNER_TEMP/aligned.apk"
-          "$BUILD_TOOLS/apksigner" sign \
-            --ks "$RUNNER_TEMP/key.jks" --ks-pass "pass:$KEYSTORE_PASSWORD" \
-            --ks-key-alias "$KEY_ALIAS" --key-pass "pass:$KEY_PASSWORD" \
-            --out "$RUNNER_TEMP/signed.apk" "$RUNNER_TEMP/aligned.apk"
-          echo "apk=$RUNNER_TEMP/signed.apk" >> "$GITHUB_OUTPUT"
+          APK=android/app/build/outputs/apk/release/app-release.apk
+          "$BUILD_TOOLS/apksigner" verify --verbose "$APK"
+          echo "apk=$APK" >> "$GITHUB_OUTPUT"
+
+      - name: Remove temporary key
+        if: always()
+        run: rm -f "$RUNNER_TEMP/key.jks"
 
       - name: Gather
         run: |
           set -euo pipefail
           mkdir -p out
           SRC="${{ steps.sign.outputs.apk }}"
-          if [ -z "$SRC" ]; then
-            SRC=android/app/build/outputs/apk/release/app-release-unsigned.apk
-            NAME="minimaDocs-${{ steps.name.outputs.version }}-unsigned.apk"
-          else
-            NAME="minimaDocs-${{ steps.name.outputs.version }}.apk"
-          fi
+          test -n "$SRC"
+          NAME="minimaDocs-${{ steps.name.outputs.version }}.apk"
           cp "$SRC" "out/$NAME"
           ( cd out && sha256sum "$NAME" > "$NAME.sha256" )
           ls -l out
 
+      # A locally signed, verified release may already have been published while
+      # this build ran. Never turn that public release back into a draft.
+      - name: Check existing publication
+        id: publication
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if gh api "repos/$GITHUB_REPOSITORY/releases/tags/$GITHUB_REF_NAME" > "$RUNNER_TEMP/release.json" 2> "$RUNNER_TEMP/release-error.txt"; then
+            node -e 'const r=require(process.env.RUNNER_TEMP+"/release.json");console.log("published="+(!r.draft));' >> "$GITHUB_OUTPUT"
+          else
+            grep -q 'HTTP 404' "$RUNNER_TEMP/release-error.txt" || { cat "$RUNNER_TEMP/release-error.txt"; exit 1; }
+            echo "published=false" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Publish
+        if: steps.publication.outputs.published != 'true'
         uses: softprops/action-gh-release@v2
         with:
           overwrite_files: false
