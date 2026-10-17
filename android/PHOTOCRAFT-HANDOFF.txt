@@ -12,6 +12,9 @@ minimaDocs Android 0.3.5 / code 305 — imported-photo display fix
   mask pixels, undo/redo, crop, PCraft reopen, PNG export, save failure recovery
   and phone-project import into the desktop host. Android JVM tests and release
   lint passed; debug, instrumentation and signed release APKs built successfully.
+- Local emulator validation did not complete: Android process-attach timeouts and
+  an unresponsive WebView persisted after a warm retry. The physical-phone check
+  and real-engine integration above passed; new device CI coverage is pending.
 - Added native imports with screenshot pixel assertions for PNG, JPEG (including
   4032 x 3024) and WebP to the existing device CI; no personal photos in tests.
 - Review: production change selects an existing engine path; no new data access,
@@ -23,6 +26,16 @@ minimaDocs Android 0.3.5 / code 305 — imported-photo display fix
 - SHA-256: 0fc7dc3268cf276acac6b79e6eef3ceb1555cb607a89eb77a66052de95578a04
 - Verified release certificate matches 0.3.4:
   eca1383c9d27683a281fbe6355356267877dc2dd14d963d7cc289ca0700e517f
+
+Publication (2026-10-17)
+- Source e0a1339c731b275f033065b3f8211ead6bfa8140 pushed to minimadocs.
+- GitHub v0.3.5 is public; asset digest matches the signed APK installed on phone.
+- Store catalogue 6e87a91ae2a3f99ccc736ca7da5fc6afc3e5ffdd pushed to main.
+  Catalogue and pre-push checks: 54 entries, 53 binaries verified.
+- The scheduled store publisher already held the lock when the manual publish
+  was invoked; it picked up 0.3.5 and completed the public mirror/IPNS update.
+- Snapshot: bafybeiear5xvzwhsm3qfufkz4zzd2ptffcnfxc6277jq7tfgfdvxok473q
+- Public catalogue serves 0.3.5 / code 305 with the expected APK checksum.
 
 Previous release record
 =======================
