@@ -16,11 +16,15 @@ Keychain-protected storage and direct Maxima sharing. See the
 limits. Parlons Desktop and minimaCore Desktop provide the approved linked-app
 contacts interface.
 
-## Android 0.3.4
+## Android 0.3.5
 
 [Download the signed Android APK](https://github.com/eurobuddha/minimaDocs/releases/latest).
-Install `minimaDocs-0.3.4.apk` to update an existing installation while keeping its
+Install `minimaDocs-0.3.5.apk` to update an existing installation while keeping its
 data. The release includes a SHA-256 checksum. Android 9 or newer is required.
+Version 0.3.5 fixes imported photos showing only a transparency checkerboard on
+some Android graphics drivers, using PhotoCraft’s existing CPU canvas. Original
+resolution, editable layers and desktop compatibility are retained.
+
 Version 0.3.4 adds a photo-first touch workspace powered by the same offline
 PhotoCraft engine as desktop: Looks with strength control, brightness/contrast,
 exposure, colour and white balance, black and white, crop/straighten/rotate,

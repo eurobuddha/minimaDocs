@@ -1,3 +1,32 @@
+minimaDocs Android 0.3.5 / code 305 — imported-photo display fix
+
+- Reproduced on the connected Samsung SM-F971B running signed 0.3.4 by importing
+  a 3840 x 2160 JPEG from Camera through the normal Android file picker.
+  The main canvas showed only transparency; CPU-rendered Looks showed the photo.
+- Reused PhotoCraft's existing ?cpu canvas path alongside ?webgl in the Android
+  host. Full-resolution document data, layers, masks and exports are unchanged.
+  The desktop host still selects its existing renderer.
+- Installed signed 0.3.5 over 0.3.4 on the same phone and repeated the same import:
+  the full photo now displays. No uninstall or app-data clearing was performed.
+- Existing real-engine mobile integration passed: adjustment/cancel, Looks,
+  mask pixels, undo/redo, crop, PCraft reopen, PNG export, save failure recovery
+  and phone-project import into the desktop host. Android JVM tests and release
+  lint passed; debug, instrumentation and signed release APKs built successfully.
+- Added native imports with screenshot pixel assertions for PNG, JPEG (including
+  4032 x 3024) and WebP to the existing device CI; no personal photos in tests.
+- Review: production change selects an existing engine path; no new data access,
+  file conversion or dependency. Existing storage/readonly/size limits retained.
+- Separate observed limitation: the 6.14 MB camera JPEG's editable PCraft snapshot
+  exceeds the existing 16 MiB sharing limit. The original is retained. This change
+  fixes display; it does not alter that limit or silently resize the original.
+- APK: minimaDocs-0.3.5.apk
+- SHA-256: 0fc7dc3268cf276acac6b79e6eef3ceb1555cb607a89eb77a66052de95578a04
+- Verified release certificate matches 0.3.4:
+  eca1383c9d27683a281fbe6355356267877dc2dd14d963d7cc289ca0700e517f
+
+Previous release record
+=======================
+
 minimaDocs Android PhotoCraft touch workspace — 0.3.4 / code 304
 
 Implementation

@@ -12,6 +12,7 @@
   state,wait,click,input,apply,cancel,
   async prepare(){
    await wait(()=>document.querySelector('.tool-grid'),'No tool grid');
+   check(new URL(document.querySelector('#editor').src).searchParams.has('cpu'),'Phone must use the compatible PhotoCraft canvas');
    const initial=await state();check(initial.width===320&&initial.height===240,'Wrong import size');
    click('Tune image');await wait(()=>document.querySelector('#range-brightness'),'No brightness slider');await input('brightness',24);await apply();
    const tuned=await state();check(tuned.layers[0].params.brightness===24,'Brightness was not applied as a layer');

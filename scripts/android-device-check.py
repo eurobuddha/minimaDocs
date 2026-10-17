@@ -46,10 +46,11 @@ try:
     instrument('editors')
     instrument('image-studio')
     instrument('photocraft')
+    instrument('photo-import')
 finally:
     # Only these synthetic editor fixtures are retained; never capture identity setup.
     out=Path('android/build/device-checks');out.mkdir(parents=True,exist_ok=True)
-    for name in ['photocraft-mobile-screen.png','photocraft-native-screen.png','photocraft-mobile.pcraft','photocraft-mobile.png','image-studio-native-screen.png','image-studio-layers-screen.png','image-studio-effects-screen.png','image-studio-phone-screen.png','image-studio.minimadocs-image.json','image-studio.png','sharing-methods-screen.png','sharing-qr-screen.png','sharing-review-screen.png','workspace-screen.png','workspace-files-screen.png','workspace-word-screen.png','workspace-format-screen.png','workspace-manrope.docx','workspace-manrope.pdf','saved.docx','saved.xlsx','saved.minimadocs-image.json','docx-screen.png','xlsx-screen.png','image-screen.png','docx-theme.json','xlsx-theme.json','docx.pdf','xlsx.pdf','image.png']:
+    for name in ['import-320.png-screen.png','import-1791.jpg-screen.png','import-4032.jpg-screen.png','import-1200.webp-screen.png','photocraft-mobile-screen.png','photocraft-native-screen.png','photocraft-mobile.pcraft','photocraft-mobile.png','image-studio-native-screen.png','image-studio-layers-screen.png','image-studio-effects-screen.png','image-studio-phone-screen.png','image-studio.minimadocs-image.json','image-studio.png','sharing-methods-screen.png','sharing-qr-screen.png','sharing-review-screen.png','workspace-screen.png','workspace-files-screen.png','workspace-word-screen.png','workspace-format-screen.png','workspace-manrope.docx','workspace-manrope.pdf','saved.docx','saved.xlsx','saved.minimadocs-image.json','docx-screen.png','xlsx-screen.png','image-screen.png','docx-theme.json','xlsx-theme.json','docx.pdf','xlsx.pdf','image.png']:
         result=subprocess.run(['adb','-s',serial,'exec-out','run-as','com.eurobuddha.minimadocs','cat','cache/editor-checks/'+name],capture_output=True,timeout=30)
         if result.returncode==0:(out/name).write_bytes(result.stdout)
 adb('install','-r','android/build/parlons/app/build/outputs/apk/debug/app-debug.apk')

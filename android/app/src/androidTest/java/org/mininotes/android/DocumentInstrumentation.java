@@ -37,6 +37,7 @@ public final class DocumentInstrumentation extends Instrumentation {
         try {
             if(mode.equals("sharing")){sharing();result.putString("stream","PASS: direct sharing without Parlons, QR and copied invitation permissions, recipient entry, invitation review\n");finish(-1,result);return;}
             if(mode.equals("workspace")){workspace();result.putString("stream","PASS: document workspace, Word controls, Manrope DOCX save and native screenshots\n");finish(-1,result);return;}
+            if(mode.equals("photo-import")){photoImports();result.putString("stream","PASS: native PNG/JPEG/WebP photo imports contain visible pixels at phone-photo sizes\n");finish(-1,result);return;}
             if(mode.equals("photocraft")){mobilePhoto();result.putString("stream","PASS: PhotoCraft touch adjustments, Look undo, cancel, mask stroke, crop, PCraft reopen and PNG export\n");finish(-1,result);return;}
             if(mode.equals("image-studio")){imageStudio();result.putString("stream","PASS: Android Image Studio touch masks, brush, layers, retouch undo, 15 effects, 14 presets, layered reopen and PNG export\n");finish(-1,result);return;}
             if(mode.equals("editors")){editors();result.putString("stream","PASS: packaged Android DOCX/XLSX imports, round trips, PDF and layered PNG export\n");finish(-1,result);return;}
@@ -210,6 +211,43 @@ public final class DocumentInstrumentation extends Instrumentation {
         long until=System.currentTimeMillis()+180000;
         while(System.currentTimeMillis()<until){String result=javascript(web,"window.mobileCheckResult");if(!"null".equals(result)){org.json.JSONObject parsed=new org.json.JSONObject(result);check(parsed.getBoolean("ok"),parsed.optString("error"));return String.valueOf(parsed.opt("value"));}Thread.sleep(100);}
         throw new AssertionError("Mobile check timed out: "+expression);
+    }
+    /** Exercise the native import, not only a bootstrap mock or an already-saved PCraft file. */
+    private void photoImports()throws Exception {
+        check(android.os.Build.FINGERPRINT.contains("generic")||android.os.Build.MODEL.contains("sdk"),"Photo fixtures require a disposable emulator");
+        MainActivity app=(MainActivity)startActivitySync(new Intent(getTargetContext(),MainActivity.class).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
+        try {
+            int[][] sizes={{320,240},{1791,1083},{4032,3024},{1200,900}};
+            String[] extensions={"png","jpg","jpg","webp"};
+            for(int i=0;i<sizes.length;i++) {
+                int width=sizes[i][0],height=sizes[i][1];String name="import-"+width+"."+extensions[i];
+                android.graphics.Bitmap bitmap=android.graphics.Bitmap.createBitmap(width,height,android.graphics.Bitmap.Config.ARGB_8888);
+                android.graphics.Canvas canvas=new android.graphics.Canvas(bitmap);canvas.drawColor(android.graphics.Color.rgb(60,100,140));
+                android.graphics.Paint paint=new android.graphics.Paint();paint.setColor(android.graphics.Color.rgb(230,180,100));canvas.drawRect(width/4f,height/4f,width*3/4f,height*3/4f,paint);
+                File input=new File(app.getCacheDir(),name);
+                try(FileOutputStream output=new FileOutputStream(input)) {bitmap.compress(i==0?android.graphics.Bitmap.CompressFormat.PNG:i==3?android.graphics.Bitmap.CompressFormat.WEBP:android.graphics.Bitmap.CompressFormat.JPEG,95,output);}finally{bitmap.recycle();}
+                java.lang.reflect.Field kind=MainActivity.class.getDeclaredField("importingKind");kind.setAccessible(true);kind.set(app,"image");
+                java.lang.reflect.Method importing=MainActivity.class.getDeclaredMethod("importDocument",android.net.Uri.class);importing.setAccessible(true);
+                runOnMainSync(()->{try{importing.invoke(app,android.net.Uri.fromFile(input));}catch(Exception e){throw new RuntimeException(e);}});
+                EditorPane pane=null;long deadline=System.currentTimeMillis()+180000;
+                while(System.currentTimeMillis()<deadline){pane=(EditorPane)field(app,"editor");if(pane!=null&&Boolean.TRUE.equals(field(pane,"ready")))break;Thread.sleep(100);}
+                check(pane!=null&&Boolean.TRUE.equals(field(pane,"ready")),name+": native import not ready");
+                android.webkit.WebView web=(android.webkit.WebView)field(pane,"web");
+                String source="document.querySelector('#editor').contentWindow.photoCraft";
+                String state=mobileCheck(web,"(async()=>{const s=(await "+source+".request('mobile.state')).value;return {width:s.width,height:s.height};})()");
+                org.json.JSONObject dimensions=new org.json.JSONObject(state);check(dimensions.getInt("width")==width&&dimensions.getInt("height")==height,name+": import size changed");
+                // Wait for a completed frame after the final UI layout and the queued Look previews.
+                mobileCheck(web,"(async()=>{await "+source+".request('mobile.state');await new Promise(r=>setTimeout(r,1000));return true;})()");
+                painted(web);screen(name+"-screen.png");
+                org.json.JSONObject point=new org.json.JSONObject(mobileCheck(web,"(()=>{const r=document.querySelector('#stage').getBoundingClientRect();return {x:r.x+r.width/2,y:r.y+r.height/2};})()"));
+                int[] location=new int[2];int[] webWidth={0};runOnMainSync(()->{web.getLocationOnScreen(location);webWidth[0]=web.getWidth();});
+                double scale=webWidth[0]/Double.parseDouble(javascript(web,"innerWidth"));
+                android.graphics.Bitmap screenshot=getUiAutomation().takeScreenshot();check(screenshot!=null,"No photo screenshot");
+                int color;try{color=screenshot.getPixel(location[0]+(int)(point.getDouble("x")*scale),location[1]+(int)(point.getDouble("y")*scale));}finally{screenshot.recycle();}
+                check(Math.abs(android.graphics.Color.red(color)-230)<35&&Math.abs(android.graphics.Color.green(color)-180)<35&&Math.abs(android.graphics.Color.blue(color)-100)<35,name+": imported photo missing from canvas, center pixel="+Integer.toHexString(color));
+                EditorPane closing=pane;runOnMainSync(closing::dismiss);waitForIdleSync();input.delete();
+            }
+        }finally{runOnMainSync(app::finish);waitForIdleSync();}
     }
     private void mobilePhoto()throws Exception {
         check(android.os.Build.FINGERPRINT.contains("generic")||android.os.Build.MODEL.contains("sdk"),"Photo fixtures require a disposable emulator");
