@@ -1,3 +1,45 @@
+minimaDocs desktop 0.1.4 — every image opens in PhotoCraft (2026-11-05)
+
+Why
+- 0.1.3 opened existing .minimadocs-image.json projects in miniPaint, so users saw
+  the old editor and assumed PhotoCraft had not shipped.
+
+Change
+- main.cjs: config.photocraft is true for every image; config.legacy marks old projects.
+- renderer/legacy-image.js renders each miniPaint layer with miniPaint's own renderer
+  in a hidden frame (text, brushes, shapes, filters), applies enabled Image Studio
+  masks, and builds a stored-ZIP OpenRaster: name, visibility, opacity, blend mode.
+  Disabled masks and blends without an OpenRaster equivalent are reported in status.
+- DocumentStore.save retires superseded heads (Versions = concurrent heads, not
+  history). So the first save of a Files-stored legacy image first files the
+  untouched original as "<title> (original miniPaint image)"; the converted image
+  saves in place as .pcraft and keeps its sharing. Disk imports get no extra copy.
+- Opening alone never saves: legacy images are not marked dirty, so autosave does
+  not convert an image that was only viewed.
+- Android is unchanged (0.3.5 still opens legacy JSON in miniPaint).
+
+Validation (2026-11-05)
+- tests/image-legacy.test.cjs (real engine): Android fixture → PhotoCraft layer order,
+  visibility, Multiply blend, 85% opacity, rendered vector brush; save → .pcraft
+  reopen with identical layers; kept original byte-exact and filed exactly once;
+  1280x1024 noise project converts with exact sampled pixels. 2 passed.
+- PhotoCraft suite 2 passed; desktop unit tests 22 passed; Java backend tests passed.
+- Replaced desktop image-save/image-studio/image-phone tests (they drove the
+  miniPaint editor, which desktop no longer opens).
+- Compatibility (Office) UI suite not run: android/build/fixtures absent.
+- Built with Gradle on Homebrew openjdk@21 (Gradle 8.11 rejects JDK 26); bundled
+  runtime jlinked from JDK 26.0.1 as before. Trunk 0.21.14 rebuilt locally.
+
+Release verification (2026-11-05)
+- Developer ID Application: Barry Sherman (Z4JD286WF4). Hardened runtime.
+- Notary submission 28005e59-fa50-4669-ad94-8139f527aa2b: Accepted; app and DMG stapled;
+  scripts/verify-mac.sh ALL OK (codesign strict, spctl app + DMG).
+- Installer: minimaDocs-0.1.4-mac-arm64.dmg
+- SHA-256: 40182f9a421a95340e1f2316f90e5484e9aa05c190bda30f8dc8be7d234fdf3b
+
+Previous release record
+=======================
+
 Android update: 0.3.4 adds the shared PhotoCraft touch host. See
 ../android/PHOTOCRAFT-HANDOFF.txt. The desktop-only scope and APK viability
 notes below describe the original 0.1.3 release, before that mobile work.

@@ -14,7 +14,7 @@ is needed. Create a document, spreadsheet or layered image from Files, or choose
 Import. Each editor opens in its own window.
 
 - Word and Excel files remain editable DOCX/XLSX files. Export also offers PDF;
-  images support editable `.minimadocs-image.json` projects and flattened PNG.
+  images open in PhotoCraft and save as editable `.pcraft` projects; Export adds PNG, PSD and OpenRaster.
 - **Command-S** saves, **Command-O** imports, **Command-N** creates a document,
   and **Command-Shift-H** returns to Files. Autosave checks every 30 seconds
   after two seconds without edits. Closing or quitting asks about unsaved work.
@@ -173,12 +173,18 @@ MINIMADOCS_IMAGE_TEST_APP to the packaged executable to repeat against a release
 pauses autosave after an error until explicit retry, and allows the native approved
 save/discard decision to override the embedded browser editor's unload guard.
 
-## PhotoCraft images (Mac 0.1.3)
+## PhotoCraft images (Mac 0.1.3, all images since 0.1.4)
 
 New images use the bundled [PhotoCraft 0.8.2](https://github.com/storytold/photocraft/releases/tag/v0.8.2)
 Rust/WASM editor. Save keeps an encrypted native `.pcraft` project; Export offers
-PhotoCraft, PNG, PSD and OpenRaster. Older `.minimadocs-image.json` projects retain
-their miniPaint/Filtr editor and editable layers. Android 0.3.4 adds a photo-first
+PhotoCraft, PNG, PSD and OpenRaster. Since Mac 0.1.4, older `.minimadocs-image.json`
+projects open in PhotoCraft too: `renderer/legacy-image.js` renders each miniPaint layer
+with miniPaint's own renderer in a hidden frame (text, brushes, shapes and filters
+included), applies enabled Image Studio masks, and hands PhotoCraft a layered
+OpenRaster with each layer's name, visibility, opacity and blend mode. The first save
+replaces it with a `.pcraft` file (sharing continues) and first files the untouched
+original as a separate “(original miniPaint image)” document. Disabled masks and
+blend modes without an OpenRaster equivalent are listed in the status line. Android 0.3.4 adds a photo-first
 touch workspace using the same engine and `.pcraft` format. Older APKs cannot
 edit `.pcraft` files. Preferences/custom brush presets are session-only.
 

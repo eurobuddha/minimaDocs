@@ -36,9 +36,16 @@
     }
    };
    await Promise.race([editor.ready,new Promise((_,reject)=>setTimeout(()=>reject(Error('PhotoCraft could not start. Close this window and try again.')),90000))]);
-   await editor.request('open',{name:config.name||'Untitled.pcraft'},config.base64?decode(config.base64):new Uint8Array());
+   let name=config.name||'Untitled.pcraft',data=config.base64?decode(config.base64):new Uint8Array(),notes=[];
+   if(config.legacy&&config.base64){
+    // Older miniPaint projects open in PhotoCraft; the first save adds a .pcraft version.
+    await new Promise((resolve,reject)=>{const s=document.createElement('script');s.src='/desktop/legacy-image.js';s.onload=resolve;s.onerror=()=>reject(Error('The image converter could not load.'));document.head.append(s);});
+    ({bytes:data,notes}=await legacyImageToOra(new TextDecoder().decode(data)));name=name.replace(/\.minimadocs-image\.json$/i,'')+'.ora';
+   }
+   await editor.request('open',{name},data);
    delete config.base64;frame.contentWindow.document.body.inert=!!config.readonly;
    opened=true;MinimaDocs.ready();
+   if(config.legacy&&!config.readonly)desktopEditor.action('converted',notes.join(' ')).catch(error);
   }catch(e){error(e);}
  });
  frame.title='PhotoCraft image editor';frame.src='/photocraft/index.html';

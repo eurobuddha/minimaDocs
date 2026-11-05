@@ -53,9 +53,10 @@ async function openEditor(params){
 async function createEditor(params){
   if(params.id){const already=[...editors.values()].find(s=>s.config.id===params.id);if(already){already.win.show();already.win.focus();return {id:params.id};}}
   const config=await backend.call('open',params);
-  config.photocraft=config.kind==='image'&&!config.name?.toLowerCase().endsWith('.minimadocs-image.json');
+  // Every image opens in PhotoCraft; older miniPaint projects are converted in the editor (renderer/legacy-image.js).
+  config.photocraft=config.kind==='image';config.legacy=config.photocraft&&!!config.name?.toLowerCase().endsWith('.minimadocs-image.json');
   const win=new BrowserWindow({width:1320,height:920,minWidth:820,minHeight:600,title:config.title+' — minimaDocs',backgroundColor:'#F2F1EC',titleBarStyle:'hiddenInset',trafficLightPosition:{x:18,y:24},webPreferences:{preload:path.join(__dirname,'editor-preload.cjs'),contextIsolation:true,nodeIntegration:false,sandbox:true,spellcheck:false}});
-  const state={win,config,title:config.title,dirty:!params.id,ready:false,saving:false,saveError:'',edits:0,savedEdits:0,lastBytes:config.base64||null,lastEdit:Date.now()};editors.set(win.webContents.id,state);secureWindow(win);
+  const state={win,config,stored:!!params.id,title:config.title,dirty:!params.id,ready:false,saving:false,saveError:'',edits:0,savedEdits:0,lastBytes:config.legacy?null:config.base64||null,lastEdit:Date.now()};editors.set(win.webContents.id,state);secureWindow(win);
   // Embedded browser editors have their own exit guards. The native save/discard
   // decision must be authoritative, but only after a close has been approved.
   win.webContents.on('will-prevent-unload',event=>{if(state.closeAllowed)event.preventDefault();});
@@ -107,7 +108,15 @@ ipcMain.on('editor:event',(e,event,message)=>{
 ipcMain.handle('editor:saved',async(e,base64)=>{
   const s=editorOnly(e);if(!s.saving)throw new Error('No save is pending');
   try {
-    bytes(base64);const saved=await backend.call('save',{session:s.config.session,base64,title:s.title});s.config.id=saved.id;s.config.conflict=saved.conflict;s.lastBytes=base64;s.dirty=s.edits!==s.savedEdits;s.saving=false;clearTimeout(s.saveTimer);s.saveTimer=null;
+    bytes(base64);
+    // Saving replaces a document's file, so before the first PhotoCraft save of a stored
+    // miniPaint project, file the untouched original as its own document.
+    if(s.config.legacy&&s.stored&&s.config.base64&&!s.originalKept){
+      const kept=await backend.call('open',{kind:'image',title:s.title+' (original miniPaint image)',name:s.config.name,base64:s.config.base64});
+      try{await backend.call('save',{session:kept.session,base64:s.config.base64,title:kept.title});}finally{backend.call('release',{session:kept.session}).catch(()=>{});}
+      s.originalKept=true;
+    }
+    const saved=await backend.call('save',{session:s.config.session,base64,title:s.title});s.config.id=saved.id;s.config.conflict=saved.conflict;s.lastBytes=base64;s.dirty=s.edits!==s.savedEdits;s.saving=false;clearTimeout(s.saveTimer);s.saveTimer=null;
     update(s,saved.conflict?'Concurrent versions kept for review':s.dirty?'Saved · newer edits waiting':'Saved on this Mac');notify();
     if(s.exportAfterSave){s.exportAfterSave=false;await exportFile(s,bytes(base64));}
     if(s.shareAfterSave){s.shareAfterSave=false;shareEditor(s);}
@@ -133,6 +142,7 @@ ipcMain.handle('editor:action',async(e,action,value)=>{
   else if(s.config.photocraft&&action==='new')await openEditor({kind:'image',title:'Untitled image'});
   else if(s.config.photocraft&&action==='open'){const p=await dialog.showOpenDialog(s.win,{properties:['openFile']});if(!p.canceled)await importFile(p.filePaths[0]);}
   else if(s.config.photocraft&&action==='close')s.win.close();
+  else if(s.config.legacy&&action==='converted'&&typeof value==='string')update(s,('Converted from the older image editor · Save keeps it as a PhotoCraft image and files the original as a separate document. '+value).trim().slice(0,1000));
   else if(s.config.photocraft&&action==='exportNotes'&&typeof value==='string')update(s,'Export notes: '+value.slice(0,1000));
   else if(action==='share'){if(s.dirty||!s.lastBytes){s.shareAfterSave=true;requestSave(s);}else shareEditor(s);}
   else if(action==='copy'){if(!s.ready||s.saving||s.exporting||s.copying)return;s.copying=true;try{const result=await backend.call('copy',{session:s.config.session});s.config.id=result.id;s.config.readonly=false;s.config.conflict=false;s.dirty=true;await s.win.webContents.executeJavaScript('window.minimaDocsWritable()');requestSave(s);}finally{s.copying=false;}}
