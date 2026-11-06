@@ -45,6 +45,9 @@ final class EditorPane extends Dialog {
     private ValueCallback<Uri[]> picked;
     private String seedTitle,seedText;
     private boolean shareAfterSave;
+    /** Untouched miniPaint project, filed as its own document on the first save (a save replaces the file). */
+    private volatile byte[] legacyOriginal;
+    private static final String LEGACY=".minimadocs-image.json";
     void seed(String name,String text){seedTitle=name;seedText=text==null?"":text;}
 
     EditorPane(MainActivity app,String kind,NoteStore.Held source) {
@@ -95,7 +98,9 @@ final class EditorPane extends Dialog {
         root.requestApplyInsets();
         storage.submit(()->{
             if(!PhoneLock.open(app))throw new IllegalStateException("Unlock your notebook first.");
-            JSONObject config=new JSONObject().put("kind",kind).put("photocraft",kind.equals("image")&&(source==null||!source.name.toLowerCase(Locale.ROOT).endsWith(".minimadocs-image.json")));
+            // Every image opens in PhotoCraft; older miniPaint projects are converted in workbench/legacy-image.js.
+            boolean legacy=kind.equals("image")&&source!=null&&source.name.toLowerCase(Locale.ROOT).endsWith(LEGACY);
+            JSONObject config=new JSONObject().put("kind",kind).put("photocraft",kind.equals("image")).put("legacy",legacy);
             if(seedText!=null)config.put("seedText",seedText);
             if(source!=null) {
                 NoteStore.Held kept=app.store.keptFile(source.id);
@@ -107,6 +112,7 @@ final class EditorPane extends Dialog {
                 config.put("readonly",readOnly);
                 byte[] bytes=app.store.bytesOf(kept);
                 if(bytes.length>Enclosure.MOST)throw new IllegalStateException("This editor opens files up to 16 MiB.");
+                if(legacy&&!dirty&&!readOnly)legacyOriginal=bytes;
                 config.put("name",kept.name).put("base64",Base64.encodeToString(bytes,Base64.NO_WRAP));
             }
             return config.toString();
@@ -115,7 +121,7 @@ final class EditorPane extends Dialog {
                 public void beforeTextChanged(CharSequence s,int start,int count,int after){}
                 public void onTextChanged(CharSequence s,int start,int before,int count){changed();}
                 public void afterTextChanged(android.text.Editable s){}
-            });web.loadUrl(EditorAssets.ORIGIN+"/workbench/"+(kind.equals("image")&&(source==null||!source.name.toLowerCase(Locale.ROOT).endsWith(".minimadocs-image.json"))?"photocraft-mobile.html":"index.html"));},e->failed(e.getMessage()));
+            });web.loadUrl(EditorAssets.ORIGIN+"/workbench/"+(kind.equals("image")?"photocraft-mobile.html":"index.html"));},e->failed(e.getMessage()));
     }
 
     @android.annotation.SuppressLint({"SetJavaScriptEnabled","JavascriptInterface"})
@@ -158,7 +164,7 @@ final class EditorPane extends Dialog {
             saving=true;exporting=true;save.setEnabled(false);status.setText("Preparing export…");
             timer.postDelayed(saveTimeout,180_000);web.evaluateJavascript("minimaDocsExport("+JSONObject.quote(kind.equals("image")?"PNG":"PDF")+")",null);return true;
         });
-        menu.getMenu().add("Save a separate copy").setOnMenuItemClickListener(item->{noteId=java.util.UUID.randomUUID().toString();viewed=RichDocument.empty(kind);conflictReview=false;source=null;readOnly=false;title.setEnabled(true);web.evaluateJavascript("minimaDocsWritable()",null);dirty=true;saveCopy();return true;});
+        menu.getMenu().add("Save a separate copy").setOnMenuItemClickListener(item->{legacyOriginal=null;noteId=java.util.UUID.randomUUID().toString();viewed=RichDocument.empty(kind);conflictReview=false;source=null;readOnly=false;title.setEnabled(true);web.evaluateJavascript("minimaDocsWritable()",null);dirty=true;saveCopy();return true;});
         menu.getMenu().add("Share document").setOnMenuItemClickListener(item->{if(source==null||dirty)app.toast("Save the document before sharing.");else app.shareDocument(noteId,title.getText().toString());return true;});
         menu.getMenu().add("Close without saving").setOnMenuItemClickListener(item->{new AlertDialog.Builder(app).setTitle("Discard unsaved edits?").setMessage("The last saved version will remain.").setNegativeButton("Keep editing",null).setPositiveButton("Discard",(d,w)->{if(!saving)dismiss();}).show();return true;});
         menu.show();
@@ -230,8 +236,17 @@ final class EditorPane extends Dialog {
                 final String named=title.getText().toString().trim();
                 status.setText("Saving on this phone…");
                 final String savingNote=noteId;final RichDocument savingView=viewed;
-                storage.submit(()->DocumentStore.save(app,app.store,savingNote,named,savingView,Base64.decode(base64,Base64.DEFAULT)),result->{
-                    source=result.file;viewed=result.viewed;app.documentSaved(savingNote);
+                final String[] keptId={null};
+                storage.submit(()->{
+                    byte[] original=legacyOriginal;
+                    if(original!=null){
+                        keptId[0]=java.util.UUID.randomUUID().toString();
+                        DocumentStore.save(app,app.store,keptId[0],(named.isEmpty()?"Untitled":named)+" (original miniPaint image)",RichDocument.empty("image"),original);
+                        legacyOriginal=null;
+                    }
+                    return DocumentStore.save(app,app.store,savingNote,named,savingView,Base64.decode(base64,Base64.DEFAULT));
+                },result->{
+                    source=result.file;viewed=result.viewed;app.documentSaved(savingNote);if(keptId[0]!=null)app.documentSaved(keptId[0]);
                     if(closed)return;
                     timer.removeCallbacks(saveTimeout);if(web!=null)web.evaluateJavascript("window.minimaDocsSaved&&minimaDocsSaved(true)",null);saving=false;dirty=changedDuringSave;lastSaved=android.os.SystemClock.elapsedRealtime();
                     interval=Math.min(180_000,Math.max(30_000,(lastSaved-saveStarted)*300));save.setEnabled(ready&&!readOnly);

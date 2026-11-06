@@ -53,7 +53,7 @@ async function openEditor(params){
 async function createEditor(params){
   if(params.id){const already=[...editors.values()].find(s=>s.config.id===params.id);if(already){already.win.show();already.win.focus();return {id:params.id};}}
   const config=await backend.call('open',params);
-  // Every image opens in PhotoCraft; older miniPaint projects are converted in the editor (renderer/legacy-image.js).
+  // Every image opens in PhotoCraft; older miniPaint projects are converted in the editor (android/app/src/main/assets/workbench/legacy-image.js).
   config.photocraft=config.kind==='image';config.legacy=config.photocraft&&!!config.name?.toLowerCase().endsWith('.minimadocs-image.json');
   const win=new BrowserWindow({width:1320,height:920,minWidth:820,minHeight:600,title:config.title+' — minimaDocs',backgroundColor:'#F2F1EC',titleBarStyle:'hiddenInset',trafficLightPosition:{x:18,y:24},webPreferences:{preload:path.join(__dirname,'editor-preload.cjs'),contextIsolation:true,nodeIntegration:false,sandbox:true,spellcheck:false}});
   const state={win,config,stored:!!params.id,title:config.title,dirty:!params.id,ready:false,saving:false,saveError:'',edits:0,savedEdits:0,lastBytes:config.legacy?null:config.base64||null,lastEdit:Date.now()};editors.set(win.webContents.id,state);secureWindow(win);

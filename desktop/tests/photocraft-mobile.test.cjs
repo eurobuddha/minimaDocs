@@ -32,3 +32,25 @@ test('touch workspace uses real PhotoCraft, saves editable layers, and recovers 
   assert.deepEqual(errors,[]);console.log('Verified mobile Looks, adjustment cancel, one-step undo, painted mask, crop, PCraft reopen, PNG export, autosave defer and native failure recovery.');
  }catch(e){if(app)for(const w of app.windows()){if(w.url().includes('photocraft-mobile')){console.log('Mobile UI:',await w.locator('body').innerText().catch(()=>''));await w.screenshot({path:path.join(root,'build/photocraft-mobile-failure.png')}).catch(()=>{});}}throw e;}finally{if(app){await app.evaluate(({BrowserWindow})=>BrowserWindow.getAllWindows().forEach(w=>w.destroy())).catch(()=>{});await app.close();}}
 });
+test('touch workspace opens an older miniPaint project in PhotoCraft without marking it changed',{timeout:300000},async()=>{
+ const dir=await fs.mkdtemp(path.join(root,'build/mobile-legacy-'));let app;
+ try{
+  app=await _electron.launch({executablePath:require('electron'),args:[root],env:{...process.env,MINIMADOCS_TEST_DIR:dir},timeout:60000});
+  await app.firstWindow();
+  const opening=app.waitForEvent('window');await app.evaluate(({BrowserWindow})=>{globalThis.mobileTestWindow=new BrowserWindow({width:430,height:850,show:true,webPreferences:{nodeIntegration:false,contextIsolation:true,backgroundThrottling:false}});globalThis.mobileTestWindow.loadURL("about:blank");});
+  const page=await opening,errors=[];page.on('pageerror',e=>errors.push(e.message));
+  const base64=(await fs.readFile(path.join(__dirname,'fixtures/android-image-studio.minimadocs-image.json'))).toString('base64');
+  await page.addInitScript(config=>{window.mobileHost={config,saved:[],errors:[],changed:0,ready:false};window.MinimaDocs={bootstrap:()=>JSON.stringify(mobileHost.config),used(){},changed(){mobileHost.changed++;},saveDeferred(){},ready(){mobileHost.ready=true;},error(e){mobileHost.errors.push(e);},saved(data){mobileHost.saved.push(data);minimaDocsSaved(true);},exported(){}};},{kind:'image',photocraft:true,legacy:true,name:'Phone image.minimadocs-image.json',base64});
+  await page.goto('https://editors.minimadocs.local/workbench/photocraft-mobile.html');await page.waitForFunction(()=>mobileHost.ready||mobileHost.errors.length,null,{timeout:180000});
+  assert.deepEqual(await page.evaluate(()=>mobileHost.errors),[]);
+  assert.equal(page.frames().some(f=>f.url().includes('/image/index.html')),false,'The hidden converter frame must be removed');
+  const doc=await page.evaluate(async()=>(await document.getElementById('editor').contentWindow.photoCraft.request('inspect')).value);
+  assert.deepEqual([doc.width,doc.height],[320,240]);
+  assert.deepEqual(doc.layers.map(l=>[l.name,l.visible]),[['Data URL · adjusted',true],['Brush #3',true],['Data URL',false]]);
+  assert.equal(doc.layers[0].blend,'Multiply');assert.ok(Math.abs(doc.layers[0].opacity-0.85)<0.01);
+  assert.match(await page.locator('#message').textContent(),/Converted from the older image editor/);
+  await page.waitForTimeout(500);assert.equal(await page.evaluate(()=>mobileHost.changed),0,'Opening must not mark the project changed (autosave would convert it)');
+  await page.evaluate(()=>minimaDocsSave());const saved=await page.evaluate(()=>mobileHost.saved.at(-1));assert.equal(Buffer.from(saved,'base64').subarray(0,4).toString('hex'),'504b0304');
+  assert.deepEqual(errors,[]);console.log('Verified phone legacy project → PhotoCraft layers, blend, opacity, unchanged on open, PCraft save.');
+ }finally{if(app){await app.evaluate(({BrowserWindow})=>BrowserWindow.getAllWindows().forEach(w=>w.destroy())).catch(()=>{});await app.close();}}
+});

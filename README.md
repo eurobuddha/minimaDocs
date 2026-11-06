@@ -32,7 +32,10 @@ brush masks, an editable layer stack, undo/redo, pinch zoom and before compariso
 Apply keeps a tool's changes; Cancel restores them. Autosave waits while a tool
 preview is open. Save applies it and confirms only after native storage succeeds.
 Native `.pcraft` projects open on desktop with their layers and masks intact.
-Existing `.minimadocs-image.json` files retain the previous miniPaint/Filtr editor.
+Since 0.3.6, older `.minimadocs-image.json` projects open in PhotoCraft too: each layer is
+rendered by miniPaint's own renderer and kept as a PhotoCraft layer (name, visibility,
+opacity, blend; enabled masks applied). Opening changes nothing; the first save keeps
+the untouched original as a separate “… (original miniPaint image)” document.
 This first touch workspace does not expose every desktop tool: healing, text,
 advanced selections and new layer creation remain desktop operations.
 
@@ -50,13 +53,13 @@ The interface and new documents use Manrope; imported documents retain their fon
 
 **Docs**, **Sheets**, and **Images** each have a library, New and Import actions.
 Docs and Sheets use the bundled offline ONLYOFFICE engine from `ranuts/document`.
-Images use PhotoCraft; legacy JSON image projects retain miniPaint/Filtr.
+Images use PhotoCraft, including older miniPaint/Filtr projects (converted on open).
 The native interface uses Atelier/Salon's Katalog design.
 
 - Open a document directly from Files. Save updates that same document.
 - DOCX and XLSX import/export preserve the editable Office file. PDF and flattened
-  PNG exports use Android's Save As picker. New layered images use `.pcraft`;
-  legacy projects retain `.minimadocs-image.json`.
+  PNG exports use Android's Save As picker. Layered images save as `.pcraft`;
+  an older `.minimadocs-image.json` original is kept as its own document.
   Home's Send to another app action shares the selected document file.
 - Autosave keeps complete snapshots on this phone. Its interval adapts to export
   cost (30–180 seconds, initially 60 seconds), and leaving the app requests a save.

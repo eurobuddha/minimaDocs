@@ -6,7 +6,7 @@ Why
 
 Change
 - main.cjs: config.photocraft is true for every image; config.legacy marks old projects.
-- renderer/legacy-image.js renders each miniPaint layer with miniPaint's own renderer
+- android/app/src/main/assets/workbench/legacy-image.js renders each miniPaint layer with miniPaint's own renderer
   in a hidden frame (text, brushes, shapes, filters), applies enabled Image Studio
   masks, and builds a stored-ZIP OpenRaster: name, visibility, opacity, blend mode.
   Disabled masks and blends without an OpenRaster equivalent are reported in status.

@@ -1,3 +1,27 @@
+minimaDocs Android 0.3.6 / code 306 — older images open in PhotoCraft
+
+- Every image now opens in PhotoCraft, matching Mac 0.1.4. Older .minimadocs-image.json
+  projects are converted on open by workbench/legacy-image.js (now shared by Mac and
+  Android): each miniPaint layer is rendered by miniPaint's own renderer in a hidden
+  frame and becomes an OpenRaster layer (name, visibility, opacity, blend; enabled
+  masks applied, disabled masks dropped with a note).
+- Opening never saves: a stored legacy image is not marked changed, so autosave does
+  not convert it. The first save of a stored legacy image files the untouched original
+  as its own "<title> (original miniPaint image)" document (a save replaces the file;
+  there is no version history), then saves the converted image as .pcraft.
+- Tests: Electron phone-host test with the real Android fixture (layers, Multiply
+  blend, 0.85 opacity, not marked changed, PCraft save) and Mac legacy tests: 4 passed.
+  Android JVM tests and release lint passed. Emulator (Android 16, read-only session):
+  image-studio passed, including a stored legacy project opened by the real native
+  host in PhotoCraft, saved as .pcraft, original kept byte-exact and filed once;
+  photocraft mode passed. photo-import's 4032 x 3024 case and the editors mode did not
+  finish on the overloaded emulator (load average ~35-40, system ANRs); those paths
+  are unchanged in this release. Not installed on a physical phone.
+- APK: minimaDocs-0.3.6.apk
+- SHA-256: 432100e4b97991586843f1a6cf2502fcd0594a58d5df8a74045d60996b46a07a
+- Release certificate matches 0.3.5:
+  eca1383c9d27683a281fbe6355356267877dc2dd14d963d7cc289ca0700e517f
+
 minimaDocs Android 0.3.5 / code 305 — imported-photo display fix
 
 - Reproduced on the connected Samsung SM-F971B running signed 0.3.4 by importing
@@ -52,8 +76,9 @@ Implementation
 - Save applies an open tool. Autosave defers until Apply/Cancel. Android acknowledges
   only after DocumentStore commits; failed snapshots and writes retain the previous file.
 - Native Files/Back stays available if the renderer crashes or saving stalls.
-- New and imported images use PhotoCraft; legacy .minimadocs-image.json files
-  keep the previous miniPaint/Filtr editor. There is no automatic flattening.
+- Every image uses PhotoCraft. Since 0.3.6, legacy .minimadocs-image.json files are
+  converted on open (workbench/legacy-image.js, shared with Mac) and the original is
+  filed as its own document on the first save.
 - Imports: PNG/JPEG/WebP, PSD/PSB, OpenRaster and PCraft. Editable saves use PCraft;
   flattened PNG and native-project copies use Android's existing file picker.
 - Sharing, encrypted storage when notebook locking is enabled, readonly enforcement,

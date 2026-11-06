@@ -39,7 +39,7 @@
    let name=config.name||'Untitled.pcraft',data=config.base64?decode(config.base64):new Uint8Array(),notes=[];
    if(config.legacy&&config.base64){
     // Older miniPaint projects open in PhotoCraft; the first save adds a .pcraft version.
-    await new Promise((resolve,reject)=>{const s=document.createElement('script');s.src='/desktop/legacy-image.js';s.onload=resolve;s.onerror=()=>reject(Error('The image converter could not load.'));document.head.append(s);});
+    await new Promise((resolve,reject)=>{const s=document.createElement('script');s.src='/workbench/legacy-image.js';s.onload=resolve;s.onerror=()=>reject(Error('The image converter could not load.'));document.head.append(s);});
     ({bytes:data,notes}=await legacyImageToOra(new TextDecoder().decode(data)));name=name.replace(/\.minimadocs-image\.json$/i,'')+'.ora';
    }
    await editor.request('open',{name},data);

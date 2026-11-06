@@ -39,7 +39,7 @@ public final class DocumentInstrumentation extends Instrumentation {
             if(mode.equals("workspace")){workspace();result.putString("stream","PASS: document workspace, Word controls, Manrope DOCX save and native screenshots\n");finish(-1,result);return;}
             if(mode.equals("photo-import")){photoImports();result.putString("stream","PASS: native PNG/JPEG/WebP photo imports contain visible pixels at phone-photo sizes\n");finish(-1,result);return;}
             if(mode.equals("photocraft")){mobilePhoto();result.putString("stream","PASS: PhotoCraft touch adjustments, Look undo, cancel, mask stroke, crop, PCraft reopen and PNG export\n");finish(-1,result);return;}
-            if(mode.equals("image-studio")){imageStudio();result.putString("stream","PASS: Android Image Studio touch masks, brush, layers, retouch undo, 15 effects, 14 presets, layered reopen and PNG export\n");finish(-1,result);return;}
+            if(mode.equals("image-studio")){imageStudio();result.putString("stream","PASS: Android Image Studio touch masks, brush, layers, retouch undo, 15 effects, 14 presets, layered reopen, PNG export, and stored legacy project opened in PhotoCraft with the original kept on save\n");finish(-1,result);return;}
             if(mode.equals("editors")){editors();result.putString("stream","PASS: packaged Android DOCX/XLSX imports, round trips, PDF and layered PNG export\n");finish(-1,result);return;}
             if(mode.startsWith("parlons")){parlons();result.putString("stream","PASS: real Parlons registration and contacts IPC\n");finish(-1,result);return;}
             NoteStore.unlock(null);
@@ -329,10 +329,17 @@ public final class DocumentInstrumentation extends Instrumentation {
         try{
             DocumentStore.Saved legacy=DocumentStore.save(app,app.store,UUID.randomUUID().toString(),"Legacy image fixture",RichDocument.empty("image"),project);
             runOnMainSync(()->app.editDocument("image",legacy.file));EditorPane pane=(EditorPane)field(app,"editor");android.webkit.WebView web=(android.webkit.WebView)field(pane,"web");
-            long until=System.currentTimeMillis()+120000;while(System.currentTimeMillis()<until){if("true".equals(javascript(web,"!!document.getElementById('editor')?.contentWindow.document.querySelector('.studio-catbar')")))break;Thread.sleep(100);}
-            imageCheck(web,"ImageStudio.ready.then(()=>{document.querySelector('.studio-catbar button[aria-controls=studio-slot-layers]').click();return true;})");painted(web);screen("image-studio-native-screen.png");
-            check(textView(pane.getWindow().getDecorView(),"Save")!=null,"Native Save unavailable");
-            imageCheck(web,"(()=>{const c=document.querySelector('#canvas_minipaint').getBoundingClientRect(),bar=document.querySelector('.studio-catbar').getBoundingClientRect();if(c.height<30||bar.bottom>innerHeight+1)throw Error('Native host clips phone workspace');return true;})()");runOnMainSync(pane::dismiss);
+            // Since 0.3.6 a stored miniPaint project opens in PhotoCraft; the first save files the untouched original.
+            long until=System.currentTimeMillis()+180000;while(System.currentTimeMillis()<until){if(Boolean.TRUE.equals(field(pane,"ready")))break;Thread.sleep(100);}
+            check(Boolean.TRUE.equals(field(pane,"ready")),"Legacy image did not open in PhotoCraft: "+javascript(web,"document.body.innerText"));check("true".equals(javascript(web,"!!document.getElementById('editor')?.contentWindow.photoCraft&&document.getElementById('message').textContent.includes('Converted from the older image editor')")),"Legacy image not converted in PhotoCraft");
+            check(Integer.parseInt(imageCheck(web,"photoCraft.request('inspect').then(r=>r.value.layers.length)"))==expected.getJSONArray("layers").length(),"Converted layer count differs");
+            check(!Boolean.TRUE.equals(field(pane,"dirty")),"Opening a legacy image must not mark it changed");painted(web);screen("image-legacy-photocraft-screen.png");
+            java.lang.reflect.Method save=EditorPane.class.getDeclaredMethod("saveCopy");save.setAccessible(true);runOnMainSync(()->{try{save.invoke(pane);}catch(Exception e){throw new RuntimeException(e);}});
+            until=System.currentTimeMillis()+120000;while(System.currentTimeMillis()<until&&(Boolean.TRUE.equals(field(pane,"saving"))||field(pane,"legacyOriginal")!=null))Thread.sleep(100);
+            check(!Boolean.TRUE.equals(field(pane,"saving"))&&field(pane,"legacyOriginal")==null,"Legacy save timed out");
+            NoteStore.Held converted=(NoteStore.Held)field(pane,"source");check(converted.name.endsWith(".pcraft"),"Converted image not saved as PCraft: "+converted.name);
+            byte[] kept=null;for(NoteStore.Branch b:app.store.lately(500)){NoteStore.Note n=app.store.get(b.id);RichDocument d=n==null?null:RichDocument.read(n.body);if(d!=null&&n.title.equals("Legacy image fixture (original miniPaint image)")){check(kept==null,"Original filed twice");kept=app.store.bytesOf(app.store.file(d.heads.values().iterator().next()));}}
+            check(java.util.Arrays.equals(kept,project),"Original miniPaint project not kept byte-exact");runOnMainSync(pane::dismiss);
         }finally{runOnMainSync(app::finish);waitForIdleSync();}
     }
     private void editors()throws Exception {

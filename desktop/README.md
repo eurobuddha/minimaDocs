@@ -178,7 +178,7 @@ save/discard decision to override the embedded browser editor's unload guard.
 New images use the bundled [PhotoCraft 0.8.2](https://github.com/storytold/photocraft/releases/tag/v0.8.2)
 Rust/WASM editor. Save keeps an encrypted native `.pcraft` project; Export offers
 PhotoCraft, PNG, PSD and OpenRaster. Since Mac 0.1.4, older `.minimadocs-image.json`
-projects open in PhotoCraft too: `renderer/legacy-image.js` renders each miniPaint layer
+projects open in PhotoCraft too: `android/app/src/main/assets/workbench/legacy-image.js` (shared with Android) renders each miniPaint layer
 with miniPaint's own renderer in a hidden frame (text, brushes, shapes and filters
 included), applies enabled Image Studio masks, and hands PhotoCraft a layered
 OpenRaster with each layer's name, visibility, opacity and blend mode. The first save
